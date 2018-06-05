@@ -1,0 +1,4 @@
+           version     tag/branch     commit hash                                  commit date       notes
+Halide     (none)      [master]       cc65b9961cb4f5f9ad76c04b0082698557af6681     Jun. 05, 2018
+LLVM       6.0.0       release_60     2c9cf4f65f36fe91710c4b1bfd2f8d9533ac01b5     May  30, 2018
+clang      6.0.0       release_60     2f27999df400d17b33cdd412fdd606a88208dfcc     May  30, 2018
