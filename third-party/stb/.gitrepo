@@ -1,0 +1,11 @@
+; DO NOT EDIT (unless you know what you are doing)
+;
+; This subdirectory is a git "subrepo", and this file is maintained by the
+; git-subrepo command. See https://github.com/git-commands/git-subrepo#readme
+;
+[subrepo]
+	remote = https://github.com/nothings/stb.git
+	branch = master
+	commit = e6afb9cbae4064da8c3e69af3ff5c4629579c1d2
+	parent = b5f29f9c7b7bb79e6e559bd8d3c6044ae59f178b
+	cmdver = 0.3.1
