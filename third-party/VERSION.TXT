@@ -1,4 +1,7 @@
            version     tag/branch     commit hash                                  commit date       notes
-Halide     (none)      [master]       cc65b9961cb4f5f9ad76c04b0082698557af6681     Jun. 05, 2018
+Halide     (none)      [master]       cc65b9961cb4f5f9ad76c04b0082698557af6681     June 05, 2018
 LLVM       6.0.0       release_60     2c9cf4f65f36fe91710c4b1bfd2f8d9533ac01b5     May  30, 2018
 clang      6.0.0       release_60     2f27999df400d17b33cdd412fdd606a88208dfcc     May  30, 2018
+stb        (none)      [master]       e6afb9cbae4064da8c3e69af3ff5c4629579c1d2     Feb. 11, 2018
+glfw       3.2.1+      [master]       0be4f3f75aebd9d24583ee86590a38e741db0904     May  29, 2018
+imgui      1.62+       [master]       59fb3274a796220081746c5f04b709a060fa89aa     June 11, 2018
