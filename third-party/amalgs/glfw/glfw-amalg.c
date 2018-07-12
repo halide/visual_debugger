@@ -13,46 +13,49 @@
     #define _GLFW_COCOA
     #error for MacOS builds, use 'glfw-amalg.m' instead.
 #else
-    #define _GLFX_UNIX
+    #define _GLFW_UNIX
     #define _GLFW_X11
-    #define _GLFW_WAYLAND
-    #define _GLFW_MIR
-    #define _GLFW_OSMESA
+    //#define _GLFW_WAYLAND
+    //#define _GLFW_MIR
+    //#define _GLFW_OSMESA
 #endif
 
-#ifdef _GLFX_UNIX
-    #include "../../GLFW/src/glx_context.c"
-    #include "../../GLFW/src/linux_joystick.c"
-    #include "../../GLFW/src/posix_thread.c"
-    #include "../../GLFW/src/posix_time.c"
-    #include "../../GLFW/src/xkb_unicode.c"
+#ifdef _GLFW_UNIX
+    #include "../../glfw/src/glx_context.c"
+    #include "../../glfw/src/linux_joystick.c"
+    #include "../../glfw/src/posix_thread.c"
+    #include "../../glfw/src/posix_time.c"
+    #include "../../glfw/src/xkb_unicode.c"
 
     #ifdef _GLFW_X11
-        #include "../../GLFW/src/x11_init.c"
-        #include "../../GLFW/src/x11_monitor.c"
-        #include "../../GLFW/src/x11_window.c"
+        #include "../../glfw/src/x11_init.c"
+        #include "../../glfw/src/x11_monitor.c"
+        #include "../../glfw/src/x11_window.c"
     #endif//_GLFW_X11
 
     #ifdef _GLFW_WAYLAND
-        #include "../../GLFW/src/wl_init.c"
-        #include "../../GLFW/src/wl_monitor.c"
-        #include "../../GLFW/src/wl_window.c"
+        // NOTE(marcos): Wayland untested
+        #include "../../glfw/src/wl_init.c"
+        #include "../../glfw/src/wl_monitor.c"
+        #include "../../glfw/src/wl_window.c"
     #endif//_GLFW_WAYLAND
 
     #ifdef _GLFW_MIR
-        #include "../../GLFW/src/mir_init.c"
-        #include "../../GLFW/src/mir_monitor.c"
-        #include "../../GLFW/src/mir_window.c"
+        // NOTE(marcos): Mir untested
+        #include "../../glfw/src/mir_init.c"
+        #include "../../glfw/src/mir_monitor.c"
+        #include "../../glfw/src/mir_window.c"
     #endif//_GLFW_MIR
 
     #ifdef _GLFW_OSMESA
-        #include "../../GLFW/src/null_init.c"
-        #include "../../GLFW/src/null_joystick.c"
-        #include "../../GLFW/src/null_monitor.c"
-        #include "../../GLFW/src/null_window.c"
+        // NOTE(marcos): OSMESA untested
+        #include "../../glfw/src/null_init.c"
+        #include "../../glfw/src/null_joystick.c"
+        #include "../../glfw/src/null_monitor.c"
+        #include "../../glfw/src/null_window.c"
     #endif//_GLFW_OSMESA
 
-#endif//_GLFX_UNIX
+#endif//_GLFW_UNIX
 
 // Windows:
 #ifdef _GLFW_WIN32
