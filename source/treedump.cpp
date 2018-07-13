@@ -1,0 +1,1183 @@
+#ifdef  _MSC_VER
+    #ifndef _CRT_SECURE_NO_WARNINGS
+    #define _CRT_SECURE_NO_WARNINGS
+    #endif//_CRT_SECURE_NO_WARNINGS
+#endif//_MSC_VER
+
+#ifdef  _MSC_VER
+    #include <direct.h>
+    #define mkdir(path, dontcare) _mkdir(path)
+    #define S_IRWXU 0000700
+    #define S_IRWXG 0000070
+    #define S_IRWXO 0000007
+#else
+    #include <sys/stat.h>
+#endif//_MSC_VER
+
+
+
+// //// Utilities /////////////////////////////////////////////////////////////
+#ifndef XSTR
+#define XSTR(x) #x
+#endif//XSTR
+
+#ifndef STR
+#define STR(x) XSTR(x)
+#endif//XSTR
+
+// auxiliary function to manipulate strings directly in stack memory
+#define xsprintf(var, size, ...) char var [size]; sprintf(var, __VA_ARGS__)
+///////////////////////////////////////////////////////////// Utilities //// //
+
+
+
+// //// Halide ////////////////////////////////////////////////////////////////
+#include <Halide.h>
+using namespace Halide;
+//////////////////////////////////////////////////////////////// Halide //// //
+
+#include "HalideIdentity.h"
+#include "HalideGaussian.h"
+#include "HalideKawase.h"
+
+#include "utils.h"
+
+// //// stb image I/O /////////////////////////////////////////////////////////
+#define STB_IMAGE_STATIC
+#define STB_IMAGE_IMPLEMENTATION
+#include "../third-party/stb/stb_image.h"
+
+#define STB_IMAGE_WRITE_STATIC
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "../third-party/stb/stb_image_write.h"
+
+#define STB_IMAGE_RESIZE_STATIC
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
+#include "../third-party/stb/stb_image_resize.h"
+///////////////////////////////////////////////////////// stb image I/O //// //
+
+#include "HalideImageIO.h"
+
+
+
+template<typename T>
+Runtime::Buffer<T> Crop(Buffer<T>& image, int hBorder, int vBorder)
+{
+#if !CLAMP_TO_BORDER_EDGE
+    const int width  = image.width();
+    const int height = image.height();
+    auto image_cropped = *image.get();
+    image_cropped.crop(0, hBorder, width  - 2 * hBorder);
+    image_cropped.crop(1, vBorder, height - 2 * vBorder);
+#endif
+    return(image_cropped);
+}
+
+template<typename T>
+Buffer<T>& Uncrop(Buffer<T>& image)
+{
+    assert(false && "Halide buffer uncropping is dangerous and should not be used!");
+    return(image);
+
+    // deprecated/legacy code to follow:
+    const int width   = image.width();
+    const int height  = image.height();
+    const int hBorder = image.dim(0).min();
+    const int vBorder = image.dim(1).min();
+    image.crop(0, 0, width  + 2 * hBorder);
+    image.crop(1, 0, height + 2 * vBorder);
+    return(image);
+}
+
+
+
+Type type__of(Func f)
+{
+    // assuming 'f' is not a tuple and only resolves to a single value:
+    Expr expr = f.value();
+    Type type = expr.type();
+    return(type);
+}
+
+Type promote(Type type)
+{
+    if (type.is_float())
+    {
+        return(type);
+    }
+
+    auto more_bits = type.bits() * 2;
+    auto promoted = Int(more_bits);
+    return(promoted);
+}
+
+Func promote(Func f)
+{
+    auto ftype = type__of(f);
+    auto gtype = promote(ftype);
+    Func g { f.name() };
+    auto domain = f.args();
+    g(domain) = cast(gtype, f(domain));
+    return(g);
+}
+
+Func as_weights(Func f)
+{
+    auto ftype = type__of(f);
+    if (ftype.is_float())
+        return(f);
+
+    auto domain = f.args();
+    Expr w = cast(Float(32), f(domain));
+    w /= cast(Float(32), ftype.max());
+    Func g { "w_" + f.name() };
+    g(domain) = w;
+    return(g);
+}
+
+Var x { "x" };
+Var y { "y" };
+Var c { "c" };
+
+Func Sobel(Func input)
+{
+    Var x, y, c;
+
+    Type base_type = type__of(input);
+    Type high_type = promote(base_type);
+
+    Func I { "input" };
+    I(x, y, c) = cast(high_type, input(x, y, c));
+
+    /*
+        *     -1    0   +1         1    0   +1
+        *   +--------------+    +--------------+
+        * -1| -1 |  0 |  1 |  -1| -1 | -2 | -1 |
+        *   +--------------+    +--------------+
+        *  0| -2 |  0 |  2 |   0|  0 |  0 |  0 |
+        *   +--------------+    +--------------+
+        * +1| -1 |  0 |  1 |  +1|  1 |  2 |  1 |
+        *   +--------------+    +--------------+
+        *        sobel_x             sobel_y
+        */
+    Func sobel_x ("sobel_x");
+    sobel_x(x, y, c) = I(x+1, y-1, c)
+                     - I(x-1, y-1, c)
+                     + 2 * (I(x+1, y, c) - I(x-1, y, c))
+                     + I(x+1, y+1, c)
+                     - I(x-1, y+1, c);
+
+    Func sobel_y ("sobel_y");
+    sobel_y(x, y, c) = I(x-1, y+1, c)
+                     - I(x-1, y-1, c)
+                     + 2 * (I(x, y+1, c) - I(x, y-1, c))
+                     + I(x+1, y+1, c)
+                     - I(x+1, y-1, c);
+
+    Expr sobel_xy = sobel_x(x, y, c) * sobel_x(x, y, c)
+                  + sobel_y(x, y, c) * sobel_y(x, y, c);
+
+    sobel_xy = sqrt(sobel_xy);
+    sobel_xy = cast(high_type, sobel_xy);
+    sobel_xy = clamp(sobel_xy, 0, base_type.max());
+
+    Func output { "Sobel" };
+    output(x, y, c) = cast(base_type, sobel_xy);;
+    return output;
+}
+
+Func Blur(Func input)
+{
+    Var x, y, c;
+
+    Type base_type = type__of(input);
+    Type high_type = promote(base_type);
+
+    Func I { "input" };
+    I(x, y, c) = cast(high_type, input(x, y, c));
+
+    /*
+     * +--------------+
+     * |  0 |  1 |  0 |
+     * +--------------+
+     * |  1 |  4 |  1 |
+     * +--------------+
+     * |  0 |  1 |  0 |
+     * +--------------+
+     */
+    Expr blur = I(x, y - 1, c)
+              + I(x - 1, y, c)
+              + 4 * I(x, y, c)
+              + I(x + 1, y, c)
+              + I(x, y + 1, c);
+    blur /= 8;
+
+    Func output { "Blur" };
+    output(x, y, c) = cast(base_type, blur);
+    return(output);
+}
+
+using namespace Halide::Internal;
+
+
+struct IRDump : public Halide::Internal::IRVisitor
+{
+    //vars and method to help create expr_node tree
+    std::vector<expr_node *> parents; //keep track of depth/parents
+    expr_node * root = new expr_node();
+    void add_expr_node(expr_node * temp)
+    {
+        if(root->name.empty() && root->children.empty())
+        {
+            root = temp;
+            parents.push_back(root);
+        }
+        else
+        {
+            parents.back()->children.push_back(temp);
+            parents.push_back(temp);
+        }
+    }
+    
+    std::string indent;
+    void add_indent()
+    {
+        indent.push_back(' ');
+        indent.push_back(' ');
+    }
+    void remove_indent()
+    {
+        indent.pop_back();
+        indent.pop_back();
+    }
+
+    int id = 0;
+
+    #define EMIT(format, ...)           \
+    {                                   \
+        ++id;                           \
+        printf("[%5d]%s" format "\n",   \
+               id, indent.c_str(),      \
+               ##__VA_ARGS__);          \
+    }                                   \
+
+    #define INDENTED(format, ...)       \
+    {                                   \
+        printf("       %s" format,      \
+               indent.c_str(),          \
+               ##__VA_ARGS__);          \
+    }                                   \
+
+    #define SELECT(op)  \
+    if (select(op))     \
+        return;         \
+
+    
+
+    std::vector<Expr> new_args;
+    
+    bool selecting = false;
+    Expr selected;
+    bool select(const BaseExprNode* op)
+    {
+        //if (id == 5)
+        if(id == 1315)
+        {
+            selecting = true;
+            selected = Expr(op);
+            INDENTED("====== vvvvvv [ SELECTED SUB-EXPRESSION ] vvvvvv ======\n");
+            selected.accept(this);
+            INDENTED("====== ^^^^^^ [ SELECTED SUB-EXPRESSION ] ^^^^^^ ======\n");
+            selecting = false;
+            return(true);
+        }
+        return(false);
+    }
+
+    bool select(const BaseStmtNode* op)
+    {
+        return(false);
+    }
+
+    std::string print_type(Type type)
+    {
+        std::stringstream ss;
+        switch (type.code())
+        {
+            case halide_type_uint :
+                ss << "u";
+            case halide_type_int :
+                ss << "int";
+                break;
+            case halide_type_float :
+                ss << "float";
+                break;
+            case halide_type_handle :
+                ss << "handle";
+                break;
+        }
+        ss << type.bits();
+        ss << "[";
+        ss << type.lanes();
+        ss << "]";
+        return(ss.str());
+    }
+
+    void visit(const Cast* op)
+    {
+        expr_node * cast_op = new expr_node();
+        cast_op->name = print_type(op->type).c_str();
+        add_expr_node(cast_op);
+        EMIT("Cast: %s", print_type(op->type).c_str());
+        SELECT(op);
+        add_indent();
+        op->value->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+
+    void visit(const Min* op)
+    {
+        expr_node * min_op = new expr_node();
+        min_op->name = "Min";
+        add_expr_node(min_op);
+        EMIT("Min");
+        SELECT(op);
+        add_indent();
+        op->a->accept(this);
+        op->b->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+
+    void visit(const Max* op)
+    {
+        expr_node * max_op = new expr_node();
+        max_op->name = "Max";
+        add_expr_node(max_op);
+        EMIT("Max");
+        SELECT(op);
+        add_indent();
+        op->a->accept(this);
+        op->b->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const EQ* op)
+    {
+        expr_node * eq_op = new expr_node();
+        eq_op->name = "EQ";
+        add_expr_node(eq_op);
+        EMIT("EQ");
+        SELECT(op);
+        add_indent();
+        op->a->accept(this);
+        op->b->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const NE* op)
+    {
+        expr_node * ne_op = new expr_node();
+        ne_op->name = "NE";
+        add_expr_node(ne_op);
+        EMIT("NE");
+        SELECT(op);
+        add_indent();
+        op->a->accept(this);
+        op->b->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const LT* op)
+    {
+        expr_node * lt_op = new expr_node();
+        lt_op->name = "LT";
+        add_expr_node(lt_op);
+        EMIT("LT");
+        SELECT(op);
+        add_indent();
+        op->a->accept(this);
+        op->b->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const LE* op)
+    {
+        expr_node * le_op = new expr_node();
+        le_op->name = "LE";
+        add_expr_node(le_op);
+        EMIT("LE");
+        SELECT(op);
+        add_indent();
+        op->a->accept(this);
+        op->b->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const GT* op)
+    {
+        expr_node * gt_op = new expr_node();
+        gt_op->name = "GT";
+        add_expr_node(gt_op);
+        EMIT("GT");
+        SELECT(op);
+        add_indent();
+        op->a->accept(this);
+        op->b->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const GE* op)
+    {
+        expr_node * ge_op = new expr_node();
+        ge_op->name = "GE";
+        add_expr_node(ge_op);
+        EMIT("GE");
+        SELECT(op);
+        add_indent();
+        op->a->accept(this);
+        op->b->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+
+    void visit(const And* op)
+    {
+        expr_node * and_op = new expr_node();
+        and_op->name = "And";
+        add_expr_node(and_op);
+        EMIT("And");
+        SELECT(op);
+        add_indent();
+        op->a->accept(this);
+        op->b->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const Or* op)
+    {
+        expr_node * or_op = new expr_node();
+        or_op->name = "Or";
+        add_expr_node(or_op);
+        EMIT("Or");
+        SELECT(op);
+        add_indent();
+        op->a->accept(this);
+        op->b->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const Not* op)
+    {
+        expr_node * not_op = new expr_node();
+        not_op->name = "Not";
+        add_expr_node(not_op);
+        EMIT("Not");
+        SELECT(op);
+        add_indent();
+        op->a->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+
+    std::string print_var_type(const Variable* op)
+    {
+        std::string category;
+
+        if (op->param.defined())
+        {
+            assert(category.empty());
+            category = "parameter";
+        }
+
+        if (op->image.defined())
+        {
+            assert(category.empty());
+            category = "image";
+        }
+
+        if (op->reduction_domain.defined())
+        {
+            assert(category.empty());
+            category = "rdom";
+        }
+
+        if (category.empty())
+        {
+            category = "let";
+        }
+
+        return(category);
+    }
+
+    void visit(const Variable* op)
+    {
+        EMIT("Variable: %s | %s", op->name.c_str(), print_var_type(op).c_str());
+        SELECT(op);
+        // terminal node!
+    }
+    
+    void visit(const FloatImm* op)
+    {
+        expr_node * floatimm_op = new expr_node();
+        floatimm_op->name = "FloatImm: " + std::to_string(op->value);
+        add_expr_node(floatimm_op);
+        parents.pop_back();
+        EMIT("FloatImm: %f", op->value);
+        SELECT(op);
+        // terminal node!
+    }
+    
+    void visit(const IntImm* op)
+    {
+        expr_node * intimm_op = new expr_node();
+        intimm_op->name = "IntImm: " + std::to_string(op->value);
+        add_expr_node(intimm_op);
+        EMIT("IntImm: %lli", op->value);
+        SELECT(op);
+        parents.pop_back();
+        // terminal node!
+    }
+    
+    void visit(const UIntImm* op)
+    {
+        expr_node * uintimm_op = new expr_node();
+        uintimm_op->name = "UIntImm: " + std::to_string(op->value);
+        add_expr_node(uintimm_op);
+        parents.pop_back();
+        EMIT("UIntImm: %llu", op->value);
+        SELECT(op);
+        // terminal node!
+    }
+
+    void visit(const StringImm* op)
+    {
+        expr_node * stringimm_op = new expr_node();
+        stringimm_op->name = "StringImm: " + op->value;
+        add_expr_node(stringimm_op);
+        parents.pop_back();
+        EMIT("StringImm: %s", op->value.c_str());
+        SELECT(op);
+        // terminal node!
+    }
+    
+    void visit(const Add* op)
+    {
+        expr_node * add_op = new expr_node();
+        add_op->name = "Add";
+        add_expr_node(add_op);
+        EMIT("Add");
+        SELECT(op);
+        add_indent();
+        op->a->accept(this);
+        op->b->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const Sub* op)
+    {
+        expr_node * sub_op = new expr_node();
+        sub_op->name = "Sub";
+        add_expr_node(sub_op);
+        EMIT("Sub");
+        SELECT(op);
+        add_indent();
+        op->a->accept(this);
+        op->b->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+
+    void visit(const Mul* op)
+    {
+        expr_node * mul_op = new expr_node();
+        mul_op->name = "Mul";
+        add_expr_node(mul_op);
+        EMIT("Mul");
+        SELECT(op);
+        add_indent();
+        op->a->accept(this);
+        op->b->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const Div* op)
+    {
+        expr_node * div_op = new expr_node();
+        div_op->name = "Div";
+        add_expr_node(div_op);
+        EMIT("Div");
+        SELECT(op);
+        add_indent();
+        op->a->accept(this);
+        op->b->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const Mod* op)
+    {
+        expr_node * mod_op = new expr_node();
+        mod_op->name = "Mod";
+        add_expr_node(mod_op);
+        EMIT("Mod");
+        SELECT(op);
+        add_indent();
+        op->a->accept(this);
+        op->b->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const Select* op)
+    {
+        expr_node * select_op = new expr_node();
+        select_op->name = "Select";
+        add_expr_node(select_op);
+        EMIT("Select");
+        SELECT(op);
+        add_indent();
+        op->condition->accept(this);
+        op->true_value->accept(this);
+        op->false_value->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const Load* op)
+    {
+        expr_node * load_op = new expr_node();
+        load_op->name = "Load: " + op->name;
+        add_expr_node(load_op);
+        EMIT("Load: %s", op->name.c_str());
+        SELECT(op);
+        add_indent();
+        op->index->accept(this);
+        op->predicate->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const Ramp* op)
+    {
+        expr_node * ramp_op = new expr_node();
+        ramp_op->name = "Ramp";
+        add_expr_node(ramp_op);
+        EMIT("Ramp");
+        SELECT(op);
+        add_indent();
+        op->base->accept(this);
+        op->stride->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const Broadcast* op)
+    {
+        expr_node * broadcast_op = new expr_node();
+        broadcast_op->name = "Broadcast";
+        add_expr_node(broadcast_op);
+        EMIT("Broadcast");
+        SELECT(op);
+        add_indent();
+        op->value->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const Let* op)
+    {
+        expr_node * let_op = new expr_node();
+        let_op->name = "Let: " + op->name;
+        add_expr_node(let_op);
+        EMIT("Let: %s", op->name.c_str());
+        SELECT(op);
+        
+        //TODO(Emily): differentiate between definition/dependent expression in expr_node?
+        add_indent();
+        INDENTED("<definition>\n");
+        add_indent();
+        op->value->accept(this);  // the definition
+        remove_indent();
+
+        INDENTED("<dependent expression>\n");
+        add_indent();
+        op->body->accept(this);   // the expression that depends on the let definition
+        remove_indent();
+        
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const LetStmt* op)
+    {
+        expr_node * letstmt_op = new expr_node();
+        letstmt_op->name = "LetStmt: " + op->name;
+        add_expr_node(letstmt_op);
+        EMIT("LetStmt: %s", op->name.c_str());
+        SELECT(op);
+
+        add_indent();
+        //TODO(Emily): differentiate between definition/dependent expression in expr_node?
+        INDENTED("<definition>\n");
+        add_indent();
+        op->value->accept(this);
+        remove_indent();
+
+        INDENTED("<dependent expression>\n");
+        add_indent();
+        op->body->accept(this);
+        remove_indent();
+        
+        parents.pop_back();
+        remove_indent();
+    }
+
+    void visit(const AssertStmt* op)
+    {
+        expr_node * assertstmt_op = new expr_node();
+        assertstmt_op->name = "AssertStmt";
+        add_expr_node(assertstmt_op);
+        EMIT("AssertStmt");
+        SELECT(op);
+        add_indent();
+        // TODO(marcos): transform the assert condition into something that can
+        // be visualized (as a binary true/false) mask
+        op->condition->accept(this);
+        op->message->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const ProducerConsumer* op)
+    {
+        expr_node * pc_op = new expr_node();
+        pc_op->name = "ProduceConsumer: " + op->name;
+        add_expr_node(pc_op);
+        EMIT("ProduceConsumer: %s", op->name.c_str());
+        SELECT(op);
+        add_indent();
+        op->body->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const For* op){
+        expr_node * for_op = new expr_node();
+        for_op->name = "For: " + op->name;
+        add_expr_node(for_op);
+        EMIT("For: %s", op->name.c_str());
+        SELECT(op);
+        add_indent();
+        op->min->accept(this);
+        op->extent->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const Store* op){
+        expr_node * store_op = new expr_node();
+        store_op->name = "Store: " + op->name;
+        add_expr_node(store_op);
+        EMIT("Store: %s", op->name.c_str());
+        SELECT(op);
+        add_indent();
+        op->predicate->accept(this);
+        op->value->accept(this);
+        op->index->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const Provide* op){
+        expr_node * provide_op = new expr_node();
+        provide_op->name = "Provide: " + op->name;
+        add_expr_node(provide_op);
+        EMIT("Provide: %s", op->name.c_str());
+        SELECT(op);
+        parents.pop_back();
+        //has vector of values and args - need to loop through and visit these
+    }
+    
+    void visit(const Allocate* op){
+        expr_node * allocate_op = new expr_node();
+        allocate_op->name = "Allocate: " + op->name;
+        add_expr_node(allocate_op);
+        EMIT("Allocate: %s", op->name.c_str());
+        SELECT(op);
+        add_indent();
+        //vector of extents
+        op->condition->accept(this);
+        for(auto& extent : op->extents){
+            extent->accept(this);
+        }
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const Free* op){
+        expr_node * free_op = new expr_node();
+        free_op->name = "Free: " + op->name;
+        add_expr_node(free_op);
+        parents.pop_back();
+        EMIT("Free: %s", op->name.c_str());
+        SELECT(op);
+        //terminal
+    }
+    
+    void visit(const Realize* op){
+        expr_node * realize_op = new expr_node();
+        realize_op->name = "Realize: " + op->name;
+        add_expr_node(realize_op);
+        EMIT("Realize: %s", op->name.c_str());
+        SELECT(op);
+        add_indent();
+        //vector of types + other elements (memory_type, Region bounds, body (stmt))
+        for(auto& type : op->types){
+            //what do we want to do with the types?
+        }
+        op->condition->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const Block* op){
+        expr_node * block_op = new expr_node();
+        block_op->name = "Block";
+        add_expr_node(block_op);
+        EMIT("Block");
+        SELECT(op);
+        add_indent();
+        //these are stmts
+        op->first->accept(this);
+        op->rest->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const IfThenElse* op){
+        expr_node * ite_op = new expr_node();
+        ite_op->name = "IfThenElse";
+        add_expr_node(ite_op);
+        EMIT("IfThenElse");
+        SELECT(op);
+        add_indent();
+        //cases are stmts and else case can be empty
+        op->condition->accept(this);
+        op->then_case->accept(this);
+        op->else_case->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const Evaluate* op){
+        expr_node * eval_op = new expr_node();
+        eval_op->name = "Evaluate";
+        add_expr_node(eval_op);
+        EMIT("Evaluate");
+        SELECT(op);
+        add_indent();
+        //returns stmt
+        op->value->accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const Shuffle* op){
+        expr_node * shuffle_op = new expr_node();
+        shuffle_op->name = "Shuffle";
+        add_expr_node(shuffle_op);
+        EMIT("Shuffle");
+        SELECT(op);
+        add_indent();
+        //vector of indices (ints) and vectors (exprs)
+        for(auto& vecs : op->vectors){
+            vecs->accept(this);
+        }
+        parents.pop_back();
+        remove_indent();
+    }
+    
+    void visit(const Prefetch* op){
+        expr_node * prefetch_op = new expr_node();
+        prefetch_op->name = "Prefetch: " + op->name;
+        add_expr_node(prefetch_op);
+        EMIT("Prefetch: %s", op->name.c_str());
+        SELECT(op);
+        add_indent();
+        //vector of types + Region element (bounds)
+        parents.pop_back();
+        remove_indent();
+    }
+
+    std::string print_call_type(Call::CallType call_type)
+    {
+        std::string category;
+
+        #define CALLTYPE_CASE(TYPE) \
+        case Call::CallType::TYPE : \
+            category = #TYPE;       \
+            break;                  \
+
+        switch (call_type)
+        {
+            CALLTYPE_CASE(Halide)
+            CALLTYPE_CASE(Image)
+            CALLTYPE_CASE(Intrinsic)
+            CALLTYPE_CASE(Extern)
+            CALLTYPE_CASE(ExternCPlusPlus)
+            CALLTYPE_CASE(PureIntrinsic)
+            CALLTYPE_CASE(PureExtern)
+            default :
+                category = "UNKNOWN";
+                break;
+        }
+
+        #undef CALLTYPE_CASE
+
+        return(category);
+    }
+    
+    
+    void visit(const Call* op)
+    {
+        expr_node * call_op = new expr_node();
+        call_op->name = "Call: " + op->name + " | " + print_call_type(op->call_type);
+        add_expr_node(call_op);
+        EMIT("Call: %s | %s", op->name.c_str(), print_call_type(op->call_type).c_str());
+        SELECT(op);
+
+        if (id == 11)
+        {
+            int a = 0;
+        }
+
+        add_indent();
+        INDENTED("<arguments>\n");
+        /*
+        for (auto& arg : op->args)
+        {
+            add_indent();
+            arg.accept(this);
+            remove_indent();
+        }
+         */
+        remove_indent();
+
+        const IRNode* rhs = nullptr;
+        switch (op->call_type)
+        {
+            case Call::CallType::Halide :
+            {
+                assert(op->func.defined());     // paranoid check...
+                auto inner_func = Function(op->func);
+                add_indent();
+                INDENTED("<definition>\n");
+                add_indent();
+                this->visit(inner_func);
+                remove_indent();
+                parents.pop_back();
+                remove_indent();
+                break;
+            }
+            case Call::CallType::Intrinsic :
+            case Call::CallType::Extern :
+            case Call::CallType::ExternCPlusPlus :
+            case Call::CallType::PureIntrinsic :
+            case Call::CallType::Image :
+            case Call::CallType::PureExtern :
+            default :
+                parents.pop_back();
+                break;
+        }
+    }
+
+    // NOTE(marcos): not really a part of IRVisitor:
+    void visit(Function f)
+    {
+        expr_node * function_op = new expr_node();
+        function_op->name = "Function: " + f.name();
+        add_expr_node(function_op);
+        EMIT("Function: %s", f.name().c_str());
+
+        auto def = f.definition();
+        //def.accept(this);
+        add_indent();
+        INDENTED("<arguments>\n");
+        /*
+        for (auto& arg : def.args())
+        {
+            add_indent();
+            arg.accept(this);
+            remove_indent();
+        }
+         */
+        INDENTED("<definition>\n");
+        Expr rhs = def.values()[0];
+        add_indent();
+        rhs->accept(this);
+        remove_indent();
+        parents.pop_back();
+        remove_indent();
+    }
+
+    void visit(Func f)
+    {
+        expr_node * func_op = new expr_node();
+        func_op->name = "Func: " + f.name();
+        add_expr_node(func_op);
+        EMIT("Func: %s", f.name().c_str());
+
+        add_indent();
+        INDENTED("<arguments>\n");
+        /*
+        for (Expr arg : f.args())
+        {
+            arg.accept(this);
+        }
+        */
+        remove_indent();
+
+        add_indent();
+        INDENTED("<definition>\n");
+        f.function().definition().values()[0].accept(this);
+        parents.pop_back();
+        remove_indent();
+    }
+
+    #undef EMIT
+};
+
+
+Func transform(Func f)
+{
+    auto domain = f.args();
+    Func g { "t_" + f.name() };
+
+    IRDump dump;
+    dump.visit(f);
+    //f.function().accept(&dump);
+    
+    Expr selected = dump.selected;
+    if (!selected.defined())
+        selected = f.value();
+
+    g(domain) = cast(type__of(f), selected);
+    return(g);
+}
+
+//NOTE(Emily): helper function to print out expr_node tree
+void display_node(expr_node * parent)
+{
+    printf("%s\n",parent->name.c_str());
+    for(int i = 0; i < parent->children.size(); i++)
+    {
+        display_node(parent->children[i]);
+    }
+}
+
+expr_node * get_tree(Func f)
+{
+    //testing that expr_node tree was correctly built
+    IRDump dump;
+    dump.visit(f);
+    expr_node * tree = dump.root;
+    //printf("displaying nodes in tree: \n");
+    //display_node(tree);
+    return tree;
+    
+}
+#define PROFILE(...)            \
+[&]()                           \
+{                               \
+    typedef std::chrono::high_resolution_clock clock_t; \
+    auto ini = clock_t::now();  \
+    __VA_ARGS__;                \
+    auto end = clock_t::now();  \
+    auto eps = std::chrono::duration<double>(end - ini).count();    \
+    return(eps);                \
+}()
+
+#define PROFILE_P(label, ...) printf(#label "> %fs\n", PROFILE(__VA_ARGS__))
+
+expr_node * tree_from_func()
+{
+    xsprintf(input_filename, 128, "data/pencils.jpg");
+    Halide::Buffer<uint8_t> input_full = LoadImage(input_filename);
+    if (!input_full.defined())
+        return  NULL;
+
+    Func input = Identity(input_full, "image");
+    Func sobel = Sobel(input);
+    Func blur  = Blur(input);
+    Func soft  = Sobel(blur);
+    Expr final = as_weights(soft)(x, y, c)
+               + as_weights(sobel)(x, y, c);
+    final *= blur(x, y, c);
+    final += input(x, y, c);
+    final = clamp(final, 0, 255);
+
+    Func output { "output" };
+    //output(x, y, c) = cast(type__of(input), final);
+
+    {
+    Func f{ "f" };
+    {
+    Var x, y, c;
+    f(x,y, c) = 10 * input(x, 0, c);
+    }
+
+    {
+    Var x, y, c;
+    output(x, y, c) = f(x, y,c);
+    }
+    }
+    
+    //checking expr_node tree
+    expr_node * full_tree = get_tree(output);
+    output = transform(output);
+    
+    
+    Halide::Buffer<uint8_t> output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(input_full.width(), input_full.height(), input_full.channels());
+    output.output_buffer()
+            .dim(0).set_stride( output_buffer.dim(0).stride() )
+            .dim(1).set_stride( output_buffer.dim(1).stride() )
+            .dim(2).set_stride( output_buffer.dim(2).stride() );
+    auto output_cropped = Crop(output_buffer, 2, 2);
+    Target target = get_host_target();
+    //target.set_feature(Target::CUDA);
+    //output.gpu_tile(...)
+
+    typedef std::chrono::high_resolution_clock clock_t;
+
+    PROFILE_P(
+        "compile_jit",
+        output.compile_jit(target);
+    );
+    output.print_loop_nest();
+    output.compile_to_lowered_stmt("data/output/output.html", {}, HTML, target);
+
+    PROFILE_P(
+        "realize",
+        output.realize(output_cropped);
+    );
+    
+
+    mkdir("data/output", S_IRWXU | S_IRWXG | S_IRWXO);
+    xsprintf(output_filename, 128, "data/output/output-%s.png", target.to_string().c_str());
+    if (!SaveImage(output_filename, output_buffer))
+        return NULL;
+
+    return full_tree;
+}

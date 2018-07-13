@@ -60,10 +60,11 @@ set(CMAKE_CXX_STANDARD 11)
 
 ##########################[ libraries and executables ]#########################
 
-add_source_directory(SIMPLE_GUI_SOURCE_FILES "./")
+
+#add_source_directory(SIMPLE_GUI_SOURCE_FILES "./")
 add_executable(
 	${PROJECT_NAME}
-	"${SIMPLE_GUI_SOURCE_FILES}"
+	./main.cpp
 )
 
 # dependency: glfw
@@ -109,22 +110,6 @@ target_sources(
 	../third-party/imgui/examples/imgui_impl_opengl2.cpp
 )
 
-# dependency: Halide
-find_library(HALIDE_LIBRARY 
-	NAMES Halide libHalide
-        HINTS "../build/halide/make/MacOS/Release/lib")
-
-target_include_directories(
-	${PROJECT_NAME} PUBLIC
-	../third-party/halide
-	../third-party/halide/include
-)
-
-target_link_libraries(
-	${PROJECT_NAME}
-	${HALIDE_LIBRARY}
-)
-
 # dependency: LLVM
 find_package(LLVM REQUIRED CONFIG
 	HINTS "../build/llvm/make/MacOS/Release")
@@ -135,6 +120,21 @@ add_definitions(${LLVM_DEFINITIONS})
 llvm_map_components_to_libnames(llvm_libs support core irreader)
 
 target_link_libraries(${PROJECT_NAME} ${llvm_libs})
+
+# dependency: Halide
+find_library(HALIDE_LIBRARY 
+	NAMES Halide libHalide
+        HINTS "../build/halide/make/MacOS/Release/lib")
+
+target_include_directories(
+	${PROJECT_NAME} PUBLIC
+	../build/halide/make/MacOS/Release/include
+)
+
+target_link_libraries(
+	${PROJECT_NAME}
+	${HALIDE_LIBRARY}
+)
 
 # dependency: OpenGL
 find_package(OpenGL REQUIRED)
@@ -171,3 +171,4 @@ if (LINUX)
 	)
 endif()
 
+target_compile_options(${PROJECT_NAME} PUBLIC -fno-rtti)
