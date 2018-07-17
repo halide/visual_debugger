@@ -30,17 +30,10 @@
 ///////////////////////////////////////////////////////////// Utilities //// //
 
 
-
-// //// Halide ////////////////////////////////////////////////////////////////
-#include <Halide.h>
-using namespace Halide;
-//////////////////////////////////////////////////////////////// Halide //// //
-
-#include "HalideIdentity.h"
-#include "HalideGaussian.h"
-#include "HalideKawase.h"
-
 #include "utils.h"
+
+
+
 
 // //// stb image I/O /////////////////////////////////////////////////////////
 #define STB_IMAGE_STATIC
@@ -58,7 +51,7 @@ using namespace Halide;
 
 #include "HalideImageIO.h"
 
-
+using namespace Halide;
 
 template<typename T>
 Runtime::Buffer<T> Crop(Buffer<T>& image, int hBorder, int vBorder)
@@ -277,25 +270,24 @@ struct IRDump : public Halide::Internal::IRVisitor
     std::vector<Expr> new_args;
     
     bool selecting = false;
-    Expr selected;
-    bool select(const BaseExprNode* op)
+    expr_node * selected;
+    
+    bool select(expr_node * op)
     {
-        //if (id == 5)
-        if(id == 1315)
+        if(op == NULL) //Note(Emily): for stmts
+        {
+            return false;
+        }
+        if(id == 23)
         {
             selecting = true;
-            selected = Expr(op);
+            selected = op;
             INDENTED("====== vvvvvv [ SELECTED SUB-EXPRESSION ] vvvvvv ======\n");
-            selected.accept(this);
+            selected->original.accept(this);
             INDENTED("====== ^^^^^^ [ SELECTED SUB-EXPRESSION ] ^^^^^^ ======\n");
             selecting = false;
             return(true);
         }
-        return(false);
-    }
-
-    bool select(const BaseStmtNode* op)
-    {
         return(false);
     }
 
@@ -327,9 +319,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * cast_op = new expr_node();
         cast_op->name = print_type(op->type).c_str();
+        cast_op->original = Expr(op);
         add_expr_node(cast_op);
         EMIT("Cast: %s", print_type(op->type).c_str());
-        SELECT(op);
+        SELECT(cast_op);
         add_indent();
         op->value->accept(this);
         parents.pop_back();
@@ -340,9 +333,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * min_op = new expr_node();
         min_op->name = "Min";
+        min_op->original = Expr(op);
         add_expr_node(min_op);
         EMIT("Min");
-        SELECT(op);
+        SELECT(min_op);
         add_indent();
         op->a->accept(this);
         op->b->accept(this);
@@ -354,9 +348,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * max_op = new expr_node();
         max_op->name = "Max";
+        max_op->original = Expr(op);
         add_expr_node(max_op);
         EMIT("Max");
-        SELECT(op);
+        SELECT(max_op);
         add_indent();
         op->a->accept(this);
         op->b->accept(this);
@@ -368,9 +363,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * eq_op = new expr_node();
         eq_op->name = "EQ";
+        eq_op->original = Expr(op);
         add_expr_node(eq_op);
         EMIT("EQ");
-        SELECT(op);
+        SELECT(eq_op);
         add_indent();
         op->a->accept(this);
         op->b->accept(this);
@@ -382,9 +378,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * ne_op = new expr_node();
         ne_op->name = "NE";
+        ne_op->original = Expr(op);
         add_expr_node(ne_op);
         EMIT("NE");
-        SELECT(op);
+        SELECT(ne_op);
         add_indent();
         op->a->accept(this);
         op->b->accept(this);
@@ -396,9 +393,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * lt_op = new expr_node();
         lt_op->name = "LT";
+        lt_op->original = Expr(op);
         add_expr_node(lt_op);
         EMIT("LT");
-        SELECT(op);
+        SELECT(lt_op);
         add_indent();
         op->a->accept(this);
         op->b->accept(this);
@@ -410,9 +408,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * le_op = new expr_node();
         le_op->name = "LE";
+        le_op->original = Expr(op);
         add_expr_node(le_op);
         EMIT("LE");
-        SELECT(op);
+        SELECT(le_op);
         add_indent();
         op->a->accept(this);
         op->b->accept(this);
@@ -424,9 +423,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * gt_op = new expr_node();
         gt_op->name = "GT";
+        gt_op->original = Expr(op);
         add_expr_node(gt_op);
         EMIT("GT");
-        SELECT(op);
+        SELECT(gt_op);
         add_indent();
         op->a->accept(this);
         op->b->accept(this);
@@ -438,9 +438,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * ge_op = new expr_node();
         ge_op->name = "GE";
+        ge_op->original = Expr(op);
         add_expr_node(ge_op);
         EMIT("GE");
-        SELECT(op);
+        SELECT(ge_op);
         add_indent();
         op->a->accept(this);
         op->b->accept(this);
@@ -452,9 +453,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * and_op = new expr_node();
         and_op->name = "And";
+        and_op->original = Expr(op);
         add_expr_node(and_op);
         EMIT("And");
-        SELECT(op);
+        SELECT(and_op);
         add_indent();
         op->a->accept(this);
         op->b->accept(this);
@@ -466,9 +468,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * or_op = new expr_node();
         or_op->name = "Or";
+        or_op->original = Expr(op);
         add_expr_node(or_op);
         EMIT("Or");
-        SELECT(op);
+        SELECT(or_op);
         add_indent();
         op->a->accept(this);
         op->b->accept(this);
@@ -480,9 +483,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * not_op = new expr_node();
         not_op->name = "Not";
+        not_op->original = Expr(op);
         add_expr_node(not_op);
         EMIT("Not");
-        SELECT(op);
+        SELECT(not_op);
         add_indent();
         op->a->accept(this);
         parents.pop_back();
@@ -522,7 +526,7 @@ struct IRDump : public Halide::Internal::IRVisitor
     void visit(const Variable* op)
     {
         EMIT("Variable: %s | %s", op->name.c_str(), print_var_type(op).c_str());
-        SELECT(op);
+        SELECT(NULL);
         // terminal node!
     }
     
@@ -530,10 +534,11 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * floatimm_op = new expr_node();
         floatimm_op->name = "FloatImm: " + std::to_string(op->value);
+        floatimm_op->original = Expr(op);
         add_expr_node(floatimm_op);
         parents.pop_back();
         EMIT("FloatImm: %f", op->value);
-        SELECT(op);
+        SELECT(floatimm_op);
         // terminal node!
     }
     
@@ -541,9 +546,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * intimm_op = new expr_node();
         intimm_op->name = "IntImm: " + std::to_string(op->value);
+        intimm_op->original = Expr(op);
         add_expr_node(intimm_op);
         EMIT("IntImm: %lli", op->value);
-        SELECT(op);
+        SELECT(intimm_op);
         parents.pop_back();
         // terminal node!
     }
@@ -552,10 +558,11 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * uintimm_op = new expr_node();
         uintimm_op->name = "UIntImm: " + std::to_string(op->value);
+        uintimm_op->original = Expr(op);
         add_expr_node(uintimm_op);
         parents.pop_back();
         EMIT("UIntImm: %llu", op->value);
-        SELECT(op);
+        SELECT(uintimm_op);
         // terminal node!
     }
 
@@ -563,10 +570,11 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * stringimm_op = new expr_node();
         stringimm_op->name = "StringImm: " + op->value;
+        stringimm_op->original = Expr(op);
         add_expr_node(stringimm_op);
         parents.pop_back();
         EMIT("StringImm: %s", op->value.c_str());
-        SELECT(op);
+        SELECT(stringimm_op);
         // terminal node!
     }
     
@@ -574,9 +582,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * add_op = new expr_node();
         add_op->name = "Add";
+        add_op->original = Expr(op);
         add_expr_node(add_op);
         EMIT("Add");
-        SELECT(op);
+        SELECT(add_op);
         add_indent();
         op->a->accept(this);
         op->b->accept(this);
@@ -588,9 +597,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * sub_op = new expr_node();
         sub_op->name = "Sub";
+        sub_op->original = Expr(op);
         add_expr_node(sub_op);
         EMIT("Sub");
-        SELECT(op);
+        SELECT(sub_op);
         add_indent();
         op->a->accept(this);
         op->b->accept(this);
@@ -602,9 +612,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * mul_op = new expr_node();
         mul_op->name = "Mul";
+        mul_op->original = Expr(op);
         add_expr_node(mul_op);
         EMIT("Mul");
-        SELECT(op);
+        SELECT(mul_op);
         add_indent();
         op->a->accept(this);
         op->b->accept(this);
@@ -616,9 +627,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * div_op = new expr_node();
         div_op->name = "Div";
+        div_op->original = Expr(op);
         add_expr_node(div_op);
         EMIT("Div");
-        SELECT(op);
+        SELECT(div_op);
         add_indent();
         op->a->accept(this);
         op->b->accept(this);
@@ -630,9 +642,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * mod_op = new expr_node();
         mod_op->name = "Mod";
+        mod_op->original = Expr(op);
         add_expr_node(mod_op);
         EMIT("Mod");
-        SELECT(op);
+        SELECT(mod_op);
         add_indent();
         op->a->accept(this);
         op->b->accept(this);
@@ -644,9 +657,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * select_op = new expr_node();
         select_op->name = "Select";
+        select_op->original = Expr(op);
         add_expr_node(select_op);
         EMIT("Select");
-        SELECT(op);
+        SELECT(select_op);
         add_indent();
         op->condition->accept(this);
         op->true_value->accept(this);
@@ -659,9 +673,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * load_op = new expr_node();
         load_op->name = "Load: " + op->name;
+        load_op->original = Expr(op);
         add_expr_node(load_op);
         EMIT("Load: %s", op->name.c_str());
-        SELECT(op);
+        SELECT(load_op);
         add_indent();
         op->index->accept(this);
         op->predicate->accept(this);
@@ -673,9 +688,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * ramp_op = new expr_node();
         ramp_op->name = "Ramp";
+        ramp_op->original = Expr(op);
         add_expr_node(ramp_op);
         EMIT("Ramp");
-        SELECT(op);
+        SELECT(ramp_op);
         add_indent();
         op->base->accept(this);
         op->stride->accept(this);
@@ -687,9 +703,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * broadcast_op = new expr_node();
         broadcast_op->name = "Broadcast";
+        broadcast_op->original = Expr(op);
         add_expr_node(broadcast_op);
         EMIT("Broadcast");
-        SELECT(op);
+        SELECT(broadcast_op);
         add_indent();
         op->value->accept(this);
         parents.pop_back();
@@ -700,9 +717,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * let_op = new expr_node();
         let_op->name = "Let: " + op->name;
+        let_op->original = Expr(op);
         add_expr_node(let_op);
         EMIT("Let: %s", op->name.c_str());
-        SELECT(op);
+        SELECT(let_op);
         
         //TODO(Emily): differentiate between definition/dependent expression in expr_node?
         add_indent();
@@ -724,9 +742,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * letstmt_op = new expr_node();
         letstmt_op->name = "LetStmt: " + op->name;
+        //letstmt_op->original = Expr(op);
         add_expr_node(letstmt_op);
         EMIT("LetStmt: %s", op->name.c_str());
-        SELECT(op);
+        SELECT(NULL);
 
         add_indent();
         //TODO(Emily): differentiate between definition/dependent expression in expr_node?
@@ -748,9 +767,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * assertstmt_op = new expr_node();
         assertstmt_op->name = "AssertStmt";
+        //assertstmt_op->original = Expr(op);
         add_expr_node(assertstmt_op);
         EMIT("AssertStmt");
-        SELECT(op);
+        SELECT(NULL);
         add_indent();
         // TODO(marcos): transform the assert condition into something that can
         // be visualized (as a binary true/false) mask
@@ -764,9 +784,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * pc_op = new expr_node();
         pc_op->name = "ProduceConsumer: " + op->name;
+        //pc_op->original = Expr(op);
         add_expr_node(pc_op);
         EMIT("ProduceConsumer: %s", op->name.c_str());
-        SELECT(op);
+        SELECT(NULL);
         add_indent();
         op->body->accept(this);
         parents.pop_back();
@@ -776,9 +797,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     void visit(const For* op){
         expr_node * for_op = new expr_node();
         for_op->name = "For: " + op->name;
+        //for_op->original = Expr(op);
         add_expr_node(for_op);
         EMIT("For: %s", op->name.c_str());
-        SELECT(op);
+        SELECT(NULL);
         add_indent();
         op->min->accept(this);
         op->extent->accept(this);
@@ -789,9 +811,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     void visit(const Store* op){
         expr_node * store_op = new expr_node();
         store_op->name = "Store: " + op->name;
+        //store_op->original = Expr(op);
         add_expr_node(store_op);
         EMIT("Store: %s", op->name.c_str());
-        SELECT(op);
+        SELECT(NULL);
         add_indent();
         op->predicate->accept(this);
         op->value->accept(this);
@@ -803,9 +826,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     void visit(const Provide* op){
         expr_node * provide_op = new expr_node();
         provide_op->name = "Provide: " + op->name;
+        //provide_op->original = Expr(op);
         add_expr_node(provide_op);
         EMIT("Provide: %s", op->name.c_str());
-        SELECT(op);
+        SELECT(NULL);
         parents.pop_back();
         //has vector of values and args - need to loop through and visit these
     }
@@ -813,9 +837,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     void visit(const Allocate* op){
         expr_node * allocate_op = new expr_node();
         allocate_op->name = "Allocate: " + op->name;
+        //allocate_op->original = Expr(op);
         add_expr_node(allocate_op);
         EMIT("Allocate: %s", op->name.c_str());
-        SELECT(op);
+        SELECT(NULL);
         add_indent();
         //vector of extents
         op->condition->accept(this);
@@ -829,19 +854,21 @@ struct IRDump : public Halide::Internal::IRVisitor
     void visit(const Free* op){
         expr_node * free_op = new expr_node();
         free_op->name = "Free: " + op->name;
+        //free_op->original = Expr(op);
         add_expr_node(free_op);
         parents.pop_back();
         EMIT("Free: %s", op->name.c_str());
-        SELECT(op);
+        SELECT(NULL);
         //terminal
     }
     
     void visit(const Realize* op){
         expr_node * realize_op = new expr_node();
         realize_op->name = "Realize: " + op->name;
+        //realize_op->original = Expr(op);
         add_expr_node(realize_op);
         EMIT("Realize: %s", op->name.c_str());
-        SELECT(op);
+        SELECT(NULL);
         add_indent();
         //vector of types + other elements (memory_type, Region bounds, body (stmt))
         for(auto& type : op->types){
@@ -855,9 +882,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     void visit(const Block* op){
         expr_node * block_op = new expr_node();
         block_op->name = "Block";
+        //block_op->original = Expr(op);
         add_expr_node(block_op);
         EMIT("Block");
-        SELECT(op);
+        SELECT(NULL);
         add_indent();
         //these are stmts
         op->first->accept(this);
@@ -869,9 +897,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     void visit(const IfThenElse* op){
         expr_node * ite_op = new expr_node();
         ite_op->name = "IfThenElse";
+        //ite_op->original = Expr(op);
         add_expr_node(ite_op);
         EMIT("IfThenElse");
-        SELECT(op);
+        SELECT(NULL);
         add_indent();
         //cases are stmts and else case can be empty
         op->condition->accept(this);
@@ -884,9 +913,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     void visit(const Evaluate* op){
         expr_node * eval_op = new expr_node();
         eval_op->name = "Evaluate";
+        //eval_op->original = Expr(op);
         add_expr_node(eval_op);
         EMIT("Evaluate");
-        SELECT(op);
+        SELECT(NULL);
         add_indent();
         //returns stmt
         op->value->accept(this);
@@ -897,9 +927,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     void visit(const Shuffle* op){
         expr_node * shuffle_op = new expr_node();
         shuffle_op->name = "Shuffle";
+        shuffle_op->original = Expr(op);
         add_expr_node(shuffle_op);
         EMIT("Shuffle");
-        SELECT(op);
+        SELECT(shuffle_op);
         add_indent();
         //vector of indices (ints) and vectors (exprs)
         for(auto& vecs : op->vectors){
@@ -912,9 +943,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     void visit(const Prefetch* op){
         expr_node * prefetch_op = new expr_node();
         prefetch_op->name = "Prefetch: " + op->name;
+        //prefetch_op->original = Expr(op);
         add_expr_node(prefetch_op);
         EMIT("Prefetch: %s", op->name.c_str());
-        SELECT(op);
+        SELECT(NULL);
         add_indent();
         //vector of types + Region element (bounds)
         parents.pop_back();
@@ -954,9 +986,10 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * call_op = new expr_node();
         call_op->name = "Call: " + op->name + " | " + print_call_type(op->call_type);
+        call_op->original = Expr(op);
         add_expr_node(call_op);
         EMIT("Call: %s | %s", op->name.c_str(), print_call_type(op->call_type).c_str());
-        SELECT(op);
+        SELECT(call_op);
 
         if (id == 11)
         {
@@ -965,14 +998,13 @@ struct IRDump : public Halide::Internal::IRVisitor
 
         add_indent();
         INDENTED("<arguments>\n");
-        /*
+        
         for (auto& arg : op->args)
         {
             add_indent();
             arg.accept(this);
             remove_indent();
         }
-         */
         remove_indent();
 
         const IRNode* rhs = nullptr;
@@ -1008,21 +1040,27 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * function_op = new expr_node();
         function_op->name = "Function: " + f.name();
+        function_op->original = Expr(f.definition().values()[0]);
         add_expr_node(function_op);
         EMIT("Function: %s", f.name().c_str());
-
+        if(new_args.empty())
+        {
+            new_args = f.definition().args();
+        }
+        if(selecting){
+            function_op->modify = Call::make(f, new_args);
+        }
         auto def = f.definition();
         //def.accept(this);
         add_indent();
         INDENTED("<arguments>\n");
-        /*
+        
         for (auto& arg : def.args())
         {
             add_indent();
             arg.accept(this);
             remove_indent();
         }
-         */
         INDENTED("<definition>\n");
         Expr rhs = def.values()[0];
         add_indent();
@@ -1036,17 +1074,18 @@ struct IRDump : public Halide::Internal::IRVisitor
     {
         expr_node * func_op = new expr_node();
         func_op->name = "Func: " + f.name();
+        func_op->original = Expr(f.function().definition().values()[0]);
         add_expr_node(func_op);
         EMIT("Func: %s", f.name().c_str());
 
         add_indent();
         INDENTED("<arguments>\n");
-        /*
+        
         for (Expr arg : f.args())
         {
             arg.accept(this);
         }
-        */
+        
         remove_indent();
 
         add_indent();
@@ -1069,7 +1108,7 @@ Func transform(Func f)
     dump.visit(f);
     //f.function().accept(&dump);
     
-    Expr selected = dump.selected;
+    Expr selected = dump.selected->modify;
     if (!selected.defined())
         selected = f.value();
 
@@ -1144,6 +1183,7 @@ expr_node * tree_from_func()
     }
     }
     
+    
     //checking expr_node tree
     expr_node * full_tree = get_tree(output);
     output = transform(output);
@@ -1165,7 +1205,7 @@ expr_node * tree_from_func()
         "compile_jit",
         output.compile_jit(target);
     );
-    output.print_loop_nest();
+    //output.print_loop_nest();
     output.compile_to_lowered_stmt("data/output/output.html", {}, HTML, target);
 
     PROFILE_P(
