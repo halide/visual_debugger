@@ -3,6 +3,7 @@ add_executable(
 	./main.cpp
 	./imconfig.h
 	./utils.h
+	../data/force_working_directory.cpp
 )
 
 
