@@ -7,7 +7,7 @@ set(GLFW_INCLUDE_DIR
 	
 if (APPLE)
 	set(GLFW_SOURCE_AMALGAMATION
-		${CMAKE_CURRENT_LIST_DIR}/glfw/glfw-amalg.m)
+		${CMAKE_CURRENT_LIST_DIR}/amalgs/glfw/glfw-amalg.m)
 else()
 	set(GLFW_SOURCE_AMALGAMATION
 		${CMAKE_CURRENT_LIST_DIR}/amalgs/glfw/glfw-amalg.c)
