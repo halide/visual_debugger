@@ -73,7 +73,7 @@ if (APPLE)
 		NAMES Halide libHalide
         HINTS "../build/halide/make/MacOS/Release/lib"
 	)
-	set( ../build/halide/make/MacOS/Release/include)
+	set(HALIDE_INCLUDE_DIR ../build/halide/make/MacOS/Release/include)
 elseif(WIN32)
 	find_library(
 		HALIDE_LIBRARY 
