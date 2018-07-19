@@ -47,6 +47,11 @@ if (APPLE)
 		LLVM REQUIRED CONFIG
 		HINTS "${CMAKE_CURRENT_LIST_DIR}/../build/llvm/make/MacOS/Release"
 	)
+elseif(LINUX)
+	find_package(
+		LLVM REQUIRED CONFIG
+		HINTS "${CMAKE_CURRENT_LIST_DIR}/../build/llvm/make/Linux/Release"
+	)
 elseif(WIN32)
 	if (MSVC)
 		find_package(
@@ -68,6 +73,14 @@ if (APPLE)
 		HALIDE_LIBRARY 
 		NAMES Halide libHalide
         HINTS "${CMAKE_CURRENT_LIST_DIR}/../build/halide/make/MacOS/Release/lib"
+	)
+elseif(LINUX)
+	set(HALIDE_INCLUDE_DIR
+		${CMAKE_CURRENT_LIST_DIR}/../build/halide/make/Linux/Release/include)
+	find_library(
+		HALIDE_LIBRARY 
+		NAMES Halide libHalide
+        HINTS "${CMAKE_CURRENT_LIST_DIR}/../build/halide/make/Linux/Release/lib"
 	)
 elseif(WIN32)
 	set(HALIDE_INCLUDE_DIR
