@@ -1323,6 +1323,70 @@ Func mutate(Func f)
     return g;
 }
 
+struct DebuggerSelector : public Halide::Internal::IRMutator2
+{
+    int traversal_id = 0;
+    int target_id = 42;
+    bool selected = false;
+
+    // convenience method (not really a part of IRMutator2)
+    template<typename T>
+    Expr mutate_and_select(const T*& op)
+    {
+        const int id = ++traversal_id;      // generate unique id
+        Expr expr = IRMutator2::visit(op);  // visit/mutate children
+        selected = (id == target_id);       // toggle selection
+        op = expr.as<T>();
+        return expr;
+    }
+
+    virtual Expr visit(const Add* op) override
+    {
+        return mutate_and_select(op);
+    }
+
+    virtual Expr visit(const Mul* op) override
+    {
+        return mutate_and_select(op);
+    }
+
+    virtual Expr visit(const Let* op) override
+    {
+        Expr expr = mutate_and_select(op);
+        if (!selected)
+        {
+            return expr;
+        }
+
+        // patching...
+        //expr = Let::make();
+        return expr;
+    }
+
+    virtual Expr visit(const Call* op) override
+    {
+        Expr expr = mutate_and_select(op);
+        if (!selected)
+        {
+            return expr;
+        }
+
+        // patching...
+
+        if (op->func.defined())
+        {
+            // FunctionPtr -> Function -> Func
+            Func f = Func(Function(op->func));
+            Func g = clone(f);
+            g.function().mutate(this);
+
+            expr = Call::make(g.function(), op->args, op->value_index);
+        }
+
+        return expr;
+    }
+};
+
 #include <unordered_map>
 
 struct ExampleMutator : public Halide::Internal::IRMutator2
@@ -1436,7 +1500,9 @@ expr_node * tree_from_func()
     }
 
     Func h = mutate<ExampleMutator>(output);
+    Func m = mutate<DebuggerSelector>(output);
     IRDump().visit(h);
+    IRDump().visit(m);
     IRDump().visit(output);
 
     //checking expr_node tree
