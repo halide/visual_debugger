@@ -1349,7 +1349,202 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     {
         return mutate_and_select(op);
     }
+    
+    virtual Expr visit(const Div* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const Mod* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const Sub* op) override
+    {
+        return mutate_and_select(op);
+    }
 
+    virtual Expr visit(const Min* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const Max* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const EQ* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const NE* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const LT* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const LE* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const GT* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const GE* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const And* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const Or* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const Not* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const UIntImm* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const IntImm* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const FloatImm* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const StringImm* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const Variable* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const Cast* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const Select* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const Load* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const Ramp* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const Broadcast* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const Shuffle* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    template<typename T>
+    Stmt mutate_and_select_stmt(const T*& op)
+    {
+        const int id = ++traversal_id;      // generate unique id
+        Stmt expr = IRMutator2::visit(op);  // visit/mutate children
+        selected = (id == target_id);       // toggle selection
+        op = expr.as<T>();
+        return expr;
+    }
+    
+    virtual Stmt visit(const LetStmt* op) override
+    {
+        return mutate_and_select_stmt(op);
+    }
+    
+    virtual Stmt visit(const AssertStmt* op) override
+    {
+        return mutate_and_select_stmt(op);
+    }
+    
+    virtual Stmt visit(const ProducerConsumer* op) override
+    {
+        return mutate_and_select_stmt(op);
+    }
+    
+    virtual Stmt visit(const For* op) override
+    {
+        return mutate_and_select_stmt(op);
+    }
+    
+    virtual Stmt visit(const Store* op) override
+    {
+        return mutate_and_select_stmt(op);
+    }
+    
+    virtual Stmt visit(const Provide* op) override
+    {
+        return mutate_and_select_stmt(op);
+    }
+    
+    virtual Stmt visit(const Allocate* op) override
+    {
+        return mutate_and_select_stmt(op);
+    }
+    
+    virtual Stmt visit(const Free* op) override
+    {
+        return mutate_and_select_stmt(op);
+    }
+    
+    virtual Stmt visit(const Prefetch* op) override
+    {
+        return mutate_and_select_stmt(op);
+    }
+    
+    virtual Stmt visit(const Block* op) override
+    {
+        return mutate_and_select_stmt(op);
+    }
+    
+    virtual Stmt visit(const IfThenElse* op) override
+    {
+        return mutate_and_select_stmt(op);
+    }
+    
+    virtual Stmt visit(const Evaluate* op) override
+    {
+        return mutate_and_select_stmt(op);
+    }
+    
     virtual Expr visit(const Let* op) override
     {
         Expr expr = mutate_and_select(op);
@@ -1508,7 +1703,7 @@ expr_node * tree_from_func()
     //checking expr_node tree
     //expr_node * full_tree = get_tree(output);
     //output = transform(output);
-    display_map(output);
+    //display_map(output);
     
     return NULL; //TEMPORARY - returning before realizing image
     
