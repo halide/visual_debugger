@@ -1299,6 +1299,109 @@ expr_node * get_tree(Func f)
 
 #define PROFILE_P(label, ...) printf(#label "> %fs\n", PROFILE(__VA_ARGS__))
 
+// utility function to deep copy a Func (but it does not recursive!)
+Func clone(Func f)
+{
+    Func g;
+    std::map<FunctionPtr, FunctionPtr> env;
+    f.function().deep_copy("deep_copy_of_" + f.name(), g.function().get_contents(), env);
+    return g;
+}
+
+// utility function to mutate a Func (not part of IRMutator2 interface)
+template<typename Mutator>
+Func mutate(Func f)
+{
+    Mutator mutator;
+
+    //Func g ("HalideVisDbg");
+    //auto domain = f.args();
+    //g(domain) = f(domain);  // identity. forwarding
+
+    Func g = clone(f);
+    g.function().mutate(&mutator);
+    return g;
+}
+
+#include <unordered_map>
+
+struct ExampleMutator : public Halide::Internal::IRMutator2
+{
+    using IRMutator2::visit;
+    using IRMutator2::mutate;
+
+    std::vector<const Let*>  lets;
+    std::vector<const Call*> calls;
+
+    virtual Expr visit(const Add* op) override
+    {
+        // replace addition by subtraction:
+        Expr expr = mutate_inner(op);
+        Expr replaced = Sub::make(op->a, op->b);
+        return replaced;
+    }
+
+    virtual Expr visit(const Mul* op) override
+    {
+        // replace multiplication by subtraction:
+        Expr expr = mutate_inner(op);
+        Expr replaced = Sub::make(op->a, op->b);
+        return replaced;
+    }
+
+    virtual Expr visit(const Variable* var) override
+    {
+        //pr replaced = Variable::make();
+        return IRMutator2::visit(var);
+    }
+
+    virtual Expr visit(const Let* op) override
+    {
+        lets.push_back(op);
+        Expr expr = IRMutator2::visit(op);
+        lets.pop_back();
+        return expr;
+    }
+
+    virtual Stmt visit(const LetStmt* op) override
+    {
+        return IRMutator2::visit(op);
+    }
+
+    virtual Expr visit(const Call* op) override
+    {
+        calls.push_back(op);
+
+        Expr expr = mutate_inner(op);
+        if (op->func.defined())
+        {
+            // FunctionPtr -> Function -> Func
+            Func f = Func(Function(op->func));
+            Func g = clone(f);
+            g.function().mutate(this);
+
+            expr = Call::make(g.function(), op->args, op->value_index);
+        }
+
+        calls.pop_back();
+
+        return expr;
+    }
+
+    // convenience method (not really a part of IRMutator2)
+    template<typename T>
+    Expr mutate_inner(const T*& op)
+    {
+        // use the default implementation of IRMutator2 to visit (and mutate)
+        // the op's children/inner expression/nodes:
+        Expr expr = IRMutator2::visit(op);
+        op = expr.as<T>();
+        return expr;
+    }
+};
+
+
+
 expr_node * tree_from_func()
 {
     xsprintf(input_filename, 128, "data/pencils.jpg");
@@ -1331,8 +1434,11 @@ expr_node * tree_from_func()
     output(x, y, c) = f(x + 3, y,c);
     }
     }
-    
-    
+
+    Func h = mutate<ExampleMutator>(output);
+    IRDump().visit(h);
+    IRDump().visit(output);
+
     //checking expr_node tree
     //expr_node * full_tree = get_tree(output);
     //output = transform(output);
