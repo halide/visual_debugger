@@ -1365,7 +1365,7 @@ struct IRNodePrinter
 
         if (category.empty())
         {
-            category = "let?";
+            category = "Var-or-Let ?";
         }
 
         return(category);
@@ -1374,7 +1374,7 @@ struct IRNodePrinter
     static std::string print(const Variable* op)
     {
         std::stringstream ss;
-        ss << "Variable : " << print_var_type(op);
+        ss << "Variable : " << op->name << " (" << print_var_type(op) << ")";
         return ss.str();
     }
     
@@ -1938,7 +1938,27 @@ struct IRDump2 : public Halide::Internal::IRVisitor
     {
         dump_head(f);
         add_indent();
-            f.accept(this);
+            //f.accept(this);
+            // NOTE(marcos): the default Function visitor is bit wacky, visitng
+            // [predicate, body, args, schedule, specializaitons] in this order
+            // which is confusing since we are mostly interested in [args, body]
+            // for the time being, so we can roll our own visiting pattern:
+            auto definition = f.definition();
+            indented_printf("<arguments>\n");
+            add_indent();
+                for (auto& arg : definition.args())
+                {
+                    arg.accept(this);
+                }
+            remove_indent();
+            int value_idx = 0;
+            for (auto& expr : definition.values())
+            {
+                indented_printf("<value %d>\n", value_idx++);
+                add_indent();
+                    expr.accept(this);
+                remove_indent();
+            }
         remove_indent();
     }
 
