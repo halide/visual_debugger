@@ -1302,9 +1302,37 @@ expr_node * get_tree(Func f)
 // utility function to deep copy a Func (but it does not recursive!)
 Func clone(Func f)
 {
-    Func g;
-    std::map<FunctionPtr, FunctionPtr> env;
-    f.function().deep_copy("deep_copy_of_" + f.name(), g.function().get_contents(), env);
+    // f.function().deep_copy() only duplicates the first level of definitions
+    // in f, so we need to recursively visit CallType::Halide sub-expressions
+    // and duplicate them as well:
+    struct FuncCloner : public Halide::Internal::IRMutator2
+    {
+        static Func duplicate(Func f)
+        {
+            Func g;
+            std::map<FunctionPtr, FunctionPtr> env;
+            f.function().deep_copy("deep_copy_of_" + f.name(), g.function().get_contents(), env);
+            return g;
+        }
+        virtual Expr visit(const Call* op) override
+        {
+            Expr expr = IRMutator2::visit(op);
+            op = expr.as<Call>();
+            if (op->func.defined())
+            {
+                // FunctionPtr -> Function -> Func
+                Func f = Func(Function(op->func));
+                Func g = duplicate(f);
+                g.function().mutate(this);
+                expr = Call::make(g.function(), op->args, op->value_index);
+            }
+            return expr;
+        }
+    };
+
+    Func g = FuncCloner::duplicate(f);
+    FuncCloner cloner;
+    g.function().mutate(&cloner);
     return g;
 }
 
@@ -1327,63 +1355,117 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
 {
     int traversal_id = 0;
     int target_id = 42;
-    bool selected = false;
+    Expr selected;
 
     // convenience method (not really a part of IRMutator2)
     template<typename T>
-    Expr mutate_and_select(const T*& op)
+    Expr mutate_and_select(const T* op)
     {
         const int id = ++traversal_id;      // generate unique id
         Expr expr = IRMutator2::visit(op);  // visit/mutate children
-        selected = (id == target_id);       // toggle selection
-        op = expr.as<T>();
+        if (id == target_id)
+        {
+            assert(!expr.defined());
+            selected = expr;
+        }
+        // propagate selection upwards in the traversal
+        if (selected.defined())
+        {
+            expr = selected;
+        }
         return expr;
+    }
+
+    // convenience method (not really a part of IRMutator2)
+    template<typename PatchFn>
+    Expr apply_patch(Expr expr, PatchFn patch)
+    {
+        // paranoid checks...
+        assert( expr.defined() );
+        assert( selected.defined() );
+        assert( selected.same_as(expr) );
+        // apply patch:
+        Expr patched_expr = patch(expr);
+        selected = patched_expr;
+        return patched_expr;
     }
 
     virtual Expr visit(const Add* op) override
     {
         return mutate_and_select(op);
+        //Expr keep = mutate_and_select(op);
+        //op = keep.as<Add>();
+        //Expr replaced = Div::make(op->a, op->b);
+        //return replaced;
     }
 
     virtual Expr visit(const Mul* op) override
     {
         return mutate_and_select(op);
+        //Expr keep = mutate_and_select(op);
+        //op = keep.as<Mul>();
+        //Expr replaced = Div::make(op->b, op->a);
+        //return replaced;
     }
 
     virtual Expr visit(const Let* op) override
     {
         Expr expr = mutate_and_select(op);
-        if (!selected)
+        if (!selected.defined())
         {
             return expr;
         }
 
         // patching...
-        //expr = Let::make();
-        return expr;
+        Expr patched_expr = apply_patch(expr, [&](Expr original_expr)
+        {
+            Expr new_let_body = original_expr;
+            Expr new_let_expr = Let::make(op->name, op->value, new_let_body);
+            return new_let_expr;
+        });
+        return patched_expr;
     }
 
     virtual Expr visit(const Call* op) override
     {
+        // 'mutate_and_select()' won't recurse into the definition of a Func
+        // (when 'op->call_type == CallType::Halide' or 'op->func.defined()')
         Expr expr = mutate_and_select(op);
-        if (!selected)
+
+        // I guess at this point the only way of something getting selected is
+        // if we allow for Func argument/parameters to get selected, or if the
+        // selected expression happens to be this Call.
+        // TODO(marcos): how should we patch the Call if we select an argument?
+        assert(!selected.defined());
+
+        if (!op->func.defined())
+        {
+            return expr;
+        }
+
+        Function(op->func).mutate(this);
+
+        if (!selected.defined())
         {
             return expr;
         }
 
         // patching...
-
-        if (op->func.defined())
+        assert(op->func.defined());     // we're in a CallType::Halide node
+        assert(selected.defined());     // and something has been selected
+        Expr patched_expr = apply_patch(selected, [&](Expr original_expr)
         {
-            // FunctionPtr -> Function -> Func
-            Func f = Func(Function(op->func));
-            Func g = clone(f);
-            g.function().mutate(this);
-
-            expr = Call::make(g.function(), op->args, op->value_index);
-        }
-
-        return expr;
+            Func g;
+            std::vector<Var> domain;
+            for (auto& var_name : Function(op->func).args())
+            {
+                domain.emplace_back(var_name);
+            }
+            g(domain) = selected;
+            Expr new_call_expr = Call::make(g.function(), op->args, op->value_index);
+            return new_call_expr;
+        });
+        return patched_expr;
     }
 };
 
@@ -1439,12 +1521,8 @@ struct ExampleMutator : public Halide::Internal::IRMutator2
         Expr expr = mutate_inner(op);
         if (op->func.defined())
         {
-            // FunctionPtr -> Function -> Func
-            Func f = Func(Function(op->func));
-            Func g = clone(f);
-            g.function().mutate(this);
-
-            expr = Call::make(g.function(), op->args, op->value_index);
+            Function(op->func).mutate(this);
+            expr = Call::make(Function(op->func), op->args, op->value_index);
         }
 
         calls.pop_back();
