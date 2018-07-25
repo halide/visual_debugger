@@ -1231,6 +1231,753 @@ struct IRDump : public Halide::Internal::IRVisitor
     #undef EMIT
 };
 
+struct IRNodePrinter
+{
+    static std::string print(Type type)
+    {
+        std::stringstream ss;
+        switch (type.code())
+        {
+        case halide_type_uint:
+            ss << "u";
+        case halide_type_int:
+            ss << "int";
+            break;
+        case halide_type_float:
+            ss << "float";
+            break;
+        case halide_type_handle:
+            ss << "handle";
+            break;
+        }
+        ss << type.bits();
+        ss << "[";
+        ss << type.lanes();
+        ss << "]";
+        return ss.str();
+    }
+
+    static std::string print(const Cast* op)
+    {
+        std::stringstream ss;
+        ss << "Cast : " << print(op->type);
+        return ss.str();
+    }
+
+    static std::string print(const Min* op)
+    {
+        std::stringstream ss;
+        ss << "Min";
+        return ss.str();
+    }
+
+    static std::string print(const Max* op)
+    {
+        std::stringstream ss;
+        ss << "Max";
+        return ss.str();
+    }
+    
+    static std::string print(const EQ* op)
+    {
+        std::stringstream ss;
+        ss << "EQ (equals)";
+        return ss.str();
+    }
+    
+    static std::string print(const NE* op)
+    {
+        std::stringstream ss;
+        ss << "NE (not-equal)";
+        return ss.str();
+    }
+    
+    static std::string print(const LT* op)
+    {
+        std::stringstream ss;
+        ss << "LT (less than)";
+        return ss.str();
+    }
+    
+    static std::string print(const LE* op)
+    {
+        std::stringstream ss;
+        ss << "LE (less-or-equal than)";
+        return ss.str();
+    }
+    
+    static std::string print(const GT* op)
+    {
+        std::stringstream ss;
+        ss << "GT (greater than)";
+        return ss.str();
+    }
+    
+    static std::string print(const GE* op)
+    {
+        std::stringstream ss;
+        ss << "GE (greater-or-equal than)";
+        return ss.str();
+    }
+
+    static std::string print(const And* op)
+    {
+        std::stringstream ss;
+        ss << "And (logical boolean)";
+        return ss.str();
+    }
+    
+    static std::string print(const Or* op)
+    {
+        std::stringstream ss;
+        ss << "Or (logical boolean)";
+        return ss.str();
+    }
+    
+    static std::string print(const Not* op)
+    {
+        std::stringstream ss;
+        ss << "Not (logical boolean)";
+        return ss.str();
+    }
+
+    static std::string print_var_type(const Variable* op)
+    {
+        std::string category;
+
+        if (op->param.defined())
+        {
+            assert(category.empty());
+            category = "parameter";
+        }
+
+        if (op->image.defined())
+        {
+            assert(category.empty());
+            category = "image";
+        }
+
+        if (op->reduction_domain.defined())
+        {
+            assert(category.empty());
+            category = "rdom";
+        }
+
+        if (category.empty())
+        {
+            category = "Var-or-Let ?";
+        }
+
+        return(category);
+    }
+
+    static std::string print(const Variable* op)
+    {
+        std::stringstream ss;
+        ss << "Variable : " << op->name << " (" << print_var_type(op) << ")";
+        return ss.str();
+    }
+    
+    static std::string print(const FloatImm* op)
+    {
+        std::stringstream ss;
+        ss << "FloatImm : " << op->value;
+        return ss.str();
+    }
+    
+    static std::string print(const IntImm* op)
+    {
+        std::stringstream ss;
+        ss << "IntImm : " << op->value;
+        return ss.str();
+    }
+    
+    static std::string print(const UIntImm* op)
+    {
+        std::stringstream ss;
+        ss << "UIntImm : " << op->value;
+        return ss.str();
+    }
+
+    static std::string print(const StringImm* op)
+    {
+        std::stringstream ss;
+        ss << "StringImm : " << op->value;
+        return ss.str();
+    }
+    
+    static std::string print(const Add* op)
+    {
+        std::stringstream ss;
+        ss << "Add";
+        return ss.str();
+    }
+    
+    static std::string print(const Sub* op)
+    {
+        std::stringstream ss;
+        ss << "Sub";
+        return ss.str();
+    }
+
+    static std::string print(const Mul* op)
+    {
+        std::stringstream ss;
+        ss << "Mul";
+        return ss.str();
+    }
+    
+    static std::string print(const Div* op)
+    {
+        std::stringstream ss;
+        ss << "Div";
+        return ss.str();
+    }
+    
+    static std::string print(const Mod* op)
+    {
+        std::stringstream ss;
+        ss << "Mod";
+        return ss.str();
+    }
+    
+    static std::string print(const Select* op)
+    {
+        std::stringstream ss;
+        ss << "Select";
+        return ss.str();
+    }
+    
+    static std::string print(const Load* op)
+    {
+        std::stringstream ss;
+        ss << "Load : " << op->name;
+        return ss.str();
+    }
+    
+    static std::string print(const Ramp* op)
+    {
+        std::stringstream ss;
+        ss << "Ramp";
+        return ss.str();
+    }
+    
+    static std::string print(const Broadcast* op)
+    {
+        std::stringstream ss;
+        ss << "Broadcast";
+        return ss.str();
+    }
+    
+    static std::string print(const Let* op)
+    {
+        std::stringstream ss;
+        ss << "Let : " << op->name;
+        return ss.str();
+    }
+    
+    static std::string print(const LetStmt* op)
+    {
+        std::stringstream ss;
+        ss << "LetStmt : " << op->name;
+        return ss.str();
+    }
+
+    static std::string print(const AssertStmt* op)
+    {
+        std::stringstream ss;
+        ss << "AssertStmt";
+        return ss.str();
+    }
+    
+    static std::string print(const ProducerConsumer* op)
+    {
+        std::stringstream ss;
+        ss << "LetStmt : " << op->name;
+        return ss.str();
+    }
+    
+    static std::string print(const For* op)
+    {
+        std::stringstream ss;
+        ss << "For : " << op->name;
+        return ss.str();
+    }
+    
+    static std::string print(const Store* op)
+    {
+        std::stringstream ss;
+        ss << "Store : " << op->name;
+        return ss.str();
+    }
+    
+    static std::string print(const Provide* op)
+    {
+        std::stringstream ss;
+        ss << "Provide : " << op->name;
+        return ss.str();
+    }
+    
+    static std::string print(const Allocate* op)
+    {
+        std::stringstream ss;
+        ss << "Allocate : " << op->name;
+        return ss.str();
+    }
+    
+    static std::string print(const Free* op)
+    {
+        std::stringstream ss;
+        ss << "Free : " << op->name;
+        return ss.str();
+    }
+    
+    static std::string print(const Realize* op)
+    {
+        std::stringstream ss;
+        ss << "Realize : " << op->name;
+        return ss.str();
+    }
+    
+    static std::string print(const Block* op)
+    {
+        std::stringstream ss;
+        ss << "Block";
+        return ss.str();
+    }
+    
+    static std::string print(const IfThenElse* op)
+    {
+        std::stringstream ss;
+        ss << "IfThenElse";
+        return ss.str();
+    }
+    
+    static std::string print(const Evaluate* op)
+    {
+        std::stringstream ss;
+        ss << "Evaluate";
+        return ss.str();
+    }
+    
+    static std::string print(const Shuffle* op)
+    {
+        std::stringstream ss;
+        ss << "Shuffle";
+        return ss.str();
+    }
+    
+    static std::string print(const Prefetch* op)
+    {
+        std::stringstream ss;
+        ss << "Prefetch : " << op->name;
+        return ss.str();
+    }
+
+    static std::string print(Call::CallType call_type)
+    {
+        std::string category;
+
+        #define CALLTYPE_CASE(TYPE) \
+        case Call::CallType::TYPE : \
+            category = #TYPE;       \
+            break;                  \
+
+        switch (call_type)
+        {
+            CALLTYPE_CASE(Halide)
+            CALLTYPE_CASE(Image)
+            CALLTYPE_CASE(Intrinsic)
+            CALLTYPE_CASE(Extern)
+            CALLTYPE_CASE(ExternCPlusPlus)
+            CALLTYPE_CASE(PureIntrinsic)
+            CALLTYPE_CASE(PureExtern)
+            default :
+                category = "UNKNOWN";
+                break;
+        }
+
+        #undef CALLTYPE_CASE
+
+        return(category);
+    }
+    
+    
+    static std::string print(const Call* op)
+    {
+        std::stringstream ss;
+        ss << "Call : " << print(op->call_type);
+        return ss.str();
+    }
+
+    // NOTE(marcos): not really a part of IRVisitor:
+    static std::string print(Function f)
+    {
+        std::stringstream ss;
+        ss << "Function : " << f.name();
+        return ss.str();
+    }
+
+    static std::string print(Func f)
+    {
+        std::stringstream ss;
+        ss << "Func : " << f.name();
+        return ss.str();
+    }
+    
+    //static std::string print(Expr e)
+    //{
+    //    e.accept(this);
+    //}
+};
+
+struct IRDump2 : public Halide::Internal::IRVisitor
+{
+    const int indent_length = 3;
+    std::string indent;
+
+    void add_indent()
+    {
+        for (int i = 0; i < indent_length; ++i)
+        {
+            indent.push_back(' ');
+        }
+    }
+    void remove_indent()
+    {
+        for (int i = 0; i < indent_length; ++i)
+        {
+            indent.pop_back();
+        }
+    }
+
+    int id = 0;
+
+    int assign_id()
+    {
+        return ++id;
+    }
+
+    #define indented_printf(format, ...) \
+        printf("        %s " format, indent.c_str(), ##__VA_ARGS__);
+
+    template<typename T>
+    void dump_head(T op)
+    {
+        assign_id();
+        printf("[%5d] %s %s\n", id, indent.c_str(),
+                                IRNodePrinter::print(op).c_str());
+    }
+
+    template<typename T>
+    void dump_guts(const T* op)
+    {
+        add_indent();
+            IRVisitor::visit(op);
+        remove_indent();
+    }
+
+    template<typename T>
+    void dump(const T* op)
+    {
+        dump_head(op);
+        dump_guts(op);
+    }
+
+    void visit(const Cast* op)
+    {
+        dump(op);
+    }
+
+    void visit(const Min* op)
+    {
+        dump(op);
+    }
+
+    void visit(const Max* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const EQ* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const NE* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const LT* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const LE* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const GT* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const GE* op)
+    {
+        dump(op);
+    }
+
+    void visit(const And* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Or* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Not* op)
+    {
+        dump(op);
+    }
+
+    void visit(const Variable* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const FloatImm* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const IntImm* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const UIntImm* op)
+    {
+        dump(op);
+    }
+
+    void visit(const StringImm* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Add* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Sub* op)
+    {
+        dump(op);
+    }
+
+    void visit(const Mul* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Div* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Mod* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Select* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Load* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Ramp* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Broadcast* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Let* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const LetStmt* op)
+    {
+        dump(op);
+    }
+
+    void visit(const AssertStmt* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const ProducerConsumer* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const For* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Store* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Provide* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Allocate* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Free* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Realize* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Block* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const IfThenElse* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Evaluate* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Shuffle* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Prefetch* op)
+    {
+        dump(op);
+    }
+
+    void dump_guts(const Call* op)
+    {
+        add_indent();
+            indented_printf("<arguments>\n");
+            for (auto& arg : op->args)
+            {
+                add_indent();
+                    arg.accept(this);
+                remove_indent();
+            }
+        remove_indent();
+        add_indent();
+            indented_printf("<callable>\n");
+            add_indent();
+                switch (op->call_type)
+                {
+                    case Call::CallType::Halide :
+                    {
+                        assert(op->func.defined());     // paranoid check...
+                        auto inner_func = Function(op->func);
+                        visit(inner_func);
+                        break;
+                    }
+                    case Call::CallType::Intrinsic :
+                    case Call::CallType::Extern :
+                    case Call::CallType::ExternCPlusPlus :
+                    case Call::CallType::PureIntrinsic :
+                    case Call::CallType::Image :
+                    case Call::CallType::PureExtern :
+                        indented_printf("<terminal definition: %s>\n", IRNodePrinter::print(op->call_type).c_str());
+                        break;
+                    default :
+                        indented_printf("<UNKNOWN>\n");
+                        break;
+                }
+            remove_indent();
+        remove_indent();
+    }
+
+    void visit(const Call* op)
+    {
+        dump(op);
+    }
+
+    // The following are convenience functions (not really a part of IRVisitor)
+    void visit(Function f)
+    {
+        dump_head(f);
+        add_indent();
+            //f.accept(this);
+            // NOTE(marcos): the default Function visitor is bit wacky, visitng
+            // [predicate, body, args, schedule, specializaitons] in this order
+            // which is confusing since we are mostly interested in [args, body]
+            // for the time being, so we can roll our own visiting pattern:
+            auto definition = f.definition();
+            indented_printf("<arguments>\n");
+            add_indent();
+                for (auto& arg : definition.args())
+                {
+                    arg.accept(this);
+                }
+            remove_indent();
+            int value_idx = 0;
+            for (auto& expr : definition.values())
+            {
+                indented_printf("<value %d>\n", value_idx++);
+                add_indent();
+                    expr.accept(this);
+                remove_indent();
+            }
+        remove_indent();
+    }
+
+    void visit(Func f)
+    {
+        dump_head(f);
+        add_indent();
+            visit(f.function());
+        remove_indent();
+    }
+    
+    void visit(Expr e)
+    {
+        e.accept(this);
+    }
+
+    #undef indented_printf
+};
+
 
 Func transform(Func f)
 {
@@ -1302,9 +2049,37 @@ expr_node * get_tree(Func f)
 // utility function to deep copy a Func (but it does not recursive!)
 Func clone(Func f)
 {
-    Func g;
-    std::map<FunctionPtr, FunctionPtr> env;
-    f.function().deep_copy("deep_copy_of_" + f.name(), g.function().get_contents(), env);
+    // f.function().deep_copy() only duplicates the first level of definitions
+    // in f, so we need to recursively visit CallType::Halide sub-expressions
+    // and duplicate them as well:
+    struct FuncCloner : public Halide::Internal::IRMutator2
+    {
+        static Func duplicate(Func f)
+        {
+            Func g;
+            std::map<FunctionPtr, FunctionPtr> env;
+            f.function().deep_copy("deep_copy_of_" + f.name(), g.function().get_contents(), env);
+            return g;
+        }
+        virtual Expr visit(const Call* op) override
+        {
+            Expr expr = IRMutator2::visit(op);
+            op = expr.as<Call>();
+            if (op->func.defined())
+            {
+                // FunctionPtr -> Function -> Func
+                Func f = Func(Function(op->func));
+                Func g = duplicate(f);
+                g.function().mutate(this);
+                expr = Call::make(g.function(), op->args, op->value_index);
+            }
+            return expr;
+        }
+    };
+
+    Func g = FuncCloner::duplicate(f);
+    FuncCloner cloner;
+    g.function().mutate(&cloner);
     return g;
 }
 
@@ -1322,6 +2097,320 @@ Func mutate(Func f)
     g.function().mutate(&mutator);
     return g;
 }
+
+struct DebuggerSelector : public Halide::Internal::IRMutator2
+{
+    int traversal_id = 0;
+    int target_id = 42;
+    Expr selected;
+
+    // convenience method (not really a part of IRMutator2)
+    template<typename T>
+    Expr mutate_and_select(const T* op)
+    {
+        const int id = ++traversal_id;      // generate unique id
+        Expr expr = IRMutator2::visit(op);  // visit/mutate children
+        if (id == target_id)
+        {
+            assert(!selected.defined());
+            selected = expr;
+        }
+        // propagate selection upwards in the traversal
+        if (selected.defined())
+        {
+            expr = selected;
+        }
+        return expr;
+    }
+
+    // convenience method (not really a part of IRMutator2)
+    template<typename PatchFn>
+    Expr apply_patch(Expr expr, PatchFn patch)
+    {
+        // paranoid checks...
+        assert( expr.defined() );
+        assert( selected.defined() );
+        assert( selected.same_as(expr) );
+        // apply patch:
+        Expr patched_expr = patch(expr);
+        selected = patched_expr;
+        return patched_expr;
+    }
+
+    virtual Expr visit(const Add* op) override
+    {
+        return mutate_and_select(op);
+        //Expr keep = mutate_and_select(op);
+        //op = keep.as<Add>();
+        //Expr replaced = Div::make(op->a, op->b);
+        //return replaced;
+    }
+
+    virtual Expr visit(const Mul* op) override
+    {
+        return mutate_and_select(op);
+        //Expr keep = mutate_and_select(op);
+        //op = keep.as<Mul>();
+        //Expr replaced = Div::make(op->b, op->a);
+        //return replaced;
+    }
+    
+    virtual Expr visit(const Div* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const Mod* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const Sub* op) override
+    {
+        return mutate_and_select(op);
+    }
+
+    virtual Expr visit(const Min* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const Max* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const EQ* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const NE* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const LT* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const LE* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const GT* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const GE* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const And* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const Or* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const Not* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const UIntImm* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const IntImm* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const FloatImm* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const StringImm* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const Variable* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const Cast* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const Select* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const Load* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const Ramp* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const Broadcast* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    virtual Expr visit(const Shuffle* op) override
+    {
+        return mutate_and_select(op);
+    }
+    
+    //NOTE(Emily): Disabling Stmt nodes for now - it doesn't make sense to visualize them, so we are not assigning IDs to them
+    /*
+    template<typename T>
+    Stmt mutate_and_select_stmt(const T*& op)
+    {
+        const int id = ++traversal_id;      // generate unique id
+        Stmt stmt = IRMutator2::visit(op);  // visit/mutate children
+        return stmt;
+    }
+    
+    virtual Stmt visit(const LetStmt* op) override
+    {
+        return mutate_and_select_stmt(op);
+    }
+    
+    virtual Stmt visit(const AssertStmt* op) override
+    {
+        return mutate_and_select_stmt(op);
+    }
+    
+    virtual Stmt visit(const ProducerConsumer* op) override
+    {
+        return mutate_and_select_stmt(op);
+    }
+    
+    virtual Stmt visit(const For* op) override
+    {
+        return mutate_and_select_stmt(op);
+    }
+    
+    virtual Stmt visit(const Store* op) override
+    {
+        return mutate_and_select_stmt(op);
+    }
+    
+    virtual Stmt visit(const Provide* op) override
+    {
+        return mutate_and_select_stmt(op);
+    }
+    
+    virtual Stmt visit(const Allocate* op) override
+    {
+        return mutate_and_select_stmt(op);
+    }
+    
+    virtual Stmt visit(const Free* op) override
+    {
+        return mutate_and_select_stmt(op);
+    }
+    
+    virtual Stmt visit(const Prefetch* op) override
+    {
+        return mutate_and_select_stmt(op);
+    }
+    
+    virtual Stmt visit(const Block* op) override
+    {
+        return mutate_and_select_stmt(op);
+    }
+    
+    virtual Stmt visit(const IfThenElse* op) override
+    {
+        return mutate_and_select_stmt(op);
+    }
+    
+    virtual Stmt visit(const Evaluate* op) override
+    {
+        return mutate_and_select_stmt(op);
+    }
+    */
+    
+    virtual Expr visit(const Let* op) override
+    {
+        Expr expr = mutate_and_select(op);
+        if (!selected.defined())
+        {
+            return expr;
+        }
+
+        // patching...
+        Expr patched_expr = apply_patch(expr, [&](Expr original_expr)
+        {
+            Expr new_let_body = original_expr;
+            Expr new_let_expr = Let::make(op->name, op->value, new_let_body);
+            return new_let_expr;
+        });
+        return patched_expr;
+    }
+
+    virtual Expr visit(const Call* op) override
+    {
+        // 'mutate_and_select()' won't recurse into the definition of a Func
+        // (when 'op->call_type == CallType::Halide' or 'op->func.defined()')
+        Expr expr = mutate_and_select(op);
+
+        // I guess at this point the only way of something getting selected is
+        // if we allow for Func argument/parameters to get selected, or if the
+        // selected expression happens to be this Call.
+        // TODO(marcos): how should we patch the Call if we select an argument?
+        assert(!selected.defined());
+
+        if (!op->func.defined())
+        {
+            return expr;
+        }
+
+        Function(op->func).mutate(this);
+
+        if (!selected.defined())
+        {
+            return expr;
+        }
+
+        // patching...
+        assert(op->func.defined());     // we're in a CallType::Halide node
+        assert(selected.defined());     // and something has been selected
+        Expr patched_expr = apply_patch(selected, [&](Expr original_expr)
+        {
+            Func g;
+            std::vector<Var> domain;
+            for (auto& var_name : Function(op->func).args())
+            {
+                domain.emplace_back(var_name);
+            }
+            g(domain) = selected;
+            Expr new_call_expr = Call::make(g.function(), op->args, op->value_index);
+            return new_call_expr;
+        });
+        return patched_expr;
+    }
+};
 
 #include <unordered_map>
 
@@ -1375,12 +2464,8 @@ struct ExampleMutator : public Halide::Internal::IRMutator2
         Expr expr = mutate_inner(op);
         if (op->func.defined())
         {
-            // FunctionPtr -> Function -> Func
-            Func f = Func(Function(op->func));
-            Func g = clone(f);
-            g.function().mutate(this);
-
-            expr = Call::make(g.function(), op->args, op->value_index);
+            Function(op->func).mutate(this);
+            expr = Call::make(Function(op->func), op->args, op->value_index);
         }
 
         calls.pop_back();
@@ -1436,13 +2521,15 @@ expr_node * tree_from_func()
     }
 
     Func h = mutate<ExampleMutator>(output);
+    Func m = mutate<DebuggerSelector>(output);
     IRDump().visit(h);
-    IRDump().visit(output);
+    IRDump().visit(m);
+    IRDump2().visit(output);
 
     //checking expr_node tree
     //expr_node * full_tree = get_tree(output);
     //output = transform(output);
-    display_map(output);
+    //display_map(output);
     
     return NULL; //TEMPORARY - returning before realizing image
     
