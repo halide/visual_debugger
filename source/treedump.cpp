@@ -2280,6 +2280,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         return mutate_and_select(op);
     }
     
+    //NOTE(Emily): Disabling Stmt nodes for now - it doesn't make sense to visualize them, so we are not assigning IDs to them
     /*
     template<typename T>
     Stmt mutate_and_select_stmt(const T*& op)
