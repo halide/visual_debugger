@@ -2112,7 +2112,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         Expr expr = IRMutator2::visit(op);  // visit/mutate children
         if (id == target_id)
         {
-            assert(!expr.defined());
+            assert(!selected.defined());
             selected = expr;
         }
         // propagate selection upwards in the traversal
@@ -2280,14 +2280,13 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         return mutate_and_select(op);
     }
     
+    /*
     template<typename T>
     Stmt mutate_and_select_stmt(const T*& op)
     {
         const int id = ++traversal_id;      // generate unique id
-        Stmt expr = IRMutator2::visit(op);  // visit/mutate children
-        selected = (id == target_id);       // toggle selection
-        op = expr.as<T>();
-        return expr;
+        Stmt stmt = IRMutator2::visit(op);  // visit/mutate children
+        return stmt;
     }
     
     virtual Stmt visit(const LetStmt* op) override
@@ -2349,6 +2348,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     {
         return mutate_and_select_stmt(op);
     }
+    */
     
     virtual Expr visit(const Let* op) override
     {
