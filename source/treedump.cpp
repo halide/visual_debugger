@@ -1231,6 +1231,741 @@ struct IRDump : public Halide::Internal::IRVisitor
     #undef EMIT
 };
 
+struct IRNodePrinter
+{
+    static std::string print(Type type)
+    {
+        std::stringstream ss;
+        switch (type.code())
+        {
+        case halide_type_uint:
+            ss << "u";
+        case halide_type_int:
+            ss << "int";
+            break;
+        case halide_type_float:
+            ss << "float";
+            break;
+        case halide_type_handle:
+            ss << "handle";
+            break;
+        }
+        ss << type.bits();
+        ss << "[";
+        ss << type.lanes();
+        ss << "]";
+        return ss.str();
+    }
+
+    static std::string print(const Cast* op)
+    {
+        std::stringstream ss;
+        ss << "Cast : " << print(op->type);
+        return ss.str();
+    }
+
+    static std::string print(const Min* op)
+    {
+        std::stringstream ss;
+        ss << "Min";
+        return ss.str();
+    }
+
+    static std::string print(const Max* op)
+    {
+        std::stringstream ss;
+        ss << "Max";
+        return ss.str();
+    }
+    
+    static std::string print(const EQ* op)
+    {
+        std::stringstream ss;
+        ss << "EQ (equals)";
+        return ss.str();
+    }
+    
+    static std::string print(const NE* op)
+    {
+        std::stringstream ss;
+        ss << "NE (not-equal)";
+        return ss.str();
+    }
+    
+    static std::string print(const LT* op)
+    {
+        std::stringstream ss;
+        ss << "LT (less than)";
+        return ss.str();
+    }
+    
+    static std::string print(const LE* op)
+    {
+        std::stringstream ss;
+        ss << "LE (less-or-equal than)";
+        return ss.str();
+    }
+    
+    static std::string print(const GT* op)
+    {
+        std::stringstream ss;
+        ss << "GT (greater than)";
+        return ss.str();
+    }
+    
+    static std::string print(const GE* op)
+    {
+        std::stringstream ss;
+        ss << "GE (greater-or-equal than)";
+        return ss.str();
+    }
+
+    static std::string print(const And* op)
+    {
+        std::stringstream ss;
+        ss << "And (logical boolean)";
+        return ss.str();
+    }
+    
+    static std::string print(const Or* op)
+    {
+        std::stringstream ss;
+        ss << "Or (logical boolean)";
+        return ss.str();
+    }
+    
+    static std::string print(const Not* op)
+    {
+        std::stringstream ss;
+        ss << "Not (logical boolean)";
+        return ss.str();
+    }
+
+    static std::string print_var_type(const Variable* op)
+    {
+        std::string category;
+
+        if (op->param.defined())
+        {
+            assert(category.empty());
+            category = "parameter";
+        }
+
+        if (op->image.defined())
+        {
+            assert(category.empty());
+            category = "image";
+        }
+
+        if (op->reduction_domain.defined())
+        {
+            assert(category.empty());
+            category = "rdom";
+        }
+
+        if (category.empty())
+        {
+            category = "let?";
+        }
+
+        return(category);
+    }
+
+    static std::string print(const Variable* op)
+    {
+        std::stringstream ss;
+        ss << "Variable : " << print_var_type(op);
+        return ss.str();
+    }
+    
+    static std::string print(const FloatImm* op)
+    {
+        std::stringstream ss;
+        ss << "FloatImm : " << op->value;
+        return ss.str();
+    }
+    
+    static std::string print(const IntImm* op)
+    {
+        std::stringstream ss;
+        ss << "IntImm : " << op->value;
+        return ss.str();
+    }
+    
+    static std::string print(const UIntImm* op)
+    {
+        std::stringstream ss;
+        ss << "UIntImm : " << op->value;
+        return ss.str();
+    }
+
+    static std::string print(const StringImm* op)
+    {
+        std::stringstream ss;
+        ss << "StringImm : " << op->value;
+        return ss.str();
+    }
+    
+    static std::string print(const Add* op)
+    {
+        std::stringstream ss;
+        ss << "Add";
+        return ss.str();
+    }
+    
+    static std::string print(const Sub* op)
+    {
+        std::stringstream ss;
+        ss << "Sub";
+        return ss.str();
+    }
+
+    static std::string print(const Mul* op)
+    {
+        std::stringstream ss;
+        ss << "Mul";
+        return ss.str();
+    }
+    
+    static std::string print(const Div* op)
+    {
+        std::stringstream ss;
+        ss << "Div";
+        return ss.str();
+    }
+    
+    static std::string print(const Mod* op)
+    {
+        std::stringstream ss;
+        ss << "Mod";
+        return ss.str();
+    }
+    
+    static std::string print(const Select* op)
+    {
+        std::stringstream ss;
+        ss << "Select";
+        return ss.str();
+    }
+    
+    static std::string print(const Load* op)
+    {
+        std::stringstream ss;
+        ss << "Load : " << op->name;
+        return ss.str();
+    }
+    
+    static std::string print(const Ramp* op)
+    {
+        std::stringstream ss;
+        ss << "Ramp";
+        return ss.str();
+    }
+    
+    static std::string print(const Broadcast* op)
+    {
+        std::stringstream ss;
+        ss << "Broadcast";
+        return ss.str();
+    }
+    
+    static std::string print(const Let* op)
+    {
+        std::stringstream ss;
+        ss << "Let : " << op->name;
+        return ss.str();
+    }
+    
+    static std::string print(const LetStmt* op)
+    {
+        std::stringstream ss;
+        ss << "LetStmt : " << op->name;
+        return ss.str();
+    }
+
+    static std::string print(const AssertStmt* op)
+    {
+        std::stringstream ss;
+        ss << "AssertStmt";
+        return ss.str();
+    }
+    
+    static std::string print(const ProducerConsumer* op)
+    {
+        std::stringstream ss;
+        ss << "LetStmt : " << op->name;
+        return ss.str();
+    }
+    
+    static std::string print(const For* op)
+    {
+        std::stringstream ss;
+        ss << "For : " << op->name;
+        return ss.str();
+    }
+    
+    static std::string print(const Store* op)
+    {
+        std::stringstream ss;
+        ss << "Store : " << op->name;
+        return ss.str();
+    }
+    
+    static std::string print(const Provide* op)
+    {
+        std::stringstream ss;
+        ss << "Provide : " << op->name;
+        return ss.str();
+    }
+    
+    static std::string print(const Allocate* op)
+    {
+        std::stringstream ss;
+        ss << "Allocate : " << op->name;
+        return ss.str();
+    }
+    
+    static std::string print(const Free* op)
+    {
+        std::stringstream ss;
+        ss << "Free : " << op->name;
+        return ss.str();
+    }
+    
+    static std::string print(const Realize* op)
+    {
+        std::stringstream ss;
+        ss << "Realize : " << op->name;
+        return ss.str();
+    }
+    
+    static std::string print(const Block* op)
+    {
+        std::stringstream ss;
+        ss << "Block";
+        return ss.str();
+    }
+    
+    static std::string print(const IfThenElse* op)
+    {
+        std::stringstream ss;
+        ss << "IfThenElse";
+        return ss.str();
+    }
+    
+    static std::string print(const Evaluate* op)
+    {
+        std::stringstream ss;
+        ss << "Evaluate";
+        return ss.str();
+    }
+    
+    static std::string print(const Shuffle* op)
+    {
+        std::stringstream ss;
+        ss << "Shuffle";
+        return ss.str();
+    }
+    
+    static std::string print(const Prefetch* op)
+    {
+        std::stringstream ss;
+        ss << "Prefetch : " << op->name;
+        return ss.str();
+    }
+
+    static std::string print(Call::CallType call_type)
+    {
+        std::string category;
+
+        #define CALLTYPE_CASE(TYPE) \
+        case Call::CallType::TYPE : \
+            category = #TYPE;       \
+            break;                  \
+
+        switch (call_type)
+        {
+            CALLTYPE_CASE(Halide)
+            CALLTYPE_CASE(Image)
+            CALLTYPE_CASE(Intrinsic)
+            CALLTYPE_CASE(Extern)
+            CALLTYPE_CASE(ExternCPlusPlus)
+            CALLTYPE_CASE(PureIntrinsic)
+            CALLTYPE_CASE(PureExtern)
+            default :
+                category = "UNKNOWN";
+                break;
+        }
+
+        #undef CALLTYPE_CASE
+
+        return(category);
+    }
+    
+    
+    static std::string print(const Call* op)
+    {
+        std::stringstream ss;
+        ss << "Call : " << print(op->call_type);
+        return ss.str();
+    }
+
+    // NOTE(marcos): not really a part of IRVisitor:
+    static std::string print(Function f)
+    {
+        std::stringstream ss;
+        ss << "Function : " << f.name();
+        return ss.str();
+    }
+
+    static std::string print(Func f)
+    {
+        std::stringstream ss;
+        ss << "Func : " << f.name();
+        return ss.str();
+    }
+    
+    //static std::string print(Expr e)
+    //{
+    //    e.accept(this);
+    //}
+};
+
+struct IRDump2 : public Halide::Internal::IRVisitor
+{
+    std::string indent;
+    void add_indent()
+    {
+        indent.push_back(' ');
+        indent.push_back(' ');
+    }
+    void remove_indent()
+    {
+        indent.pop_back();
+        indent.pop_back();
+    }
+
+    int id = 0;
+
+    template<typename T>
+    void dump_head(T op)
+    {
+        ++id;
+        printf("[%5d] %s %s\n", id, indent.c_str(),
+                                IRNodePrinter::print(op).c_str());
+    }
+
+    template<typename T>
+    void dump_guts(const T* op)
+    {
+        add_indent();
+            IRVisitor::visit(op);
+        remove_indent();
+    }
+
+    template<typename T>
+    void dump(const T* op)
+    {
+        dump_head(op);
+        dump_guts(op);
+    }
+
+    std::string print_type(Type type)
+    {
+        std::stringstream ss;
+        switch (type.code())
+        {
+            case halide_type_uint :
+                ss << "u";
+            case halide_type_int :
+                ss << "int";
+                break;
+            case halide_type_float :
+                ss << "float";
+                break;
+            case halide_type_handle :
+                ss << "handle";
+                break;
+        }
+        ss << type.bits();
+        ss << "[";
+        ss << type.lanes();
+        ss << "]";
+        return(ss.str());
+    }
+
+    void visit(const Cast* op)
+    {
+        dump(op);
+    }
+
+    void visit(const Min* op)
+    {
+        dump(op);
+    }
+
+    void visit(const Max* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const EQ* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const NE* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const LT* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const LE* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const GT* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const GE* op)
+    {
+        dump(op);
+    }
+
+    void visit(const And* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Or* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Not* op)
+    {
+        dump(op);
+    }
+
+    void visit(const Variable* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const FloatImm* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const IntImm* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const UIntImm* op)
+    {
+        dump(op);
+    }
+
+    void visit(const StringImm* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Add* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Sub* op)
+    {
+        dump(op);
+    }
+
+    void visit(const Mul* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Div* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Mod* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Select* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Load* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Ramp* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Broadcast* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Let* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const LetStmt* op)
+    {
+        dump(op);
+    }
+
+    void visit(const AssertStmt* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const ProducerConsumer* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const For* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Store* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Provide* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Allocate* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Free* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Realize* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Block* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const IfThenElse* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Evaluate* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Shuffle* op)
+    {
+        dump(op);
+    }
+    
+    void visit(const Prefetch* op)
+    {
+        dump(op);
+    }
+
+    void dump_guts(const Call* op)
+    {
+        add_indent();
+            printf("        %s %s\n", indent.c_str(), "<arguments>");
+            for (auto& arg : op->args)
+            {
+                add_indent();
+                    arg.accept(this);
+                remove_indent();
+            }
+        remove_indent();
+        add_indent();
+            printf("        %s %s\n", indent.c_str(), "<callable>");
+            add_indent();
+                switch (op->call_type)
+                {
+                    case Call::CallType::Halide :
+                    {
+                        assert(op->func.defined());     // paranoid check...
+                        auto inner_func = Function(op->func);
+                        visit(inner_func);
+                        break;
+                    }
+                    case Call::CallType::Intrinsic :
+                    case Call::CallType::Extern :
+                    case Call::CallType::ExternCPlusPlus :
+                    case Call::CallType::PureIntrinsic :
+                    case Call::CallType::Image :
+                    case Call::CallType::PureExtern :
+                        printf("        %s %s\n", indent.c_str(), "<terminal definition>");
+                        break;
+                    default :
+                        printf("        %s %s\n", indent.c_str(), "<UNKNOWN>");
+                        break;
+                }
+            remove_indent();
+        remove_indent();
+    }
+
+    void visit(const Call* op)
+    {
+        dump(op);
+    }
+
+    // NOTE(marcos): not really a part of IRVisitor:
+    void visit(Function f)
+    {
+        dump_head(f);
+        add_indent();
+            f.accept(this);
+        remove_indent();
+    }
+
+    void visit(Func f)
+    {
+        dump_head(f);
+        add_indent();
+            visit(f.function());
+        remove_indent();
+    }
+    
+    void visit(Expr e)
+    {
+        e.accept(this);
+    }
+};
+
 
 Func transform(Func f)
 {
@@ -1581,7 +2316,7 @@ expr_node * tree_from_func()
     Func m = mutate<DebuggerSelector>(output);
     IRDump().visit(h);
     IRDump().visit(m);
-    IRDump().visit(output);
+    IRDump2().visit(output);
 
     //checking expr_node tree
     //expr_node * full_tree = get_tree(output);
