@@ -1633,24 +1633,38 @@ struct IRNodePrinter
 
 struct IRDump2 : public Halide::Internal::IRVisitor
 {
+    const int indent_length = 3;
     std::string indent;
+
     void add_indent()
     {
-        indent.push_back(' ');
-        indent.push_back(' ');
+        for (int i = 0; i < indent_length; ++i)
+        {
+            indent.push_back(' ');
+        }
     }
     void remove_indent()
     {
-        indent.pop_back();
-        indent.pop_back();
+        for (int i = 0; i < indent_length; ++i)
+        {
+            indent.pop_back();
+        }
     }
 
     int id = 0;
 
+    int assign_id()
+    {
+        return ++id;
+    }
+
+    #define indented_printf(format, ...) \
+        printf("        %s " format, indent.c_str(), ##__VA_ARGS__);
+
     template<typename T>
     void dump_head(T op)
     {
-        ++id;
+        assign_id();
         printf("[%5d] %s %s\n", id, indent.c_str(),
                                 IRNodePrinter::print(op).c_str());
     }
@@ -1668,30 +1682,6 @@ struct IRDump2 : public Halide::Internal::IRVisitor
     {
         dump_head(op);
         dump_guts(op);
-    }
-
-    std::string print_type(Type type)
-    {
-        std::stringstream ss;
-        switch (type.code())
-        {
-            case halide_type_uint :
-                ss << "u";
-            case halide_type_int :
-                ss << "int";
-                break;
-            case halide_type_float :
-                ss << "float";
-                break;
-            case halide_type_handle :
-                ss << "handle";
-                break;
-        }
-        ss << type.bits();
-        ss << "[";
-        ss << type.lanes();
-        ss << "]";
-        return(ss.str());
     }
 
     void visit(const Cast* op)
@@ -1902,7 +1892,7 @@ struct IRDump2 : public Halide::Internal::IRVisitor
     void dump_guts(const Call* op)
     {
         add_indent();
-            printf("        %s %s\n", indent.c_str(), "<arguments>");
+            indented_printf("<arguments>\n");
             for (auto& arg : op->args)
             {
                 add_indent();
@@ -1911,7 +1901,7 @@ struct IRDump2 : public Halide::Internal::IRVisitor
             }
         remove_indent();
         add_indent();
-            printf("        %s %s\n", indent.c_str(), "<callable>");
+            indented_printf("<callable>\n");
             add_indent();
                 switch (op->call_type)
                 {
@@ -1928,10 +1918,10 @@ struct IRDump2 : public Halide::Internal::IRVisitor
                     case Call::CallType::PureIntrinsic :
                     case Call::CallType::Image :
                     case Call::CallType::PureExtern :
-                        printf("        %s %s\n", indent.c_str(), "<terminal definition>");
+                        indented_printf("<terminal definition: %s>\n", IRNodePrinter::print(op->call_type).c_str());
                         break;
                     default :
-                        printf("        %s %s\n", indent.c_str(), "<UNKNOWN>");
+                        indented_printf("<UNKNOWN>\n");
                         break;
                 }
             remove_indent();
@@ -1943,7 +1933,7 @@ struct IRDump2 : public Halide::Internal::IRVisitor
         dump(op);
     }
 
-    // NOTE(marcos): not really a part of IRVisitor:
+    // The following are convenience functions (not really a part of IRVisitor)
     void visit(Function f)
     {
         dump_head(f);
@@ -1964,6 +1954,8 @@ struct IRDump2 : public Halide::Internal::IRVisitor
     {
         e.accept(this);
     }
+
+    #undef indented_printf
 };
 
 
