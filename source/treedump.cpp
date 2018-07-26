@@ -2087,6 +2087,7 @@ Func clone(Func f)
 template<typename Mutator>
 Func mutate(Func f)
 {
+    printf("MUTATOR\n");
     Mutator mutator;
 
     //Func g ("HalideVisDbg");
@@ -2101,25 +2102,82 @@ Func mutate(Func f)
 struct DebuggerSelector : public Halide::Internal::IRMutator2
 {
     int traversal_id = 0;
-    int target_id = 42;
+    const int target_id = 17;
     Expr selected;
+
+    // -----------------------
+    const int indent_length = 2;
+    std::string indent;
+
+    void add_indent()
+    {
+        for (int i = 0; i < indent_length; ++i)
+        {
+            indent.push_back(' ');
+        }
+    }
+    void remove_indent()
+    {
+        for (int i = 0; i < indent_length; ++i)
+        {
+            indent.pop_back();
+        }
+    }
+
+    int assign_id()
+    {
+        return ++traversal_id;
+    }
+
+    #define indented_printf(format, ...) \
+        printf("        %s " format, indent.c_str(), ##__VA_ARGS__);
+
+    template<typename T>
+    void dump_head(T op, int id=0)
+    {
+        (0 != id) ? printf("[%5d]", id)
+                  : printf("       ");
+        printf(" %s %s\n", indent.c_str(),
+                           IRNodePrinter::print(op).c_str());
+    }
+
+    template<typename T>
+    Expr dump_guts(const T* op)
+    {
+        add_indent();
+            Expr expr = IRMutator2::visit(op);
+        remove_indent();
+        return expr;
+    }
+
+    template<typename T>
+    void dump(const T* op)
+    {
+        dump_head(op);
+        dump_guts(op);
+    }
+    // -----------------------
+
 
     // convenience method (not really a part of IRMutator2)
     template<typename T>
     Expr mutate_and_select(const T* op)
     {
-        const int id = ++traversal_id;      // generate unique id
-        Expr expr = IRMutator2::visit(op);  // visit/mutate children
+        const int id = assign_id();
+        dump_head(op, id);
+        Expr expr = dump_guts(op);
+        //const int id = assign_id();         // generate unique id
+        //Expr expr = IRMutator2::visit(op);  // visit/mutate children
         if (id == target_id)
         {
             assert(!selected.defined());
             selected = expr;
         }
         // propagate selection upwards in the traversal
-        if (selected.defined())
-        {
-            expr = selected;
-        }
+        //if (selected.defined())
+        //{
+        //    expr = selected;
+        //}
         return expr;
     }
 
@@ -2281,12 +2339,14 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     }
     
     //NOTE(Emily): Disabling Stmt nodes for now - it doesn't make sense to visualize them, so we are not assigning IDs to them
-    /*
     template<typename T>
-    Stmt mutate_and_select_stmt(const T*& op)
+    Stmt mutate_and_select_stmt(const T* op)
     {
-        const int id = ++traversal_id;      // generate unique id
-        Stmt stmt = IRMutator2::visit(op);  // visit/mutate children
+        //const int id = ++traversal_id;    // generate unique id
+        dump_head(op);
+        add_indent();
+            Stmt stmt = IRMutator2::visit(op);  // visit/mutate children
+        remove_indent();
         return stmt;
     }
     
@@ -2349,7 +2409,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     {
         return mutate_and_select_stmt(op);
     }
-    */
     
     virtual Expr visit(const Let* op) override
     {
@@ -2360,25 +2419,77 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         }
 
         // patching...
-        Expr patched_expr = apply_patch(expr, [&](Expr original_expr)
+        Expr patched_expr = apply_patch(selected, [&](Expr original_expr)
         {
             Expr new_let_body = original_expr;
             Expr new_let_expr = Let::make(op->name, op->value, new_let_body);
             return new_let_expr;
         });
-        return patched_expr;
+        return expr;
+    }
+
+    Expr dump_guts(const Call* op)
+    {
+        add_indent();
+            indented_printf("<arguments>\n");
+            for (auto& arg : op->args)
+            {
+                add_indent();
+                    IRMutator2::mutate(arg);
+                remove_indent();
+            }
+        remove_indent();
+        add_indent();
+            indented_printf("<callable>\n");
+            add_indent();
+                switch (op->call_type)
+                {
+                    case Call::CallType::Halide :
+                    {
+                        assert(op->func.defined());     // paranoid check...
+                        auto inner_func = Function(op->func);
+                        visit(inner_func);
+                        break;
+                    }
+                    case Call::CallType::Intrinsic :
+                    case Call::CallType::Extern :
+                    case Call::CallType::ExternCPlusPlus :
+                    case Call::CallType::PureIntrinsic :
+                    case Call::CallType::Image :
+                    case Call::CallType::PureExtern :
+                        indented_printf("<terminal definition: %s>\n", IRNodePrinter::print(op->call_type).c_str());
+                        break;
+                    default :
+                        indented_printf("<UNKNOWN>\n");
+                        break;
+                }
+            remove_indent();
+        remove_indent();
+        return Expr(op);
     }
 
     virtual Expr visit(const Call* op) override
     {
+#if 0
         // 'mutate_and_select()' won't recurse into the definition of a Func
         // (when 'op->call_type == CallType::Halide' or 'op->func.defined()')
         Expr expr = mutate_and_select(op);
 
-        // I guess at this point the only way of something getting selected is
-        // if we allow for Func argument/parameters to get selected, or if the
-        // selected expression happens to be this Call.
-        // TODO(marcos): how should we patch the Call if we select an argument?
+        if (selected.defined())
+        {
+            // Did this very own Call node just got selected? If so, carry on.
+            if (expr.same_as(Expr(op)))
+            {
+                return expr;
+            }
+            // NOTE(marcos): At this point, the only thing that could have been
+            // selected is an argument/parameter... Not quite sure if anything
+            // else could have been selected instead...
+            // TODO(marcos): For now, we may disallowed selecting Func arguments...
+            // but how should we proceed if an argument has been selected?
+            assert(!selected.defined());
+        }
+
         assert(!selected.defined());
 
         if (!op->func.defined())
@@ -2386,12 +2497,33 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
             return expr;
         }
 
-        Function(op->func).mutate(this);
+        // NOTE(marcos): Function::mutate does does not return the mutated Expr
+        // so we need to track it, hence keeping the "selected" member around
+        visit(Function(op->func));
+        //Function(op->func).mutate(this);
+        expr = Expr(op);
 
         if (!selected.defined())
         {
             return expr;
         }
+#else
+        if (selected.defined())
+        {
+            return mutate_and_select(op);
+        }
+
+        Expr expr = mutate_and_select(op);
+        // terminal, nothing to patch
+        if (!op->func.defined())
+        {
+            return expr;
+        }
+        if (!selected.defined())
+        {
+            return expr;
+        }
+#endif
 
         // patching...
         assert(op->func.defined());     // we're in a CallType::Halide node
@@ -2408,8 +2540,55 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
             Expr new_call_expr = Call::make(g.function(), op->args, op->value_index);
             return new_call_expr;
         });
-        return patched_expr;
+        return expr;
     }
+
+    // The following are convenience functions (not really a part of IRVisitor)
+    void visit(Function f)
+    {
+        dump_head(f);
+        add_indent();
+            //f.accept(this);
+            // NOTE(marcos): the default Function visitor is bit wacky, visitng
+            // [predicate, body, args, schedule, specializaitons] in this order
+            // which is confusing since we are mostly interested in [args, body]
+            // for the time being, so we can roll our own visiting pattern:
+            auto definition = f.definition();
+            indented_printf("<arguments>\n");
+            add_indent();
+                for (auto& arg : definition.args())
+                {
+                    IRMutator2::mutate(arg);
+                }
+            remove_indent();
+            int value_idx = 0;
+            for (auto& expr : definition.values())
+            {
+                indented_printf("<value %d>\n", value_idx++);
+                add_indent();
+                    IRMutator2::mutate(expr);
+                remove_indent();
+            }
+        remove_indent();
+    }
+
+    void visit(Func f)
+    {
+        indented_printf("MUTATOR\n");
+        dump_head(f);
+        add_indent();
+            visit(f.function());
+        remove_indent();
+    }
+
+    Func mutate(Func f)
+    {
+        Func g = clone(f);
+        visit(g);
+        return g;
+    }
+
+    #undef indented_printf
 };
 
 #include <unordered_map>
@@ -2521,9 +2700,11 @@ expr_node * tree_from_func()
     }
 
     Func h = mutate<ExampleMutator>(output);
-    Func m = mutate<DebuggerSelector>(output);
     IRDump().visit(h);
-    IRDump().visit(m);
+
+    Func m = DebuggerSelector().mutate(output);
+    //IRDump().visit(m);
+
     IRDump2().visit(output);
 
     //checking expr_node tree
