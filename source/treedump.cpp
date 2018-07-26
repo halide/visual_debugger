@@ -2104,7 +2104,7 @@ Func mutate(Func f)
 struct DebuggerSelector : public Halide::Internal::IRMutator2
 {
     int traversal_id = 0;
-    const int target_id = 4;
+    const int target_id = 10;
     Expr selected;
 
     // -----------------------
@@ -2166,6 +2166,10 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     Expr mutate_and_select(const T* op)
     {
         const int id = assign_id();
+        if (id == target_id)
+        {
+            indented_printf("---------- SELECTED ----------\n");
+        }
         dump_head(op, id);
         Expr expr = dump_guts(op);
         //const int id = assign_id();         // generate unique id
@@ -2472,21 +2476,19 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
 
     virtual Expr visit(const Call* op) override
     {
+        // it's possible that something up the expression tree has been selected
+        // already, but we still want to visit the entire tree for visualization
+        // purposes
+        //assert(!selected.defined());
         if (selected.defined())
         {
             return mutate_and_select(op);
         }
 
         Expr expr = mutate_and_select(op);
-        if (selected.defined())
-        {
-            if (selected.same_as(Expr(op)))
-            {
-                return expr;
-            }
-        }
-        // terminal, nothing to patch
-        if (!op->func.defined())
+
+        // has this very own Call node expression been selected?
+        if (selected.same_as(Expr(op)))
         {
             return expr;
         }
@@ -2495,9 +2497,15 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
             return expr;
         }
 
+        // terminal Call node, nothing to patch
+        if (!op->func.defined())
+        {
+            return expr;
+        }
+
         // patching...
-        assert(op->func.defined());     // we're in a CallType::Halide node
-        assert(selected.defined());     // and something has been selected
+        assert(op->func.defined());     // paranoid checks...
+        assert(op->call_type == Call::CallType::Halide);
         Expr patched_expr = apply_patch(selected, [&](Expr original_expr)
         {
             Func g;
@@ -2510,6 +2518,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
             Expr new_call_expr = Call::make(g.function(), op->args, op->value_index);
             return new_call_expr;
         });
+
         return expr;
     }
 
@@ -2553,15 +2562,11 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
 
     Func mutate(Func f)
     {
-        Func g = clone(f);
-        visit(g);
-        if(!selected.defined()){
-            return g;
-        }
-        Func h;
-        auto domain = g.args();
-        h(domain) = selected;
-        return h;
+        visit(f);
+        Func g;
+        auto domain = f.args();
+        g(domain) = selected;
+        return g;
     }
 
     #undef indented_printf
@@ -2676,18 +2681,20 @@ expr_node * tree_from_func()
     output(x, y, c) = f(x, y,c) + g(x,y,c);
     }
     }
-    
+
+    IRDump2().visit(output);
+
     //Func h = mutate<ExampleMutator>(output);
     //IRDump().visit(h);
 
     Func m = DebuggerSelector().mutate(output);
+    IRDump2().visit(m);
+    IRDump2().visit(output);
+
     auto domain = output.args();
     Expr mutated_expr = m(domain);
     Func out {"t_" + output.name()};
     out(domain) = cast(type__of(output), mutated_expr);
-    //IRDump().visit(h);
-    IRDump().visit(m);
-    IRDump2().visit(output);
 
     //checking expr_node tree
     //expr_node * full_tree = get_tree(output);
