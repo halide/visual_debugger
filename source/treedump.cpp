@@ -2102,7 +2102,7 @@ Func mutate(Func f)
 struct DebuggerSelector : public Halide::Internal::IRMutator2
 {
     int traversal_id = 0;
-    const int target_id = 17;
+    const int target_id = 24;
     Expr selected;
 
     // -----------------------
@@ -2470,50 +2470,19 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
 
     virtual Expr visit(const Call* op) override
     {
-#if 0
-        // 'mutate_and_select()' won't recurse into the definition of a Func
-        // (when 'op->call_type == CallType::Halide' or 'op->func.defined()')
-        Expr expr = mutate_and_select(op);
-
-        if (selected.defined())
-        {
-            // Did this very own Call node just got selected? If so, carry on.
-            if (expr.same_as(Expr(op)))
-            {
-                return expr;
-            }
-            // NOTE(marcos): At this point, the only thing that could have been
-            // selected is an argument/parameter... Not quite sure if anything
-            // else could have been selected instead...
-            // TODO(marcos): For now, we may disallowed selecting Func arguments...
-            // but how should we proceed if an argument has been selected?
-            assert(!selected.defined());
-        }
-
-        assert(!selected.defined());
-
-        if (!op->func.defined())
-        {
-            return expr;
-        }
-
-        // NOTE(marcos): Function::mutate does does not return the mutated Expr
-        // so we need to track it, hence keeping the "selected" member around
-        visit(Function(op->func));
-        //Function(op->func).mutate(this);
-        expr = Expr(op);
-
-        if (!selected.defined())
-        {
-            return expr;
-        }
-#else
         if (selected.defined())
         {
             return mutate_and_select(op);
         }
 
         Expr expr = mutate_and_select(op);
+        if (selected.defined())
+        {
+            if (selected.same_as(Expr(op)))
+            {
+                return expr;
+            }
+        }
         // terminal, nothing to patch
         if (!op->func.defined())
         {
@@ -2523,7 +2492,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         {
             return expr;
         }
-#endif
 
         // patching...
         assert(op->func.defined());     // we're in a CallType::Halide node
@@ -2585,7 +2553,11 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     {
         Func g = clone(f);
         visit(g);
-        return g;
+        //return g;
+        Func h;
+        auto domain = g.args();
+        h(domain) = selected;
+        return h;
     }
 
     #undef indented_printf
@@ -2699,8 +2671,8 @@ expr_node * tree_from_func()
     }
     }
 
-    Func h = mutate<ExampleMutator>(output);
-    IRDump().visit(h);
+    //Func h = mutate<ExampleMutator>(output);
+    //IRDump().visit(h);
 
     Func m = DebuggerSelector().mutate(output);
     auto domain = output.args();
