@@ -2690,12 +2690,12 @@ expr_node * tree_from_func()
     Func f{ "f" };
     {
     Var x, y, c;
-    f(x,y, c) = 10 * input(x, 0, c + 1);
+    f(x,y, c) = 10 * input(x, 0, 2-c);
     }
 
     {
     Var x, y, c;
-    output(x, y, c) = f(x + 3, y,c);
+    output(x, y, c) = f(x, y,c);
     }
     }
 
@@ -2703,8 +2703,12 @@ expr_node * tree_from_func()
     IRDump().visit(h);
 
     Func m = DebuggerSelector().mutate(output);
-    //IRDump().visit(m);
-
+    auto domain = output.args();
+    Expr mutated_expr = m(domain);
+    Func out {"t_" + output.name()};
+    out(domain) = cast(type__of(output), mutated_expr);
+    //IRDump().visit(h);
+    IRDump().visit(m);
     IRDump2().visit(output);
 
     //checking expr_node tree
@@ -2712,10 +2716,10 @@ expr_node * tree_from_func()
     //output = transform(output);
     //display_map(output);
     
-    return NULL; //TEMPORARY - returning before realizing image
+    //return NULL; //TEMPORARY - returning before realizing image
     
     Halide::Buffer<uint8_t> output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(input_full.width(), input_full.height(), input_full.channels());
-    output.output_buffer()
+    out.output_buffer()
             .dim(0).set_stride( output_buffer.dim(0).stride() )
             .dim(1).set_stride( output_buffer.dim(1).stride() )
             .dim(2).set_stride( output_buffer.dim(2).stride() );
@@ -2732,10 +2736,19 @@ expr_node * tree_from_func()
     );
     //output.print_loop_nest();
     output.compile_to_lowered_stmt("data/output/output.html", {}, HTML, target);
-
+    
+    /* NEED TO CAST FUNC TO UINT8_T
+    auto domain = m.args();
+    Expr body = m.function().extern_definition_proxy_expr();
+    Func out;
+    out(domain) = cast(type__of(output), body);
+    */
+    
+    
+    
     PROFILE_P(
         "realize",
-        output.realize(output_cropped);
+        out.realize(output_cropped);
     );
     
 
@@ -2743,6 +2756,7 @@ expr_node * tree_from_func()
     xsprintf(output_filename, 128, "data/output/output-%s.png", target.to_string().c_str());
     if (!SaveImage(output_filename, output_buffer))
         return NULL;
-
+    
+    return NULL;
     //return full_tree;
 }
