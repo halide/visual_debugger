@@ -2102,7 +2102,7 @@ Func mutate(Func f)
 struct DebuggerSelector : public Halide::Internal::IRMutator2
 {
     int traversal_id = 0;
-    const int target_id = 17;
+    const int target_id = 24;
     Expr selected;
 
     // -----------------------
@@ -2514,6 +2514,13 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         }
 
         Expr expr = mutate_and_select(op);
+        if (selected.defined())
+        {
+            if (selected.same_as(Expr(op)))
+            {
+                return expr;
+            }
+        }
         // terminal, nothing to patch
         if (!op->func.defined())
         {
@@ -2585,7 +2592,11 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     {
         Func g = clone(f);
         visit(g);
-        return g;
+        //return g;
+        Func h;
+        auto domain = g.args();
+        h(domain) = selected;
+        return h;
     }
 
     #undef indented_printf
@@ -2699,11 +2710,11 @@ expr_node * tree_from_func()
     }
     }
 
-    Func h = mutate<ExampleMutator>(output);
-    IRDump().visit(h);
+    //Func h = mutate<ExampleMutator>(output);
+    //IRDump().visit(h);
 
     Func m = DebuggerSelector().mutate(output);
-    //IRDump().visit(m);
+    IRDump2().visit(m);
 
     IRDump2().visit(output);
 
