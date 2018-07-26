@@ -2045,20 +2045,22 @@ expr_node * get_tree(Func f)
 }()
 
 #define PROFILE_P(label, ...) printf(#label "> %fs\n", PROFILE(__VA_ARGS__))
-
+int copyid = 0;
 // utility function to deep copy a Func (but it does not recursive!)
 Func clone(Func f)
 {
     // f.function().deep_copy() only duplicates the first level of definitions
     // in f, so we need to recursively visit CallType::Halide sub-expressions
     // and duplicate them as well:
+   
     struct FuncCloner : public Halide::Internal::IRMutator2
     {
         static Func duplicate(Func f)
         {
             Func g;
+            copyid++;
             std::map<FunctionPtr, FunctionPtr> env;
-            f.function().deep_copy("deep_copy_of_" + f.name(), g.function().get_contents(), env);
+            f.function().deep_copy("deep_copy_of_" + f.name() + "_" + std::to_string(copyid), g.function().get_contents(), env);
             return g;
         }
         virtual Expr visit(const Call* op) override
@@ -2102,7 +2104,7 @@ Func mutate(Func f)
 struct DebuggerSelector : public Halide::Internal::IRMutator2
 {
     int traversal_id = 0;
-    const int target_id = 1967;
+    const int target_id = 4;
     Expr selected;
 
     // -----------------------
@@ -2662,15 +2664,16 @@ expr_node * tree_from_func()
     
     {
     Func f{ "f" };
+    Func g{"g"};
     {
     Var x, y, c;
-    blur = Blur(input);
-    f(x,y, c) = 10 * blur(x, 0, 2-c);
+    f(x,y, c) = 10 * input(x, 0, 2-c);
+    g(x,y,c) = input(x, y, c) + 1;
     }
 
     {
     Var x, y, c;
-    output(x, y, c) = f(x, y,c);
+    output(x, y, c) = f(x, y,c) + g(x,y,c);
     }
     }
     
