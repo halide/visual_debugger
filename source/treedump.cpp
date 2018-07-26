@@ -2470,44 +2470,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
 
     virtual Expr visit(const Call* op) override
     {
-#if 0
-        // 'mutate_and_select()' won't recurse into the definition of a Func
-        // (when 'op->call_type == CallType::Halide' or 'op->func.defined()')
-        Expr expr = mutate_and_select(op);
-
-        if (selected.defined())
-        {
-            // Did this very own Call node just got selected? If so, carry on.
-            if (expr.same_as(Expr(op)))
-            {
-                return expr;
-            }
-            // NOTE(marcos): At this point, the only thing that could have been
-            // selected is an argument/parameter... Not quite sure if anything
-            // else could have been selected instead...
-            // TODO(marcos): For now, we may disallowed selecting Func arguments...
-            // but how should we proceed if an argument has been selected?
-            assert(!selected.defined());
-        }
-
-        assert(!selected.defined());
-
-        if (!op->func.defined())
-        {
-            return expr;
-        }
-
-        // NOTE(marcos): Function::mutate does does not return the mutated Expr
-        // so we need to track it, hence keeping the "selected" member around
-        visit(Function(op->func));
-        //Function(op->func).mutate(this);
-        expr = Expr(op);
-
-        if (!selected.defined())
-        {
-            return expr;
-        }
-#else
         if (selected.defined())
         {
             return mutate_and_select(op);
@@ -2530,7 +2492,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         {
             return expr;
         }
-#endif
 
         // patching...
         assert(op->func.defined());     // we're in a CallType::Halide node
