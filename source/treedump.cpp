@@ -2102,7 +2102,7 @@ Func mutate(Func f)
 struct DebuggerSelector : public Halide::Internal::IRMutator2
 {
     int traversal_id = 0;
-    const int target_id = 24;
+    const int target_id = 1967;
     Expr selected;
 
     // -----------------------
@@ -2553,7 +2553,9 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     {
         Func g = clone(f);
         visit(g);
-        //return g;
+        if(!selected.defined()){
+            return g;
+        }
         Func h;
         auto domain = g.args();
         h(domain) = selected;
@@ -2662,7 +2664,8 @@ expr_node * tree_from_func()
     Func f{ "f" };
     {
     Var x, y, c;
-    f(x,y, c) = 10 * input(x, 0, 2-c);
+    blur = Blur(input);
+    f(x,y, c) = 10 * blur(x, 0, 2-c);
     }
 
     {
@@ -2670,7 +2673,7 @@ expr_node * tree_from_func()
     output(x, y, c) = f(x, y,c);
     }
     }
-
+    
     //Func h = mutate<ExampleMutator>(output);
     //IRDump().visit(h);
 
