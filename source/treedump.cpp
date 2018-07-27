@@ -692,6 +692,23 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         dump_guts(op);
     }
     // -----------------------
+    //vars and method to help create expr_node tree
+    std::vector<expr_node *> parents; //keep track of depth/parents
+    expr_node * root = new expr_node();
+    void add_expr_node(expr_node * temp)
+    {
+        if(root->name.empty() && root->children.empty())
+        {
+            root = temp;
+            parents.push_back(root);
+        }
+        else
+        {
+            parents.back()->children.push_back(temp);
+            parents.push_back(temp);
+        }
+    }
+    // -----------------------
 
 
     // convenience method (not really a part of IRMutator2)
@@ -705,6 +722,14 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         }
         dump_head(op, id);
         Expr expr = dump_guts(op);
+
+        // WARN(marcos): this is currently leaking memory!
+        // I recommend replacying 'new' by std::queue pushes.
+        expr_node* node_op = new expr_node();
+        node_op->name = IRNodePrinter::print(op);
+        node_op->original = expr;
+        add_expr_node(node_op);
+
         //const int id = assign_id();         // generate unique id
         //Expr expr = IRMutator2::visit(op);  // visit/mutate children
         if (id == target_id)
@@ -1055,6 +1080,11 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         return expr;
     }
 
+    void visit(const Expr expr)
+    {
+        IRMutator2::mutate(expr);
+    }
+
     // The following are convenience functions (not really a part of IRVisitor)
     void visit(Function f)
     {
@@ -1136,7 +1166,7 @@ Func transform(Func f)
     h(domain) = cast(type__of(f), transformed_expr);
     return h;
 }
-#if 0
+
 void display_map(Func f)
 {
     IRVarMap test;
@@ -1145,7 +1175,7 @@ void display_map(Func f)
     for(auto name : map)
     {
         printf("%s\n", name.first.c_str());
-        IRDump dump;
+        IRDump3 dump;
         dump.visit(name.second);
     }
 }
@@ -1163,7 +1193,7 @@ void display_node(expr_node * parent)
 expr_node * get_tree(Func f)
 {
     //testing that expr_node tree was correctly built
-    IRDump dump;
+    IRDump3 dump;
     dump.visit(f);
     expr_node * tree = dump.root;
     //printf("displaying nodes in tree: \n");
@@ -1171,7 +1201,7 @@ expr_node * get_tree(Func f)
     return tree;
     
 }
-#endif
+
 expr_node * tree_from_func()
 {
     xsprintf(input_filename, 128, "data/pencils.jpg");
