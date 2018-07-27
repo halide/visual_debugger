@@ -2104,7 +2104,11 @@ Func mutate(Func f)
 struct DebuggerSelector : public Halide::Internal::IRMutator2
 {
     int traversal_id = 0;
-    const int target_id = 10;
+//    const int target_id = 1556;
+//    const int target_id = 27; //let method breaks
+//    const int target_id = 1801; //let method working
+//    const int target_id = 1653; //this let definition works
+    const int target_id = 823; //broken let definition patching
     Expr selected;
 
     // -----------------------
@@ -2431,7 +2435,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
             Expr new_let_expr = Let::make(op->name, op->value, new_let_body);
             return new_let_expr;
         });
-        return expr;
+        return patched_expr;
     }
 
     Expr dump_guts(const Call* op)
@@ -2564,6 +2568,9 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     {
         visit(f);
         Func g;
+        if(!selected.defined()){
+            return f;
+        }
         auto domain = f.args();
         g(domain) = selected;
         return g;
@@ -2665,8 +2672,8 @@ expr_node * tree_from_func()
     final = clamp(final, 0, 255);
 
     Func output { "output" };
-    //output(x, y, c) = cast(type__of(input), final);
-    
+    output(x, y, c) = cast(type__of(input), final);
+    /*
     {
     Func f{ "f" };
     Func g{"g"};
@@ -2681,7 +2688,8 @@ expr_node * tree_from_func()
     output(x, y, c) = f(x, y,c) + g(x,y,c);
     }
     }
-
+    */
+    
     IRDump2().visit(output);
 
     //Func h = mutate<ExampleMutator>(output);
