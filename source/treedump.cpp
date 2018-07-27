@@ -989,7 +989,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
             Expr new_let_expr = Let::make(op->name, op->value, new_let_body);
             return new_let_expr;
         });
-        return expr;
+        return patched_expr;
     }
 
     Expr dump_guts(const Call* op)
@@ -1137,6 +1137,9 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     {
         visit(f);
         Func g;
+        if(!selected.defined()){
+            return f;
+        }
         auto domain = f.args();
         if (selected.defined())
         {
@@ -1220,8 +1223,8 @@ expr_node * tree_from_func()
     final = clamp(final, 0, 255);
 
     Func output { "output" };
-    //output(x, y, c) = cast(type__of(input), final);
-    
+    output(x, y, c) = cast(type__of(input), final);
+    /*
     {
     Func f{ "f" };
     Func g{"g"};
@@ -1236,7 +1239,8 @@ expr_node * tree_from_func()
     output(x, y, c) = f(x, y,c) + g(x,y,c);
     }
     }
-
+    */
+    
     IRDump3().visit(output);
 
     Func out = transform(output);
