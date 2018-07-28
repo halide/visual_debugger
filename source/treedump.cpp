@@ -668,12 +668,22 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         printf("        %s " format, indent.c_str(), ##__VA_ARGS__);
     // -----------------------
     template<typename T>
-    void dump_head(T op, int id=0)
+    void dump_head(T op, int id=-1)
     {
-        (0 != id) ? printf("[%5d]", id)
-                  : printf("       ");
+        if (id == target_id)
+        {
+            indented_printf("vvvvvvvvvv SELECTED vvvvvvvvvv\n");
+        }
+
+        (id > 0) ? printf("[%5d]", id)
+                 : printf("       ");
         printf(" %s %s\n", indent.c_str(),
                            IRNodePrinter::print(op).c_str());
+
+        if (id == target_id)
+        {
+            indented_printf("^^^^^^^^^^ SELECTED ^^^^^^^^^^\n");
+        }
     }
 
     template<typename T>
@@ -716,10 +726,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     Expr mutate_and_select(const T* op)
     {
         const int id = assign_id();
-        if (id == target_id)
-        {
-            indented_printf("---------- SELECTED ----------\n");
-        }
         dump_head(op, id);
         Expr expr = dump_guts(op);
 
@@ -734,6 +740,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         //Expr expr = IRMutator2::visit(op);  // visit/mutate children
         if (id == target_id)
         {
+            assert(id > 0);
             assert(!selected.defined());
             selected = expr;
         }
@@ -1140,11 +1147,9 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         if(!selected.defined()){
             return f;
         }
+        DebuggerSelector().visit(selected);
         auto domain = f.args();
-        if (selected.defined())
-        {
-            g(domain) = selected;
-        }
+        g(domain) = selected;
         return g;
     }
 
@@ -1155,7 +1160,14 @@ struct IRDump3 : public DebuggerSelector { };
 
 Func transform(Func f)
 {
-    Func g = DebuggerSelector().mutate(f);
+    Func g = DebuggerSelector(
+        //26      //Let; broken
+        //27      //Call immediatelly inside a Let
+        //823     //broken let definition patching
+        //1556    //this let definition works
+        //1653    //Call
+        //1801    //let method working
+    ).mutate(f);
 
     auto domain = f.args();
     Expr transformed_expr = 0;
@@ -1241,12 +1253,12 @@ expr_node * tree_from_func()
     }
     */
     
-    IRDump3().visit(output);
+    //IRDump3().visit(output);
 
     Func out = transform(output);
-    IRDump3().visit(out);
+    //IRDump3().visit(out);
 
-    IRDump3().visit(output);
+    //IRDump3().visit(output);
 
     //checking expr_node tree
     //expr_node * full_tree = get_tree(output);
