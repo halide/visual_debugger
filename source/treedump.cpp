@@ -983,7 +983,18 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     
     virtual Expr visit(const Let* op) override
     {
+        if (selected.defined())
+        {
+            return mutate_and_select(op);
+        }
+
         Expr expr = mutate_and_select(op);
+
+        // has this very own Let node expression been selected?
+        if (selected.same_as(Expr(op)))
+        {
+            return expr;
+        }
         if (!selected.defined())
         {
             return expr;
@@ -1161,12 +1172,12 @@ struct IRDump3 : public DebuggerSelector { };
 Func transform(Func f)
 {
     Func g = DebuggerSelector(
-        //26      //Let; broken
-        //27      //Call immediatelly inside a Let
-        //823     //broken let definition patching
-        //1556    //this let definition works
-        //1653    //Call
-        //1801    //let method working
+        26      //Let
+        //27      //Call, immediatelly inside a Let
+        //823     //Let
+        //1556    //Let
+        //1653    //Call, immediatelly inside a Let
+        //1801    //Let
     ).mutate(f);
 
     auto domain = f.args();
