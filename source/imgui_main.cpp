@@ -93,9 +93,9 @@ void display_node(expr_node * parent, GLuint idMyTexture, std::vector<rgba>& pix
             clicked++;
         if (clicked & 1)
         {
-            set_color(pixels);
-            select_and_visualize(f, parent->node_id, input_full);
-            update_buffer(idMyTexture, pixels, width, height);
+            //set_color(pixels);
+            select_and_visualize(f, parent->node_id, input_full, idMyTexture);
+            //update_buffer(idMyTexture, pixels, width, height);
             
         }
         clicked = 0;

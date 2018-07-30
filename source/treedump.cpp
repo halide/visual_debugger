@@ -53,6 +53,8 @@
 
 #include "HalideImageIO.h"
 
+#define GL_RGBA32F 0x8814
+
 using namespace Halide;
 
 template<typename T>
@@ -737,6 +739,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         node_op->node_id = id;
         add_expr_node(node_op);
         
+        
         dump_head(op, id);
         Expr expr = dump_guts(op);
     
@@ -1258,18 +1261,20 @@ expr_node * get_tree(Func f)
     
 }
 
-void select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full)
+void select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, GLuint idMyTexture)
 {
     
-    Func g = DebuggerSelector(id).mutate(f);
+    Func m = DebuggerSelector(id).mutate(f);
     
     auto domain = f.args();
     Expr transformed_expr = 0;
-    if (g.defined())
+    if (m.defined())
     {
-        domain = g.args();
-        transformed_expr = g(domain);
+        domain = m.args();
+        transformed_expr = m(domain);
     }
+    
+    
     
     Func h;
     h(domain) = cast(type__of(f), transformed_expr);
@@ -1285,6 +1290,151 @@ void select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full)
     //output.gpu_tile(...)
     
     typedef std::chrono::high_resolution_clock clock_t;
+    
+    Type t = transformed_expr.type();
+    bool is_float = t.is_float();
+    
+    
+    auto dims = output_buffer.dimensions();
+    bool is_monochrome = false;
+    if(dims == 2)
+    {
+        is_monochrome = true;
+    }
+    else if(dims == 3)
+    {
+        int channels = output_buffer.dim(2).extent();
+        assert(channels == 1 || channels == 3);
+        if(channels == 1)
+        {
+            is_monochrome = true;
+        }
+    }
+    
+    GLenum internal_format(GL_INVALID_ENUM), external_format(GL_INVALID_ENUM), external_type(GL_INVALID_ENUM);
+    if(is_monochrome)
+    {
+        external_format = GL_RED;
+    }
+    else
+    {
+        external_format = GL_RGB;
+    }
+    
+    auto bits = t.bits(); //size of type
+    switch(bits)
+    {
+        case 8:
+            external_type = GL_UNSIGNED_BYTE;
+            internal_format = GL_RGBA8;
+            break;
+        case 16:
+            external_type = GL_UNSIGNED_SHORT;
+            internal_format = GL_RGBA16;
+            break;
+        case 32:
+            assert(is_float);
+            external_type = GL_FLOAT;
+            internal_format = GL_RGBA32F;
+            break;
+        default:
+            break;
+            
+    }
+    
+    int width = output_buffer.dim(0).extent();
+    int height = output_buffer.dim(1).extent();
+    int channels = output_buffer.dim(2).extent(); //NOTE(Emily): don't leave this here
+    
+    switch(t.code())
+    {
+        case halide_type_int:
+            break;
+        case halide_type_uint:
+        {
+            switch(bits)
+            {
+                case 8:
+                {
+                    Halide::Buffer<uint8_t> modified_output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(width, height, channels);
+                    m.output_buffer()
+                        .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
+                        .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
+                        .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
+                    PROFILE_P(
+                              "compile_jit",
+                              m.compile_jit(target);
+                              );
+                    
+                    PROFILE_P(
+                              "realize",
+                              m.realize(modified_output_buffer);
+                              );
+                    glBindTexture(GL_TEXTURE_2D, idMyTexture);
+                        glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, modified_output_buffer.data());
+                    glBindTexture(GL_TEXTURE_2D, 0);
+                    break;
+                }
+                case 16:
+                {
+                    Halide::Buffer<uint16_t> modified_output_buffer = Halide::Runtime::Buffer<uint16_t, 3>::make_interleaved(width, height, channels);
+                    m.output_buffer()
+                    .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
+                    .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
+                    .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
+                    PROFILE_P(
+                              "compile_jit",
+                              m.compile_jit(target);
+                              );
+                    
+                    PROFILE_P(
+                              "realize",
+                              m.realize(modified_output_buffer);
+                              );
+                    glBindTexture(GL_TEXTURE_2D, idMyTexture);
+                        glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, modified_output_buffer.data());
+                    glBindTexture(GL_TEXTURE_2D, 0);
+                    break;
+                }
+                default:
+                    break;
+            }
+            break;
+        }
+        case halide_type_float:
+        {
+            switch(bits)
+            {
+                case 32:
+                {
+                    Halide::Buffer<float_t> modified_output_buffer = Halide::Runtime::Buffer<float_t, 3>::make_interleaved(width, height, channels);
+                    m.output_buffer()
+                        .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
+                        .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
+                        .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
+                    PROFILE_P(
+                              "compile_jit",
+                              m.compile_jit(target);
+                              );
+                    
+                    PROFILE_P(
+                              "realize",
+                              m.realize(modified_output_buffer);
+                              );
+                    glBindTexture(GL_TEXTURE_2D, idMyTexture);
+                        glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, modified_output_buffer.data());
+                    glBindTexture(GL_TEXTURE_2D, 0);
+                    break;
+                }
+                default:
+                    break;
+            }
+            break;
+        }
+        case halide_type_handle:
+        default:
+            break;
+    }
     
     PROFILE_P(
               "compile_jit",
