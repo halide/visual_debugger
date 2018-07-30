@@ -86,7 +86,7 @@ void update_buffer(GLuint idMyTexture, std::vector<rgba> pixels, int width, int 
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-void display_node(expr_node * parent, GLuint idMyTexture, std::vector<rgba>& pixels, int width, int height){
+void display_node(expr_node * parent, GLuint idMyTexture, std::vector<rgba>& pixels, int width, int height, Func f, Halide::Buffer<uint8_t> input_full){
     if(ImGui::TreeNode(parent->name.c_str())){
         static int clicked = 0;
         if (ImGui::Button("View Result of Expr"))
@@ -94,20 +94,21 @@ void display_node(expr_node * parent, GLuint idMyTexture, std::vector<rgba>& pix
         if (clicked & 1)
         {
             set_color(pixels);
+            select_and_visualize(f, parent->node_id, input_full);
             update_buffer(idMyTexture, pixels, width, height);
             
         }
         clicked = 0;
         if(!parent->children.empty()){
             for(int i = 0; i < parent->children.size(); i++){
-                display_node(parent->children[i], idMyTexture, pixels, width, height);
+                display_node(parent->children[i], idMyTexture, pixels, width, height, f, input_full);
             }
         }
         ImGui::TreePop();
     }
 }
 
-void run_gui(expr_node * tree)
+void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
 {
     // Setup window
     glfwSetErrorCallback(glfw_error_callback);
@@ -192,7 +193,7 @@ void run_gui(expr_node * tree)
             {
                 expr_node * test = generate_example_tree();
                 //Note(Emily): call recursive method to display tree
-                display_node(tree, idMyTexture, pixels, width, height);
+                display_node(tree, idMyTexture, pixels, width, height, f, input_full);
             }
             
         }

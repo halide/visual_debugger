@@ -16,6 +16,7 @@ using namespace Halide;
 struct expr_node {
     std::string name;
     std::vector<expr_node *> children;
+    int node_id;
     Expr original;
     Expr modify;
 };

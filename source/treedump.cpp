@@ -725,6 +725,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     template<typename T>
     Expr mutate_and_select(const T* op)
     {
+        const int id = assign_id();
         
         //NOTE(Emily): This won't display modified tree because of
         // building the tree recursively (need to add node before visiting children)
@@ -733,9 +734,9 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         expr_node* node_op = new expr_node();
         node_op->name = IRNodePrinter::print(op);
         node_op->original = op;
+        node_op->node_id = id;
         add_expr_node(node_op);
         
-        const int id = assign_id();
         dump_head(op, id);
         Expr expr = dump_guts(op);
     
@@ -1115,6 +1116,13 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     void visit(Function f)
     {
         dump_head(f);
+        
+        // NOTE(emily): need to add the root Func as root of expr_node tree
+        // WARN(marcos): this is currently leaking memory!
+        // I recommend replacying 'new' by std::queue pushes.
+        expr_node* node_op = new expr_node();
+        node_op->name = IRNodePrinter::print(f);
+        add_expr_node(node_op);
 
         auto definition = f.definition();
         if (!definition.defined())
@@ -1146,6 +1154,8 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
                     IRMutator2::mutate(expr);
                 remove_indent();
             }
+        
+        parents.pop_back();
         remove_indent();
     }
 
@@ -1248,9 +1258,52 @@ expr_node * get_tree(Func f)
     
 }
 
-expr_node * tree_from_func()
+void select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full)
 {
-    xsprintf(input_filename, 128, "data/pencils.jpg");
+    
+    Func g = DebuggerSelector(id).mutate(f);
+    
+    auto domain = f.args();
+    Expr transformed_expr = 0;
+    if (g.defined())
+    {
+        domain = g.args();
+        transformed_expr = g(domain);
+    }
+    
+    Func h;
+    h(domain) = cast(type__of(f), transformed_expr);
+    
+    Halide::Buffer<uint8_t> output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(input_full.width(), input_full.height(), input_full.channels());
+    h.output_buffer()
+        .dim(0).set_stride( output_buffer.dim(0).stride() )
+        .dim(1).set_stride( output_buffer.dim(1).stride() )
+        .dim(2).set_stride( output_buffer.dim(2).stride() );
+    auto output_cropped = Crop(output_buffer, 2, 2);
+    Target target = get_host_target();
+    //target.set_feature(Target::CUDA);
+    //output.gpu_tile(...)
+    
+    typedef std::chrono::high_resolution_clock clock_t;
+    
+    PROFILE_P(
+              "compile_jit",
+              h.compile_jit(target);
+              );
+    
+    PROFILE_P(
+              "realize",
+              h.realize(output_cropped);
+              );
+    
+    
+    mkdir("data/output", S_IRWXU | S_IRWXG | S_IRWXO);
+    xsprintf(output_filename, 128, "data/output/output-%d.png", id);
+}
+
+expr_node * tree_from_func(Func output, Halide::Buffer<uint8_t> input_full)
+{
+    /*xsprintf(input_filename, 128, "data/pencils.jpg");
     Halide::Buffer<uint8_t> input_full = LoadImage(input_filename);
     if (!input_full.defined())
         return  NULL;
@@ -1266,8 +1319,8 @@ expr_node * tree_from_func()
     final = clamp(final, 0, 255);
 
     Func output { "output" };
-    output(x, y, c) = cast(type__of(input), final);
-    /*
+    //output(x, y, c) = cast(type__of(input), final);
+    
     {
     Func f{ "f" };
     Func g{"g"};
