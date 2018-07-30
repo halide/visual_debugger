@@ -634,7 +634,7 @@ struct IRNodePrinter
 struct DebuggerSelector : public Halide::Internal::IRMutator2
 {
     int traversal_id = 0;
-    const int target_id = 0;
+    const int target_id = 1801;
     Expr selected;
 
     DebuggerSelector(int _target_id = 0)
@@ -725,16 +725,21 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     template<typename T>
     Expr mutate_and_select(const T* op)
     {
-        const int id = assign_id();
-        dump_head(op, id);
-        Expr expr = dump_guts(op);
-
+        
+        //NOTE(Emily): This won't display modified tree because of
+        // building the tree recursively (need to add node before visiting children)
         // WARN(marcos): this is currently leaking memory!
         // I recommend replacying 'new' by std::queue pushes.
         expr_node* node_op = new expr_node();
         node_op->name = IRNodePrinter::print(op);
-        node_op->original = expr;
+        node_op->original = op;
         add_expr_node(node_op);
+        
+        const int id = assign_id();
+        dump_head(op, id);
+        Expr expr = dump_guts(op);
+    
+        
 
         //const int id = assign_id();         // generate unique id
         //Expr expr = IRMutator2::visit(op);  // visit/mutate children
@@ -749,6 +754,9 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         //{
         //    expr = selected;
         //}
+        
+        //NOTE(Emily): we need to pop back the parents after visiting children
+        parents.pop_back();
         return expr;
     }
 
@@ -1145,9 +1153,21 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     {
         indented_printf("vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv\n");
         dump_head(f);
+        
+        // NOTE(emily): need to add the root Func as root of expr_node tree
+        // WARN(marcos): this is currently leaking memory!
+        // I recommend replacying 'new' by std::queue pushes.
+        expr_node* node_op = new expr_node();
+        node_op->name = IRNodePrinter::print(f);
+        Expr expr = f(f.args());
+        node_op->original = expr;
+        add_expr_node(node_op);
+        
         add_indent();
             visit(f.function());
         remove_indent();
+        
+        parents.pop_back();
         indented_printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n");
     }
 
@@ -1172,8 +1192,8 @@ struct IRDump3 : public DebuggerSelector { };
 Func transform(Func f)
 {
     Func g = DebuggerSelector(
-        26      //Let
-        //27      //Call, immediatelly inside a Let
+        //26      //Let
+        27      //Call, immediatelly inside a Let
         //823     //Let
         //1556    //Let
         //1653    //Call, immediatelly inside a Let
@@ -1220,7 +1240,7 @@ expr_node * get_tree(Func f)
 {
     //testing that expr_node tree was correctly built
     IRDump3 dump;
-    dump.visit(f);
+    dump.mutate(f);
     expr_node * tree = dump.root;
     //printf("displaying nodes in tree: \n");
     //display_node(tree);
@@ -1272,7 +1292,7 @@ expr_node * tree_from_func()
     //IRDump3().visit(output);
 
     //checking expr_node tree
-    //expr_node * full_tree = get_tree(output);
+    expr_node * full_tree = get_tree(output);
     //output = transform(output);
     //display_map(output);
     
@@ -1316,7 +1336,6 @@ expr_node * tree_from_func()
     xsprintf(output_filename, 128, "data/output/output-%s.png", target.to_string().c_str());
     if (!SaveImage(output_filename, output_buffer))
         return NULL;
-    
-    return NULL;
-    //return full_tree;
+
+    return full_tree;
 }
