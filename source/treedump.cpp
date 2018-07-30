@@ -1298,7 +1298,9 @@ void select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full)
     
     
     mkdir("data/output", S_IRWXU | S_IRWXG | S_IRWXO);
-    xsprintf(output_filename, 128, "data/output/output-%d.png", id);
+    xsprintf(output_filename, 128, "data/output/output-%s-%d.png", target.to_string().c_str(), id);
+    if (!SaveImage(output_filename, output_buffer))
+        printf("Error saving image\n");
 }
 
 expr_node * tree_from_func(Func output, Halide::Buffer<uint8_t> input_full)
