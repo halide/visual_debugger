@@ -714,18 +714,18 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     }
     std::vector<expr_node *> parents; //keep track of depth/parents
     expr_node * root = new_expr_node();
-    void add_expr_node(expr_node * temp)
+    void add_expr_node(expr_node * node)
     {
-        if(root->name.empty() && root->children.empty())
+        if(!parents.empty())
         {
-            root = temp;
-            parents.push_back(root);
+            parents.back()->children.push_back(node);
         }
         else
         {
-            parents.back()->children.push_back(temp);
-            parents.push_back(temp);
+            assert(root->name.empty());
+            assert(root->children.empty());
         }
+        parents.push_back(node);
     }
     // -----------------------
 
@@ -738,8 +738,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         
         //NOTE(Emily): This won't display modified tree because of
         // building the tree recursively (need to add node before visiting children)
-        // WARN(marcos): this is currently leaking memory!
-        // I recommend replacying 'new' by std::queue pushes.
         expr_node* node_op = new_expr_node();
         node_op->name = IRNodePrinter::print(op);
         node_op->original = op;
@@ -1128,8 +1126,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         dump_head(f);
         
         // NOTE(emily): need to add the root Func as root of expr_node tree
-        // WARN(marcos): this is currently leaking memory!
-        // I recommend replacying 'new' by std::queue pushes.
         expr_node* node_op = new_expr_node();
         node_op->name = IRNodePrinter::print(f);
         add_expr_node(node_op);
@@ -1175,8 +1171,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         dump_head(f);
         
         // NOTE(emily): need to add the root Func as root of expr_node tree
-        // WARN(marcos): this is currently leaking memory!
-        // I recommend replacying 'new' by std::queue pushes.
         expr_node* node_op = new_expr_node();
         node_op->name = IRNodePrinter::print(f);
         Expr expr = f(f.args());
