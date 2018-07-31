@@ -30,7 +30,7 @@ int main()
         }
     }
     
-    expr_node * tree = tree_from_func(output, input_full);
-    run_gui(tree, output, input_full);
+    expr_tree tree = tree_from_func(output, input_full);
+    run_gui(tree.root, output, input_full);
     return 0;
 }
