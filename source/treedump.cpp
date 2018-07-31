@@ -705,21 +705,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     }
     // -----------------------
     //vars and method to help create expr_node tree
-    std::vector<expr_node *> parents; //keep track of depth/parents
-    expr_node * root = new expr_node();
-    void add_expr_node(expr_node * temp)
-    {
-        if(root->name.empty() && root->children.empty())
-        {
-            root = temp;
-            parents.push_back(root);
-        }
-        else
-        {
-            parents.back()->children.push_back(temp);
-            parents.push_back(temp);
-        }
-    }
+    expr_tree tree;
     // -----------------------
 
 
@@ -731,19 +717,16 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         
         //NOTE(Emily): This won't display modified tree because of
         // building the tree recursively (need to add node before visiting children)
-        // WARN(marcos): this is currently leaking memory!
-        // I recommend replacying 'new' by std::queue pushes.
-        expr_node* node_op = new expr_node();
+        expr_node* node_op = tree.new_expr_node();
         node_op->name = IRNodePrinter::print(op);
         node_op->original = op;
         node_op->node_id = id;
-        add_expr_node(node_op);
-        
+        tree.enter(node_op);
         
         dump_head(op, id);
         Expr expr = dump_guts(op);
     
-        
+        node_op->modify = expr;
 
         //const int id = assign_id();         // generate unique id
         //Expr expr = IRMutator2::visit(op);  // visit/mutate children
@@ -760,7 +743,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         //}
         
         //NOTE(Emily): we need to pop back the parents after visiting children
-        parents.pop_back();
+        tree.leave(node_op);
         return expr;
     }
 
@@ -1121,11 +1104,9 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         dump_head(f);
         
         // NOTE(emily): need to add the root Func as root of expr_node tree
-        // WARN(marcos): this is currently leaking memory!
-        // I recommend replacying 'new' by std::queue pushes.
-        expr_node* node_op = new expr_node();
+        expr_node* node_op = tree.new_expr_node();
         node_op->name = IRNodePrinter::print(f);
-        add_expr_node(node_op);
+        tree.enter(node_op);
 
         auto definition = f.definition();
         if (!definition.defined())
@@ -1157,9 +1138,9 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
                     IRMutator2::mutate(expr);
                 remove_indent();
             }
-        
-        parents.pop_back();
         remove_indent();
+
+        tree.leave(node_op);
     }
 
     void visit(Func f)
@@ -1168,19 +1149,17 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         dump_head(f);
         
         // NOTE(emily): need to add the root Func as root of expr_node tree
-        // WARN(marcos): this is currently leaking memory!
-        // I recommend replacying 'new' by std::queue pushes.
-        expr_node* node_op = new expr_node();
+        expr_node* node_op = tree.new_expr_node();
         node_op->name = IRNodePrinter::print(f);
         Expr expr = f(f.args());
         node_op->original = expr;
-        add_expr_node(node_op);
+        tree.enter(node_op);
         
         add_indent();
             visit(f.function());
         remove_indent();
         
-        parents.pop_back();
+        tree.leave(node_op);
         indented_printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n");
     }
 
@@ -1249,15 +1228,14 @@ void display_node(expr_node * parent)
     }
 }
 
-expr_node * get_tree(Func f)
+expr_tree get_tree(Func f)
 {
     //testing that expr_node tree was correctly built
     IRDump3 dump;
     dump.mutate(f);
-    expr_node * tree = dump.root;
     //printf("displaying nodes in tree: \n");
     //display_node(tree);
-    return tree;
+    return std::move(dump.tree);
     
 }
 
@@ -1487,7 +1465,7 @@ void select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, GL
         printf("Error saving image\n");
 }
 
-expr_node * tree_from_func(Func output, Halide::Buffer<uint8_t> input_full)
+expr_tree tree_from_func(Func output, Halide::Buffer<uint8_t> input_full)
 {
     /*xsprintf(input_filename, 128, "data/pencils.jpg");
     Halide::Buffer<uint8_t> input_full = LoadImage(input_filename);
@@ -1531,7 +1509,7 @@ expr_node * tree_from_func(Func output, Halide::Buffer<uint8_t> input_full)
     //IRDump3().visit(output);
 
     //checking expr_node tree
-    expr_node * full_tree = get_tree(output);
+    expr_tree full_tree = get_tree(output);
     //output = transform(output);
     //display_map(output);
     
@@ -1574,7 +1552,7 @@ expr_node * tree_from_func(Func output, Halide::Buffer<uint8_t> input_full)
     mkdir("data/output", S_IRWXU | S_IRWXG | S_IRWXO);
     xsprintf(output_filename, 128, "data/output/output-%s.png", target.to_string().c_str());
     if (!SaveImage(output_filename, output_buffer))
-        return NULL;
+        return expr_tree{};
 
-    return full_tree;
+    return std::move(full_tree);
 }
