@@ -705,8 +705,15 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     }
     // -----------------------
     //vars and method to help create expr_node tree
+    std::deque<expr_node> nodes;
+    expr_node* new_expr_node()
+    {
+        nodes.emplace_back();
+        auto& node = nodes.back();
+        return &node;
+    }
     std::vector<expr_node *> parents; //keep track of depth/parents
-    expr_node * root = new expr_node();
+    expr_node * root = new_expr_node();
     void add_expr_node(expr_node * temp)
     {
         if(root->name.empty() && root->children.empty())
@@ -733,7 +740,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         // building the tree recursively (need to add node before visiting children)
         // WARN(marcos): this is currently leaking memory!
         // I recommend replacying 'new' by std::queue pushes.
-        expr_node* node_op = new expr_node();
+        expr_node* node_op = new_expr_node();
         node_op->name = IRNodePrinter::print(op);
         node_op->original = op;
         node_op->node_id = id;
@@ -1123,7 +1130,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         // NOTE(emily): need to add the root Func as root of expr_node tree
         // WARN(marcos): this is currently leaking memory!
         // I recommend replacying 'new' by std::queue pushes.
-        expr_node* node_op = new expr_node();
+        expr_node* node_op = new_expr_node();
         node_op->name = IRNodePrinter::print(f);
         add_expr_node(node_op);
 
@@ -1170,7 +1177,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         // NOTE(emily): need to add the root Func as root of expr_node tree
         // WARN(marcos): this is currently leaking memory!
         // I recommend replacying 'new' by std::queue pushes.
-        expr_node* node_op = new expr_node();
+        expr_node* node_op = new_expr_node();
         node_op->name = IRNodePrinter::print(f);
         Expr expr = f(f.args());
         node_op->original = expr;
