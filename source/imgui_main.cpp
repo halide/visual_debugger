@@ -115,10 +115,8 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
                 clicked++;
             if (clicked & 1)
             {
-                //set_color(pixels);
                 selected_name = parent->name;
                 select_and_visualize(f, parent->node_id, input_full, idMyTexture);
-                //update_buffer(idMyTexture, pixels, width, height);
                 
             }
             clicked = 0;
@@ -219,7 +217,6 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
         {
             if (ImGui::CollapsingHeader("Expression Tree"))
             {
-                expr_node * test = generate_example_tree();
                 //Note(Emily): call recursive method to display tree
                 display_node(tree, idMyTexture, width, height, f, input_full, selected_name);
             }
@@ -236,7 +233,6 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
             std::string size_info = "width: " + std::to_string(width) + " height: " + std::to_string(height) + " channels: " + std::to_string(channels);
             ImGui::Text("%s", size_info.c_str());
             ImGui::Text("Currently Selected Expr: %s", selected_name.c_str());
-            //ImGui::Text("blah blah blah");
             if (ImGui::Button("Close Me"))
                 show_another_window = false;
             ImGui::End();
