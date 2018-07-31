@@ -88,18 +88,20 @@ void update_buffer(GLuint idMyTexture, std::vector<rgba> pixels, int width, int 
 
 void display_node(expr_node * parent, GLuint idMyTexture, std::vector<rgba>& pixels, int width, int height, Func f, Halide::Buffer<uint8_t> input_full){
     if(ImGui::TreeNode(parent->name.c_str())){
-        static int clicked = 0;
-        if (ImGui::Button("View Result of Expr"))
-            clicked++;
-        if (clicked & 1)
-        {
-            //set_color(pixels);
-            ImGui::Button("Currently Selected");
-            select_and_visualize(f, parent->node_id, input_full, idMyTexture);
-            //update_buffer(idMyTexture, pixels, width, height);
-            
+        if(parent->node_id != 0){
+            static int clicked = 0;
+            if (ImGui::Button("View Result of Expr"))
+                clicked++;
+            if (clicked & 1)
+            {
+                //set_color(pixels);
+                ImGui::Button("Currently Selected");
+                select_and_visualize(f, parent->node_id, input_full, idMyTexture);
+                //update_buffer(idMyTexture, pixels, width, height);
+                
+            }
+            clicked = 0;
         }
-        clicked = 0;
         if(!parent->children.empty()){
             for(int i = 0; i < parent->children.size(); i++){
                 display_node(parent->children[i], idMyTexture, pixels, width, height, f, input_full);
@@ -158,7 +160,7 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
     
     //NOTE: dummy image
     std::vector<rgba> pixels;
-    int width = 512, height = 512, channels = 4;
+    int width = 1280, height = 800, channels = 4;
     pixels.resize(width*height);
     set_color(pixels);
     
@@ -173,7 +175,10 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
     glBindTexture(GL_TEXTURE_2D, 0);
-
+    
+    //NOTE(Emily): call to update buffer to display output of function
+    select_and_visualize(f, 0, input_full, idMyTexture);
+    
     // Main loop
     while (!glfwWindowShouldClose(window))
     {
@@ -201,7 +206,7 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
             
         }
         
-
+        
         //NOTE(Emily): Window to show image info
         if (show_another_window)
         {
