@@ -1344,7 +1344,8 @@ void select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, GL
     
     int width = output_buffer.dim(0).extent();
     int height = output_buffer.dim(1).extent();
-    int channels = output_buffer.dim(2).extent(); //NOTE(Emily): don't leave this here
+    int channels;
+    if(dims == 3) channels = output_buffer.dim(2).extent();
     
     switch(t.code())
     {
@@ -1356,11 +1357,22 @@ void select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, GL
             {
                 case 8:
                 {
-                    Halide::Buffer<uint8_t> modified_output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(width, height, channels);
-                    m.output_buffer()
-                        .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
-                        .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
-                        .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
+                    Halide::Buffer<uint8_t> modified_output_buffer;
+                    if(is_monochrome)
+                    {
+                        modified_output_buffer = Halide::Runtime::Buffer<uint8_t, 2>::make_interleaved(width, height, 1); //NOTE(Emily): is 1 the correct value for channels here?
+                        m.output_buffer()
+                            .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
+                            .dim(1).set_stride( modified_output_buffer.dim(1).stride() );
+                    }
+                    else
+                    {
+                        modified_output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(width, height, channels);
+                        m.output_buffer()
+                            .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
+                            .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
+                            .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
+                    }
                     PROFILE_P(
                               "compile_jit",
                               m.compile_jit(target);
@@ -1377,11 +1389,22 @@ void select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, GL
                 }
                 case 16:
                 {
-                    Halide::Buffer<uint16_t> modified_output_buffer = Halide::Runtime::Buffer<uint16_t, 3>::make_interleaved(width, height, channels);
-                    m.output_buffer()
-                    .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
-                    .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
-                    .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
+                    Halide::Buffer<uint16_t> modified_output_buffer;
+                    if(is_monochrome)
+                    {
+                        modified_output_buffer = Halide::Runtime::Buffer<uint16_t, 2>::make_interleaved(width, height, 1); //NOTE(Emily): is 1 the correct value for channels here?
+                        m.output_buffer()
+                            .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
+                            .dim(1).set_stride( modified_output_buffer.dim(1).stride() );
+                    }
+                    else
+                    {
+                        modified_output_buffer = Halide::Runtime::Buffer<uint16_t, 3>::make_interleaved(width, height, channels);
+                        m.output_buffer()
+                            .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
+                            .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
+                            .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
+                    }
                     PROFILE_P(
                               "compile_jit",
                               m.compile_jit(target);
@@ -1407,11 +1430,22 @@ void select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, GL
             {
                 case 32:
                 {
-                    Halide::Buffer<float_t> modified_output_buffer = Halide::Runtime::Buffer<float_t, 3>::make_interleaved(width, height, channels);
-                    m.output_buffer()
-                        .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
-                        .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
-                        .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
+                    Halide::Buffer<float_t> modified_output_buffer;
+                    if(is_monochrome)
+                    {
+                        modified_output_buffer = Halide::Runtime::Buffer<float_t, 2>::make_interleaved(width, height, 1); //NOTE(Emily): is 1 the correct value for channels here?
+                        m.output_buffer()
+                            .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
+                            .dim(1).set_stride( modified_output_buffer.dim(1).stride() );
+                    }
+                    else
+                    {
+                        modified_output_buffer = Halide::Runtime::Buffer<float_t, 3>::make_interleaved(width, height, channels);
+                        m.output_buffer()
+                            .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
+                            .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
+                            .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
+                    }
                     PROFILE_P(
                               "compile_jit",
                               m.compile_jit(target);
