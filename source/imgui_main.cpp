@@ -94,6 +94,7 @@ void display_node(expr_node * parent, GLuint idMyTexture, std::vector<rgba>& pix
         if (clicked & 1)
         {
             //set_color(pixels);
+            ImGui::Button("Currently Selected");
             select_and_visualize(f, parent->node_id, input_full, idMyTexture);
             //update_buffer(idMyTexture, pixels, width, height);
             
@@ -114,7 +115,7 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
     glfwSetErrorCallback(glfw_error_callback);
     if (!glfwInit())
         return;
-    GLFWwindow* window = glfwCreateWindow(1280, 720, "ImGui GLFW+OpenGL2 example", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(1280, 720, "Halide Visual Debugger", NULL, NULL);
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1); // Enable vsync
 
@@ -132,6 +133,8 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
     // Setup style
     //ImGui::StyleColorsDark();
     ImGui::StyleColorsClassic();
+    
+    
 
     // Load Fonts
     // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them. 
@@ -204,10 +207,10 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
         {
             ImGui::SetNextWindowPos(ImVec2(650, 20), ImGuiCond_FirstUseEver);
             ImGui::Begin("Image Information Pop Up", &show_another_window);
-            ImGui::Text("Information about the image we are displaying");
+            ImGui::Text("Information about the currently displayed image: ");
             std::string size_info = "width: " + std::to_string(width) + " height: " + std::to_string(height) + " channels: " + std::to_string(channels);
             ImGui::Text("%s", size_info.c_str());
-            ImGui::Text("blah blah blah");
+            //ImGui::Text("blah blah blah");
             if (ImGui::Button("Close Me"))
                 show_another_window = false;
             ImGui::End();

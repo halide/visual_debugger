@@ -706,6 +706,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     // -----------------------
     //vars and method to help create expr_node tree
     expr_tree tree;
+
     // -----------------------
 
 
@@ -1185,7 +1186,7 @@ Func transform(Func f)
 {
     Func g = DebuggerSelector(
         //26      //Let
-        27      //Call, immediatelly inside a Let
+        //27      //Call, immediatelly inside a Let
         //823     //Let
         //1556    //Let
         //1653    //Call, immediatelly inside a Let
