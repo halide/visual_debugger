@@ -86,7 +86,28 @@ void update_buffer(GLuint idMyTexture, std::vector<rgba> pixels, int width, int 
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-void display_node(expr_node * parent, GLuint idMyTexture, std::vector<rgba>& pixels, int width, int height, Func f, Halide::Buffer<uint8_t> input_full){
+void ToggleButton(const char* str_id, bool* v)
+{
+    ImVec2 p = ImGui::GetCursorScreenPos();
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    
+    float height = ImGui::GetFrameHeight();
+    float width = height * 1.55f;
+    float radius = height * 0.50f;
+    
+    if (ImGui::InvisibleButton(str_id, ImVec2(width, height)))
+        *v = !*v;
+    ImU32 col_bg;
+    if (ImGui::IsItemHovered())
+        col_bg = *v ? IM_COL32(145+20, 211, 68+20, 255) : IM_COL32(218-20, 218-20, 218-20, 255);
+    else
+        col_bg = *v ? IM_COL32(145, 211, 68, 255) : IM_COL32(218, 218, 218, 255);
+    
+    draw_list->AddRectFilled(p, ImVec2(p.x + width, p.y + height), col_bg, height * 0.5f);
+    draw_list->AddCircleFilled(ImVec2(*v ? (p.x + width - radius) : (p.x + radius), p.y + radius), radius - 1.5f, IM_COL32(255, 255, 255, 255));
+}
+
+void display_node(expr_node * parent, GLuint idMyTexture, std::vector<rgba>& pixels, int width, int height, Func f, Halide::Buffer<uint8_t> input_full, std::string& selected_name){
     if(ImGui::TreeNode(parent->name.c_str())){
         if(parent->node_id != 0){
             static int clicked = 0;
@@ -95,7 +116,7 @@ void display_node(expr_node * parent, GLuint idMyTexture, std::vector<rgba>& pix
             if (clicked & 1)
             {
                 //set_color(pixels);
-                ImGui::Button("Currently Selected");
+                selected_name = parent->name;
                 select_and_visualize(f, parent->node_id, input_full, idMyTexture);
                 //update_buffer(idMyTexture, pixels, width, height);
                 
@@ -104,7 +125,7 @@ void display_node(expr_node * parent, GLuint idMyTexture, std::vector<rgba>& pix
         }
         if(!parent->children.empty()){
             for(int i = 0; i < parent->children.size(); i++){
-                display_node(parent->children[i], idMyTexture, pixels, width, height, f, input_full);
+                display_node(parent->children[i], idMyTexture, pixels, width, height, f, input_full, selected_name);
             }
         }
         ImGui::TreePop();
@@ -157,6 +178,7 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
     bool show_image = true;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     
+    std::string selected_name = "No node selected, displaying output";
     
     //NOTE: dummy image
     std::vector<rgba> pixels;
@@ -201,7 +223,7 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
             {
                 expr_node * test = generate_example_tree();
                 //Note(Emily): call recursive method to display tree
-                display_node(tree, idMyTexture, pixels, width, height, f, input_full);
+                display_node(tree, idMyTexture, pixels, width, height, f, input_full, selected_name);
             }
             
         }
@@ -215,6 +237,7 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
             ImGui::Text("Information about the currently displayed image: ");
             std::string size_info = "width: " + std::to_string(width) + " height: " + std::to_string(height) + " channels: " + std::to_string(channels);
             ImGui::Text("%s", size_info.c_str());
+            ImGui::Text("Currently Selected Expr: %s", selected_name.c_str());
             //ImGui::Text("blah blah blah");
             if (ImGui::Button("Close Me"))
                 show_another_window = false;
