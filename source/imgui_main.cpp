@@ -107,7 +107,7 @@ void ToggleButton(const char* str_id, bool* v)
     draw_list->AddCircleFilled(ImVec2(*v ? (p.x + width - radius) : (p.x + radius), p.y + radius), radius - 1.5f, IM_COL32(255, 255, 255, 255));
 }
 
-void display_node(expr_node * parent, GLuint idMyTexture, std::vector<rgba>& pixels, int width, int height, Func f, Halide::Buffer<uint8_t> input_full, std::string& selected_name){
+void display_node(expr_node * parent, GLuint idMyTexture, int width, int height, Func f, Halide::Buffer<uint8_t> input_full, std::string& selected_name){
     if(ImGui::TreeNode(parent->name.c_str())){
         if(parent->node_id != 0){
             static int clicked = 0;
@@ -125,7 +125,7 @@ void display_node(expr_node * parent, GLuint idMyTexture, std::vector<rgba>& pix
         }
         if(!parent->children.empty()){
             for(int i = 0; i < parent->children.size(); i++){
-                display_node(parent->children[i], idMyTexture, pixels, width, height, f, input_full, selected_name);
+                display_node(parent->children[i], idMyTexture, width, height, f, input_full, selected_name);
             }
         }
         ImGui::TreePop();
@@ -180,11 +180,9 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
     
     std::string selected_name = "No node selected, displaying output";
     
-    //NOTE: dummy image
-    std::vector<rgba> pixels;
-    int width = 1280, height = 800, channels = 4;
-    pixels.resize(width*height);
-    set_color(pixels);
+    int width = input_full.width();
+    int height = input_full.height();
+    int channels = input_full.channels();
     
     GLuint idMyTexture = 0;
     glGenTextures(1, &idMyTexture);
@@ -223,7 +221,7 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
             {
                 expr_node * test = generate_example_tree();
                 //Note(Emily): call recursive method to display tree
-                display_node(tree, idMyTexture, pixels, width, height, f, input_full, selected_name);
+                display_node(tree, idMyTexture, width, height, f, input_full, selected_name);
             }
             
         }
