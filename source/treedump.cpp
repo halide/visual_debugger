@@ -591,7 +591,7 @@ struct IRNodePrinter
     static std::string print(const Call* op)
     {
         std::stringstream ss;
-        ss << "Call : " << print(op->call_type);
+        ss << "Call : " << op->name << " | " << print(op->call_type);
         return ss.str();
     }
 
@@ -1006,8 +1006,12 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         return patched_expr;
     }
 
+    bool arg_selected = false;
+
     Expr dump_guts(const Call* op)
     {
+        bool had_selection = selected.defined();
+
         add_indent();
             indented_printf("<arguments>\n");
             for (auto& arg : op->args)
@@ -1017,6 +1021,9 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
                 remove_indent();
             }
         remove_indent();
+
+        bool has_selection = selected.defined();
+
         add_indent();
             indented_printf("<callable>\n");
             add_indent();
@@ -1043,6 +1050,13 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
                 }
             remove_indent();
         remove_indent();
+
+        arg_selected = (!had_selection && has_selection);
+        if (arg_selected)
+        {
+            int a = 0;
+        }
+
         return Expr(op);
     }
 
@@ -1058,6 +1072,14 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         }
 
         Expr expr = mutate_and_select(op);
+
+        // if selected expression is an argument, skip call!
+        if (arg_selected)
+        {
+            // keep 'selected' as is, unaltered.
+            arg_selected = false;
+            return expr;
+        }
 
         // has this very own Call node expression been selected?
         if (selected.same_as(Expr(op)))
@@ -1080,14 +1102,41 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         assert(op->call_type == Call::CallType::Halide);
         Expr patched_expr = apply_patch(selected, [&](Expr original_expr)
         {
+            auto& domain = Function(op->func).args();
+            std::vector<Expr> args;
+            for (auto& var_name : domain)
+            {
+                args.emplace_back( Var(var_name) );
+            }
+            ReductionDomain rdom;
+            Definition def (args, { selected }, rdom, true);
+            Function g (op->name);
+            g.define(domain, { cast(selected.type(), 0) });
+            g.definition() = def;
+            Expr new_call_expr = Call::make(g, op->args, op->value_index);
+
+            /*
+            Function g (op->name);
+            auto& domain = Function(op->func).args();
+            g.define(domain, { selected });
+            Expr new_call_expr = Call::make(g, op->args, op->value_index);
+            */
+
+            /*
             Func g;
+            add_indent();
+            indented_printf("g -- %s\n", g.name().c_str());
             std::vector<Var> domain;
             for (auto& var_name : Function(op->func).args())
             {
+                indented_printf("p -- %s\n", var_name.c_str());
                 domain.emplace_back(var_name);
             }
+            remove_indent();
             g(domain) = selected;
             Expr new_call_expr = Call::make(g.function(), op->args, op->value_index);
+            */
+
             return new_call_expr;
         });
 
@@ -1242,8 +1291,11 @@ expr_tree get_tree(Func f)
 
 void select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, GLuint idMyTexture)
 {
-    
+    //id = 24;
     Func m = DebuggerSelector(id).mutate(f);
+    //printf("SELECTION RESULT BELOW:");
+    //IRDump3().visit(m);
+    //printf("SELECTION RESULT ABOVE:");
     
     auto domain = f.args();
     Expr transformed_expr = 0;
@@ -1255,14 +1307,7 @@ void select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, GL
     
     
     
-    Func h;
-    h(domain) = cast(type__of(f), transformed_expr);
-    
     Halide::Buffer<uint8_t> output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(input_full.width(), input_full.height(), input_full.channels());
-    h.output_buffer()
-        .dim(0).set_stride( output_buffer.dim(0).stride() )
-        .dim(1).set_stride( output_buffer.dim(1).stride() )
-        .dim(2).set_stride( output_buffer.dim(2).stride() );
     auto output_cropped = Crop(output_buffer, 2, 2);
     Target target = get_host_target();
     //target.set_feature(Target::CUDA);
@@ -1273,173 +1318,142 @@ void select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, GL
     Type t = transformed_expr.type();
     bool is_float = t.is_float();
     
-    
     auto dims = output_buffer.dimensions();
-    bool is_monochrome = false;
+    // only 2D or 3D images for now (no 1D LUTs or nD entities)
+    assert(dims >= 2);
+    assert(dims <= 3);
+
+    int channels = 0;
     if(dims == 2)
     {
-        is_monochrome = true;
+        channels = 1;
     }
     else if(dims == 3)
     {
-        int channels = output_buffer.dim(2).extent();
-        assert(channels == 1 || channels == 3);
-        if(channels == 1)
-        {
-            is_monochrome = true;
-        }
+        channels = output_buffer.dim(2).extent();
     }
+    // only monochrome or rgb for now
+    assert(channels == 1 || channels == 3);
+
+    bool is_monochrome = (channels == 1);
     
     GLenum internal_format(GL_INVALID_ENUM), external_format(GL_INVALID_ENUM), external_type(GL_INVALID_ENUM);
-    if(is_monochrome)
-    {
-        external_format = GL_RED;
-    }
-    else
-    {
-        external_format = GL_RGB;
-    }
+    external_format = (is_monochrome) ? GL_RED
+                                      : GL_RGB;
     
     auto bits = t.bits(); //size of type
     switch(bits)
     {
         case 8:
-            external_type = GL_UNSIGNED_BYTE;
+            external_type   = GL_UNSIGNED_BYTE;
             internal_format = GL_RGBA8;
             break;
         case 16:
-            external_type = GL_UNSIGNED_SHORT;
-            internal_format = GL_RGBA16;
+            external_type   = GL_UNSIGNED_SHORT;
+            internal_format = GL_RGBA16;                                    // maybe force GL_RGBA8 fow now?
             break;
         case 32:
-            assert(is_float);
-            external_type = GL_FLOAT;
-            internal_format = GL_RGBA32F;
+            external_type   = (is_float) ? GL_FLOAT   : GL_UNSIGNED_INT;
+            internal_format = (is_float) ? GL_RGBA32F : GL_RGBA16;          // maybe force GL_RGBA8 for now?
             break;
         default:
+            assert(false);
             break;
             
     }
     
-    int width = output_buffer.dim(0).extent();
+    int width  = output_buffer.dim(0).extent();
     int height = output_buffer.dim(1).extent();
-    int channels;
-    if(dims == 3) channels = output_buffer.dim(2).extent();
     
+    Halide::Runtime::Buffer<> modified_output_buffer;
+
     switch(t.code())
     {
         case halide_type_int:
-            break;
-        case halide_type_uint:
         {
+            assert(!is_float);
             switch(bits)
             {
                 case 8:
                 {
-                    Halide::Buffer<uint8_t> modified_output_buffer;
-                    if(is_monochrome)
-                    {
-                        modified_output_buffer = Halide::Runtime::Buffer<uint8_t, 2>::make_interleaved(width, height, 1); //NOTE(Emily): is 1 the correct value for channels here?
-                        m.output_buffer()
-                            .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
-                            .dim(1).set_stride( modified_output_buffer.dim(1).stride() );
-                    }
+                    if (is_monochrome)
+                        modified_output_buffer = Halide::Runtime::Buffer<int8_t, 2>::make_interleaved(width, height, 1);
                     else
-                    {
-                        modified_output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(width, height, channels);
-                        m.output_buffer()
-                            .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
-                            .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
-                            .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
-                    }
-                    PROFILE_P(
-                              "compile_jit",
-                              m.compile_jit(target);
-                              );
-                    
-                    PROFILE_P(
-                              "realize",
-                              m.realize(modified_output_buffer);
-                              );
-                    glBindTexture(GL_TEXTURE_2D, idMyTexture);
-                        glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, modified_output_buffer.data());
-                    glBindTexture(GL_TEXTURE_2D, 0);
+                        modified_output_buffer = Halide::Runtime::Buffer<int8_t, 3>::make_interleaved(width, height, channels);
                     break;
                 }
                 case 16:
                 {
-                    Halide::Buffer<uint16_t> modified_output_buffer;
-                    if(is_monochrome)
-                    {
-                        modified_output_buffer = Halide::Runtime::Buffer<uint16_t, 2>::make_interleaved(width, height, 1); //NOTE(Emily): is 1 the correct value for channels here?
-                        m.output_buffer()
-                            .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
-                            .dim(1).set_stride( modified_output_buffer.dim(1).stride() );
-                    }
+                    if (is_monochrome)
+                        modified_output_buffer = Halide::Runtime::Buffer<int16_t, 2>::make_interleaved(width, height, 1);
                     else
-                    {
-                        modified_output_buffer = Halide::Runtime::Buffer<uint16_t, 3>::make_interleaved(width, height, channels);
-                        m.output_buffer()
-                            .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
-                            .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
-                            .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
-                    }
-                    PROFILE_P(
-                              "compile_jit",
-                              m.compile_jit(target);
-                              );
-                    
-                    PROFILE_P(
-                              "realize",
-                              m.realize(modified_output_buffer);
-                              );
-                    glBindTexture(GL_TEXTURE_2D, idMyTexture);
-                        glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, modified_output_buffer.data());
-                    glBindTexture(GL_TEXTURE_2D, 0);
+                        modified_output_buffer = Halide::Runtime::Buffer<int16_t, 3>::make_interleaved(width, height, channels);
+                    break;
+                }
+                case 32:
+                {
+                    if (is_monochrome)
+                        modified_output_buffer = Halide::Runtime::Buffer<int32_t, 2>::make_interleaved(width, height, 1);
+                    else
+                        modified_output_buffer = Halide::Runtime::Buffer<int32_t, 3>::make_interleaved(width, height, channels);
                     break;
                 }
                 default:
+                    assert(false);
+                    break;
+            }
+            break;
+        }
+        case halide_type_uint:
+        {
+            assert(!is_float);
+            switch(bits)
+            {
+                case 8:
+                {
+                    if (is_monochrome)
+                        modified_output_buffer = Halide::Runtime::Buffer<uint8_t, 2>::make_interleaved(width, height, 1);
+                    else
+                        modified_output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(width, height, channels);
+                    break;
+                }
+                case 16:
+                {
+                    if (is_monochrome)
+                        modified_output_buffer = Halide::Runtime::Buffer<uint16_t, 2>::make_interleaved(width, height, 1);
+                    else
+                        modified_output_buffer = Halide::Runtime::Buffer<uint16_t, 3>::make_interleaved(width, height, channels);
+                    break;
+                }
+                case 32:
+                {
+                    if (is_monochrome)
+                        modified_output_buffer = Halide::Runtime::Buffer<uint32_t, 2>::make_interleaved(width, height, 1);
+                    else
+                        modified_output_buffer = Halide::Runtime::Buffer<uint32_t, 3>::make_interleaved(width, height, channels);
+                    break;
+                }
+                default:
+                    assert(false);
                     break;
             }
             break;
         }
         case halide_type_float:
         {
+            assert(is_float);
             switch(bits)
             {
                 case 32:
                 {
-                    Halide::Buffer<float_t> modified_output_buffer;
-                    if(is_monochrome)
-                    {
-                        modified_output_buffer = Halide::Runtime::Buffer<float_t, 2>::make_interleaved(width, height, 1); //NOTE(Emily): is 1 the correct value for channels here?
-                        m.output_buffer()
-                            .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
-                            .dim(1).set_stride( modified_output_buffer.dim(1).stride() );
-                    }
+                    if (is_monochrome)
+                        modified_output_buffer = Halide::Runtime::Buffer<float, 2>::make_interleaved(width, height, 1);
                     else
-                    {
-                        modified_output_buffer = Halide::Runtime::Buffer<float_t, 3>::make_interleaved(width, height, channels);
-                        m.output_buffer()
-                            .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
-                            .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
-                            .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
-                    }
-                    PROFILE_P(
-                              "compile_jit",
-                              m.compile_jit(target);
-                              );
-                    
-                    PROFILE_P(
-                              "realize",
-                              m.realize(modified_output_buffer);
-                              );
-                    glBindTexture(GL_TEXTURE_2D, idMyTexture);
-                        glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, modified_output_buffer.data());
-                    glBindTexture(GL_TEXTURE_2D, 0);
+                        modified_output_buffer = Halide::Runtime::Buffer<float, 3>::make_interleaved(width, height, channels);
                     break;
                 }
                 default:
+                    assert(false);
                     break;
             }
             break;
@@ -1448,7 +1462,44 @@ void select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, GL
         default:
             break;
     }
+
+    if(is_monochrome)
+    {
+        m.output_buffer()
+            .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
+            .dim(1).set_stride( modified_output_buffer.dim(1).stride() );
+    }
+    else
+    {
+        m.output_buffer()
+            .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
+            .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
+            .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
+    }
+
+    PROFILE_P(
+                "compile_jit",
+                m.compile_jit(target);
+                );
+                    
+    PROFILE_P(
+                "realize",
+                m.realize(modified_output_buffer);
+                );
+
+    glBindTexture(GL_TEXTURE_2D, idMyTexture);
+        glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, modified_output_buffer.data());
+    glBindTexture(GL_TEXTURE_2D, 0);
     
+    /*
+    Func h;
+    h(domain) = cast(type__of(f), transformed_expr);
+
+    h.output_buffer()
+        .dim(0).set_stride( output_buffer.dim(0).stride() )
+        .dim(1).set_stride( output_buffer.dim(1).stride() )
+        .dim(2).set_stride( output_buffer.dim(2).stride() );
+
     PROFILE_P(
               "compile_jit",
               h.compile_jit(target);
@@ -1459,11 +1510,11 @@ void select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, GL
               h.realize(output_cropped);
               );
     
-    
     mkdir("data/output", S_IRWXU | S_IRWXG | S_IRWXO);
     xsprintf(output_filename, 128, "data/output/output-%s-%d.png", target.to_string().c_str(), id);
     if (!SaveImage(output_filename, output_buffer))
         printf("Error saving image\n");
+    */
 }
 
 expr_tree tree_from_func(Func output, Halide::Buffer<uint8_t> input_full)
