@@ -178,6 +178,7 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
 
     bool show_another_window = true;
     bool show_image = true;
+    bool show_expr_tree = true;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     
     std::string selected_name = "No node selected, displaying output";
@@ -218,12 +219,15 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
 
         // NOTE(Emily): main expression tree window
         // Tip: if we don't call ImGui::Begin()/ImGui::End() the widgets automatically appears in a window called "Debug".
+        if(show_expr_tree)
         {
-            if (ImGui::CollapsingHeader("Expression Tree"))
-            {
-                //Note(Emily): call recursive method to display tree
-                display_node(tree, idMyTexture, width, height, f, input_full, selected_name);
-            }
+            bool * no_close = NULL;
+            //ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_FirstUseEver);
+            ImGui::SetNextWindowSize(ImVec2(500,600));
+            ImGui::Begin("Expression Tree", no_close, ImGuiWindowFlags_HorizontalScrollbar);
+            //Note(Emily): call recursive method to display tree
+            display_node(tree, idMyTexture, width, height, f, input_full, selected_name);
+            ImGui::End();
             
         }
         
@@ -232,21 +236,21 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
         if (show_another_window)
         {
             bool * no_close = NULL;
-            ImGui::SetNextWindowPos(ImVec2(650, 20), ImGuiCond_FirstUseEver);
+            //ImGui::SetNextWindowPos(ImVec2(650, 20), ImGuiCond_FirstUseEver);
+            ImGui::SetNextWindowSize(ImVec2(300,100));
             ImGui::Begin("Image Information Pop Up", no_close);
             ImGui::Text("Information about the currently displayed image: ");
             std::string size_info = "width: " + std::to_string(width) + " height: " + std::to_string(height) + " channels: " + std::to_string(channels);
             ImGui::Text("%s", size_info.c_str());
             ImGui::Text("Currently Selected Expr: %s", selected_name.c_str());
-            if (ImGui::Button("Close Me"))
-                show_another_window = false;
             ImGui::End();
         }
         
         if (show_image)
         {
             bool * no_close = NULL;
-            ImGui::SetNextWindowPos(ImVec2(650, 200), ImGuiCond_FirstUseEver);
+            //ImGui::SetNextWindowPos(ImVec2(650, 200), ImGuiCond_FirstUseEver);
+            ImGui::SetNextWindowSize(ImVec2(500,500));
             ImGui::Begin("Image", no_close, ImGuiWindowFlags_HorizontalScrollbar);
             
             ImGui::Image((void *) (uintptr_t) idMyTexture , ImVec2(width, height));
