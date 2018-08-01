@@ -160,7 +160,6 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
     //ImGui::StyleColorsDark();
     ImGui::StyleColorsClassic();
     
-    
 
     // Load Fonts
     // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them. 
@@ -246,7 +245,7 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
         if (show_image)
         {
             ImGui::SetNextWindowPos(ImVec2(650, 200), ImGuiCond_FirstUseEver);
-            ImGui::Begin("Image", &show_image);
+            ImGui::Begin("Image", &show_image, ImGuiWindowFlags_HorizontalScrollbar);
             
             ImGui::Image((void *) (uintptr_t) idMyTexture , ImVec2(width, height));
             ImGui::End();
