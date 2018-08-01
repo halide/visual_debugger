@@ -747,6 +747,14 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         tree.leave(node_op);
         return expr;
     }
+    
+    void add_spacer_node()
+    {
+        expr_node* node_op = tree.new_expr_node();
+        node_op->name = "##";
+        tree.enter(node_op);
+        tree.leave(node_op);
+    }
 
     // convenience method (not really a part of IRMutator2)
     template<typename PatchFn>
@@ -1023,6 +1031,9 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         remove_indent();
 
         bool has_selection = selected.defined();
+        
+        //NOTE(Emily): adding separation node here
+        add_spacer_node();
 
         add_indent();
             indented_printf("<callable>\n");
@@ -1180,6 +1191,10 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
                     IRMutator2::mutate(arg);
                 }
             remove_indent();
+        
+            //NOTE(Emily): adding separation node here
+            add_spacer_node();
+        
             int value_idx = 0;
             for (auto& expr : definition.values())
             {
