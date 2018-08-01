@@ -231,8 +231,9 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
         //NOTE(Emily): Window to show image info
         if (show_another_window)
         {
+            bool * no_close = NULL;
             ImGui::SetNextWindowPos(ImVec2(650, 20), ImGuiCond_FirstUseEver);
-            ImGui::Begin("Image Information Pop Up", &show_another_window);
+            ImGui::Begin("Image Information Pop Up", no_close);
             ImGui::Text("Information about the currently displayed image: ");
             std::string size_info = "width: " + std::to_string(width) + " height: " + std::to_string(height) + " channels: " + std::to_string(channels);
             ImGui::Text("%s", size_info.c_str());
@@ -244,8 +245,9 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
         
         if (show_image)
         {
+            bool * no_close = NULL;
             ImGui::SetNextWindowPos(ImVec2(650, 200), ImGuiCond_FirstUseEver);
-            ImGui::Begin("Image", &show_image, ImGuiWindowFlags_HorizontalScrollbar);
+            ImGui::Begin("Image", no_close, ImGuiWindowFlags_HorizontalScrollbar);
             
             ImGui::Image((void *) (uintptr_t) idMyTexture , ImVec2(width, height));
             ImGui::End();
