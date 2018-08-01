@@ -748,12 +748,18 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         return expr;
     }
     
-    void add_spacer_node(std::string label)
+    expr_node* add_spacer_node(std::string label)
     {
         expr_node* node_op = tree.new_expr_node();
         node_op->name = label;
         tree.enter(node_op);
-        tree.leave(node_op);
+        //tree.leave(node_op);
+        return node_op;
+    }
+    
+    void leave_spacer_node(expr_node* spacer)
+    {
+        tree.leave(spacer);
     }
 
     // convenience method (not really a part of IRMutator2)
@@ -1021,7 +1027,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         bool had_selection = selected.defined();
         
         //NOTE(Emily): adding separation node here
-        add_spacer_node("<arguments>");
+        expr_node* arg_spacer = add_spacer_node("<arguments>");
 
         add_indent();
             indented_printf("<arguments>\n");
@@ -1035,8 +1041,9 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
 
         bool has_selection = selected.defined();
         
+        leave_spacer_node(arg_spacer);
         //NOTE(Emily): adding separation node here
-        add_spacer_node("<callable>");
+        expr_node* spacer = add_spacer_node("<callable>");
 
         add_indent();
             indented_printf("<callable>\n");
@@ -1064,12 +1071,9 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
                 }
             remove_indent();
         remove_indent();
-
+        leave_spacer_node(spacer);
+        
         arg_selected = (!had_selection && has_selection);
-        if (arg_selected)
-        {
-            int a = 0;
-        }
 
         return Expr(op);
     }
@@ -1182,7 +1186,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         }
         
         //NOTE(Emily): adding separation node here
-        add_spacer_node("<arguments>");
+        expr_node * arg_spacer = add_spacer_node("<arguments>");
 
         add_indent();
             //f.accept(this);
@@ -1198,8 +1202,9 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
                 }
             remove_indent();
         
+        leave_spacer_node(arg_spacer);
             //NOTE(Emily): adding separation node here
-            add_spacer_node("<value>");
+            expr_node * spacer = add_spacer_node("<value>");
         
             int value_idx = 0;
             for (auto& expr : definition.values())
@@ -1209,6 +1214,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
                     IRMutator2::mutate(expr);
                 remove_indent();
             }
+            leave_spacer_node(spacer);
         remove_indent();
 
         tree.leave(node_op);
