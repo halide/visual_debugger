@@ -748,10 +748,10 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         return expr;
     }
     
-    void add_spacer_node()
+    void add_spacer_node(std::string label)
     {
         expr_node* node_op = tree.new_expr_node();
-        node_op->name = "##";
+        node_op->name = label;
         tree.enter(node_op);
         tree.leave(node_op);
     }
@@ -1019,6 +1019,9 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     Expr dump_guts(const Call* op)
     {
         bool had_selection = selected.defined();
+        
+        //NOTE(Emily): adding separation node here
+        add_spacer_node("<arguments>");
 
         add_indent();
             indented_printf("<arguments>\n");
@@ -1033,7 +1036,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         bool has_selection = selected.defined();
         
         //NOTE(Emily): adding separation node here
-        add_spacer_node();
+        add_spacer_node("<callable>");
 
         add_indent();
             indented_printf("<callable>\n");
@@ -1177,6 +1180,9 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
             remove_indent();
             return;
         }
+        
+        //NOTE(Emily): adding separation node here
+        add_spacer_node("<arguments>");
 
         add_indent();
             //f.accept(this);
@@ -1193,7 +1199,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
             remove_indent();
         
             //NOTE(Emily): adding separation node here
-            add_spacer_node();
+            add_spacer_node("<value>");
         
             int value_idx = 0;
             for (auto& expr : definition.values())

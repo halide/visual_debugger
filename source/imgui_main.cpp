@@ -108,25 +108,30 @@ void ToggleButton(const char* str_id, bool* v)
 }
 
 void display_node(expr_node * parent, GLuint idMyTexture, int width, int height, Func f, Halide::Buffer<uint8_t> input_full, std::string& selected_name){
-    if(ImGui::TreeNode(parent->name.c_str())){
-        if(parent->node_id != 0){
-            static int clicked = 0;
-            if (ImGui::Button("View Result of Expr"))
-                clicked++;
-            if (clicked & 1)
-            {
-                selected_name = parent->name;
-                select_and_visualize(f, parent->node_id, input_full, idMyTexture);
-                
+    if(parent->name == "<arguments>" || parent->name == "<callable>" || parent->name == "<value>"){
+        ImGui::Text(parent->name.c_str());
+    }
+    else{
+        if(ImGui::TreeNode(parent->name.c_str())){
+            if(parent->node_id != 0){
+                static int clicked = 0;
+                if (ImGui::Button("View Result of Expr"))
+                    clicked++;
+                if (clicked & 1)
+                {
+                    selected_name = parent->name;
+                    select_and_visualize(f, parent->node_id, input_full, idMyTexture);
+                    
+                }
+                clicked = 0;
             }
-            clicked = 0;
-        }
-        if(!parent->children.empty()){
-            for(int i = 0; i < parent->children.size(); i++){
-                display_node(parent->children[i], idMyTexture, width, height, f, input_full, selected_name);
+            if(!parent->children.empty()){
+                for(int i = 0; i < parent->children.size(); i++){
+                    display_node(parent->children[i], idMyTexture, width, height, f, input_full, selected_name);
+                }
             }
+            ImGui::TreePop();
         }
-        ImGui::TreePop();
     }
 }
 
