@@ -1247,7 +1247,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         if(!selected.defined()){
             return f;
         }
-        DebuggerSelector().visit(selected);
+        //DebuggerSelector().visit(selected);
         auto domain = f.args();
         g(domain) = selected;
         return g;
@@ -1256,7 +1256,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     #undef indented_printf
 };
 
-struct IRDump3 : public DebuggerSelector { };
+struct IRDump : public DebuggerSelector { };
 
 Func transform(Func f)
 {
@@ -1290,8 +1290,7 @@ void display_map(Func f)
     for(auto name : map)
     {
         printf("%s\n", name.first.c_str());
-        IRDump3 dump;
-        dump.visit(name.second);
+        IRDump().visit(name.second);
     }
 }
 
@@ -1308,7 +1307,7 @@ void display_node(expr_node * parent)
 expr_tree get_tree(Func f)
 {
     //testing that expr_node tree was correctly built
-    IRDump3 dump;
+    IRDump dump;
     dump.mutate(f);
     //printf("displaying nodes in tree: \n");
     //display_node(tree);
@@ -1316,12 +1315,18 @@ expr_tree get_tree(Func f)
     
 }
 
-float* select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, GLuint idMyTexture)
+struct Profiling
+{
+    float jit_time;
+    float run_time;
+};
+
+Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, GLuint idMyTexture)
 {
     //id = 24;
     Func m = DebuggerSelector(id).mutate(f);
     //printf("SELECTION RESULT BELOW:");
-    //IRDump3().visit(m);
+    //IRDump().visit(m);
     //printf("SELECTION RESULT ABOVE:");
     
     auto domain = f.args();
@@ -1504,21 +1509,19 @@ float* select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, 
             .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
     }
     
-    float * times = new float[2];
-    times[0] = 0.0f;
-    times[1] = 0.0f;
+    Profiling times = { };
 
     typedef std::chrono::high_resolution_clock clock_t;
     
-    times[0] = PROFILE(
-                "compile_jit",
-                m.compile_jit(target);
-                );
+    times.jit_time = PROFILE(
+                                "compile_jit",
+                                m.compile_jit(target);
+                            );
                     
-    times[1] = PROFILE(
-                "realize",
-                m.realize(modified_output_buffer);
-                );
+    times.run_time = PROFILE(
+                                "realize",
+                                m.realize(modified_output_buffer);
+                            );
 
     glBindTexture(GL_TEXTURE_2D, idMyTexture);
         glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, modified_output_buffer.data());
@@ -1573,12 +1576,12 @@ expr_tree tree_from_func(Func output, Halide::Buffer<uint8_t> input_full)
     }
     */
     
-    //IRDump3().visit(output);
+    //IRDump().visit(output);
 
     //Func out = transform(output);
-    //IRDump3().visit(out);
+    //IRDump().visit(out);
 
-    //IRDump3().visit(output);
+    //IRDump().visit(output);
 
     //checking expr_node tree
     expr_tree full_tree = get_tree(output);

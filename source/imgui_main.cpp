@@ -107,7 +107,7 @@ void ToggleButton(const char* str_id, bool* v)
     draw_list->AddCircleFilled(ImVec2(*v ? (p.x + width - radius) : (p.x + radius), p.y + radius), radius - 1.5f, IM_COL32(255, 255, 255, 255));
 }
 
-void display_node(expr_node * parent, GLuint idMyTexture, int width, int height, Func f, Halide::Buffer<uint8_t> input_full, std::string& selected_name, float*& times)
+void display_node(expr_node * parent, GLuint idMyTexture, int width, int height, Func f, Halide::Buffer<uint8_t> input_full, std::string& selected_name, Profiling& times)
 {
     if(ImGui::TreeNode(parent->name.c_str()))
     {
@@ -199,11 +199,8 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
     glBindTexture(GL_TEXTURE_2D, 0);
     
-    float* times = new float[2];
-    times[0] = 0.0f;
-    times[1] = 0.0f;
     //NOTE(Emily): call to update buffer to display output of function
-    times = select_and_visualize(f, 0, input_full, idMyTexture);
+    Profiling times = select_and_visualize(f, 0, input_full, idMyTexture);
 
     
     // Main loop
@@ -249,8 +246,8 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
             std::string size_info = "width: " + std::to_string(width) + " height: " + std::to_string(height) + " channels: " + std::to_string(channels);
             ImGui::Text("%s", size_info.c_str());
             ImGui::Text("Currently Selected Expr: %s", selected_name.c_str());
-            ImGui::Text("Time for JIT compilation: %f", times[0]);
-            ImGui::Text("Time to realize: %f", times[1]);
+            ImGui::Text("Time for JIT compilation: %f", times.jit_time);
+            ImGui::Text("Time to realize: %f", times.run_time);
             ImGui::End();
         }
         
