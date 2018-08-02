@@ -206,14 +206,6 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
     // Main loop
     while (!glfwWindowShouldClose(window))
     {
-        // Poll and handle events (inputs, window resize, etc.)
-        // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
-        // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application.
-        // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application.
-        // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
-        //glfwPollEvents();     // <- this is power hungry!
-        glfwWaitEvents();       // <- this is a more CPU/power/battery friendly choice
-
         // Start the ImGui frame
         ImGui_ImplOpenGL2_NewFrame();
         ImGui_ImplGlfw_NewFrame();
@@ -278,6 +270,18 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
 
         glfwMakeContextCurrent(window);
         glfwSwapBuffers(window);
+
+        // NOTE(marcos): moving event handling to the end of the main loop so
+        // that we don't "lose" the very first frame and are left staring at a
+        // blank screen until the mouse starts hovering the window:
+
+        // Poll and handle events (inputs, window resize, etc.)
+        // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
+        // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application.
+        // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application.
+        // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
+        //glfwPollEvents();     // <- this is power hungry!
+        glfwWaitEvents();       // <- this is a more CPU/power/battery friendly choice
     }
 
     // Cleanup
