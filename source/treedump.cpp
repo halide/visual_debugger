@@ -1321,14 +1321,14 @@ struct Profiling
     float run_time;
 };
 
-Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, GLuint idMyTexture)
+Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, GLuint idMyTexture, const std::string& target_features)
 {
     //id = 24;
     Func m = DebuggerSelector(id).mutate(f);
     //printf("SELECTION RESULT BELOW:");
     //IRDump().visit(m);
     //printf("SELECTION RESULT ABOVE:");
-    
+
     auto domain = f.args();
     Expr transformed_expr = 0;
     if (m.defined())
@@ -1337,13 +1337,8 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_ful
         transformed_expr = m(domain);
     }
     
-    
-    
     Halide::Buffer<uint8_t> output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(input_full.width(), input_full.height(), input_full.channels());
     auto output_cropped = Crop(output_buffer, 2, 2);
-    Target target = get_host_target();
-    //target.set_feature(Target::CUDA);
-    //output.gpu_tile(...)
     
     typedef std::chrono::high_resolution_clock clock_t;
     
@@ -1513,6 +1508,28 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_ful
 
     typedef std::chrono::high_resolution_clock clock_t;
     
+    Target host_target = get_host_target();
+    Target base_target (host_target.os, host_target.arch, host_target.bits);
+
+    std::string target_string = base_target.to_string();
+    target_string.append("-").append(target_features);
+
+    Target target;
+    if (Target::validate_target_string(target_string))
+    {
+        target = Target(target_string);
+    }
+    else
+    {
+        fprintf(stderr, "ERROR: Invalid Halide Target : %s\n", target_string.c_str());
+        fprintf(stderr, "       will revert to the default host target.\n");
+        target = host_target;
+    }
+    printf("Halide Target : %s\n", target.to_string().c_str());
+
+    // TODO(marcos): we'll need to issue some vectorize() and/or gpu_tile() in
+    // order to make sure we are running for the target features requested...
+
     times.jit_time = PROFILE(
                                 "compile_jit",
                                 m.compile_jit(target);

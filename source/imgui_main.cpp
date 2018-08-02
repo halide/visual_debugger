@@ -107,7 +107,7 @@ void ToggleButton(const char* str_id, bool* v)
     draw_list->AddCircleFilled(ImVec2(*v ? (p.x + width - radius) : (p.x + radius), p.y + radius), radius - 1.5f, IM_COL32(255, 255, 255, 255));
 }
 
-void display_node(expr_node * parent, GLuint idMyTexture, int width, int height, Func f, Halide::Buffer<uint8_t> input_full, std::string& selected_name, Profiling& times)
+void display_node(expr_node * parent, GLuint idMyTexture, int width, int height, Func f, Halide::Buffer<uint8_t> input_full, std::string& selected_name, Profiling& times, const std::string& target_features)
 {
     if(ImGui::TreeNode(parent->name.c_str()))
     {
@@ -119,7 +119,7 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
             if (clicked & 1)
             {
                 selected_name = parent->name;
-                times = select_and_visualize(f, parent->node_id, input_full, idMyTexture);
+                times = select_and_visualize(f, parent->node_id, input_full, idMyTexture, target_features);
                 
             }
             clicked = 0;
@@ -128,7 +128,7 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
         {
             for(int i = 0; i < parent->children.size(); i++)
             {
-                display_node(parent->children[i], idMyTexture, width, height, f, input_full, selected_name, times);
+                display_node(parent->children[i], idMyTexture, width, height, f, input_full, selected_name, times, target_features);
             }
         }
         ImGui::TreePop();
@@ -203,8 +203,20 @@ void run_gui(Func f, Halide::Buffer<uint8_t> input_full)
     // corresponding expr_tree; this will spare us of a visitor step.
     expr_tree tree = get_tree(f);
 
+    std::string target_features =
+        //"fma"     // FMA is actually orthogonal to AVX (and is even orthogonal to AVX2!)
+        //"fma4"    // FMA4 is AMD-only; Intel adopted FMA3 (which Halide does not yet support)
+        //"avx-sse41"
+        //"avx-avx2-sse41"
+        //"sse41"
+        //"cuda"
+        //"metal"
+        "opencl"
+        //"d3d12"
+    ;
+
     //NOTE(Emily): call to update buffer to display output of function
-    Profiling times = select_and_visualize(f, 0, input_full, idMyTexture);
+    Profiling times = select_and_visualize(f, 0, input_full, idMyTexture, target_features);
 
     // Main loop
     while (!glfwWindowShouldClose(window))
@@ -223,7 +235,7 @@ void run_gui(Func f, Halide::Buffer<uint8_t> input_full)
             //ImGui::SetNextWindowSize(ImVec2(500,600));
             ImGui::Begin("Expression Tree", no_close, ImGuiWindowFlags_HorizontalScrollbar);
             //Note(Emily): call recursive method to display tree
-            display_node(tree.root, idMyTexture, width, height, f, input_full, selected_name, times);
+            display_node(tree.root, idMyTexture, width, height, f, input_full, selected_name, times, target_features);
             ImGui::End();
             
         }
