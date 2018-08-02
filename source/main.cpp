@@ -61,10 +61,9 @@ int main()
         }
     }
     
-    //expr_tree tree = tree_from_func(output, input_full);
-    Func outputF = example_broken();
-    expr_tree tree = tree_from_func(outputF, input_full);
-    run_gui(tree.root, outputF, input_full);
+    run_gui(output, input_full);
+
+    //run_gui(example_broken(), input_full);
 
     return 0;
 }

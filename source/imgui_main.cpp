@@ -135,7 +135,7 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
     }
 }
 
-void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
+void run_gui(Func f, Halide::Buffer<uint8_t> input_full)
 {
     // Setup window
     glfwSetErrorCallback(glfw_error_callback);
@@ -199,10 +199,13 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
     glBindTexture(GL_TEXTURE_2D, 0);
     
+    // TODO(marcos): maybe we should make 'select_and_visualize' return the
+    // corresponding expr_tree; this will spare us of a visitor step.
+    expr_tree tree = get_tree(f);
+
     //NOTE(Emily): call to update buffer to display output of function
     Profiling times = select_and_visualize(f, 0, input_full, idMyTexture);
 
-    
     // Main loop
     while (!glfwWindowShouldClose(window))
     {
@@ -220,7 +223,7 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
             //ImGui::SetNextWindowSize(ImVec2(500,600));
             ImGui::Begin("Expression Tree", no_close, ImGuiWindowFlags_HorizontalScrollbar);
             //Note(Emily): call recursive method to display tree
-            display_node(tree, idMyTexture, width, height, f, input_full, selected_name, times);
+            display_node(tree.root, idMyTexture, width, height, f, input_full, selected_name, times);
             ImGui::End();
             
         }
