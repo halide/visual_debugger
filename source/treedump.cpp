@@ -1247,7 +1247,9 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         if(!selected.defined()){
             return f;
         }
+        //printf("SELECTION RESULT BELOW:");
         //DebuggerSelector().visit(selected);
+        //printf("SELECTION RESULT ABOVE:");
         auto domain = f.args();
         g(domain) = selected;
         return g;
@@ -1323,11 +1325,7 @@ struct Profiling
 
 Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, GLuint idMyTexture, const std::string& target_features)
 {
-    //id = 24;
     Func m = DebuggerSelector(id).mutate(f);
-    //printf("SELECTION RESULT BELOW:");
-    //IRDump().visit(m);
-    //printf("SELECTION RESULT ABOVE:");
 
     auto domain = f.args();
     Expr transformed_expr = 0;
@@ -1339,8 +1337,6 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_ful
     
     Halide::Buffer<uint8_t> output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(input_full.width(), input_full.height(), input_full.channels());
     auto output_cropped = Crop(output_buffer, 2, 2);
-    
-    typedef std::chrono::high_resolution_clock clock_t;
     
     Type t = transformed_expr.type();
     bool is_float = t.is_float();
@@ -1504,10 +1500,6 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_ful
             .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
     }
     
-    Profiling times = { };
-
-    typedef std::chrono::high_resolution_clock clock_t;
-    
     Target host_target = get_host_target();
     Target base_target (host_target.os, host_target.arch, host_target.bits);
 
@@ -1529,6 +1521,8 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_ful
 
     // TODO(marcos): we'll need to issue some vectorize() and/or gpu_tile() in
     // order to make sure we are running for the target features requested...
+
+    Profiling times = { };
 
     times.jit_time = PROFILE(
                                 "compile_jit",
