@@ -107,7 +107,7 @@ void ToggleButton(const char* str_id, bool* v)
     draw_list->AddCircleFilled(ImVec2(*v ? (p.x + width - radius) : (p.x + radius), p.y + radius), radius - 1.5f, IM_COL32(255, 255, 255, 255));
 }
 
-void display_node(expr_node * parent, GLuint idMyTexture, int width, int height, Func f, Halide::Buffer<uint8_t> input_full, std::string& selected_name)
+void display_node(expr_node * parent, GLuint idMyTexture, int width, int height, Func f, Halide::Buffer<uint8_t> input_full, std::string& selected_name, float*& times)
 {
     if(ImGui::TreeNode(parent->name.c_str()))
     {
@@ -119,7 +119,7 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
             if (clicked & 1)
             {
                 selected_name = parent->name;
-                select_and_visualize(f, parent->node_id, input_full, idMyTexture);
+                times = select_and_visualize(f, parent->node_id, input_full, idMyTexture);
                 
             }
             clicked = 0;
@@ -128,7 +128,7 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
         {
             for(int i = 0; i < parent->children.size(); i++)
             {
-                display_node(parent->children[i], idMyTexture, width, height, f, input_full, selected_name);
+                display_node(parent->children[i], idMyTexture, width, height, f, input_full, selected_name, times);
             }
         }
         ImGui::TreePop();
@@ -152,8 +152,6 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
     io.ConfigFlags |= 0; // this no-op is here just to suppress unused variable warnings
     //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
     //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;   // Enable Gamepad Controls
-    
-    //io.FontAllowUserScaling = true;
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL2_Init();
@@ -201,8 +199,12 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
     glBindTexture(GL_TEXTURE_2D, 0);
     
+    float* times = new float[2];
+    times[0] = 0.0f;
+    times[1] = 0.0f;
     //NOTE(Emily): call to update buffer to display output of function
-    select_and_visualize(f, 0, input_full, idMyTexture);
+    times = select_and_visualize(f, 0, input_full, idMyTexture);
+
     
     // Main loop
     while (!glfwWindowShouldClose(window))
@@ -228,7 +230,7 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
             //ImGui::SetNextWindowSize(ImVec2(500,600));
             ImGui::Begin("Expression Tree", no_close, ImGuiWindowFlags_HorizontalScrollbar);
             //Note(Emily): call recursive method to display tree
-            display_node(tree, idMyTexture, width, height, f, input_full, selected_name);
+            display_node(tree, idMyTexture, width, height, f, input_full, selected_name, times);
             ImGui::End();
             
         }
@@ -237,14 +239,17 @@ void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
         //NOTE(Emily): Window to show image info
         if (show_another_window)
         {
+            
             bool * no_close = NULL;
             //ImGui::SetNextWindowPos(ImVec2(650, 20), ImGuiCond_FirstUseEver);
             //ImGui::SetNextWindowSize(ImVec2(300,100));
-            ImGui::Begin("Image Information Pop Up", no_close);
+            ImGui::Begin("Image Information", no_close);
             ImGui::Text("Information about the currently displayed image: ");
             std::string size_info = "width: " + std::to_string(width) + " height: " + std::to_string(height) + " channels: " + std::to_string(channels);
             ImGui::Text("%s", size_info.c_str());
             ImGui::Text("Currently Selected Expr: %s", selected_name.c_str());
+            ImGui::Text("Time for JIT compilation: %f", times[0]);
+            ImGui::Text("Time to realize: %f", times[1]);
             ImGui::End();
         }
         

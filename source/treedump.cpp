@@ -1316,7 +1316,7 @@ expr_tree get_tree(Func f)
     
 }
 
-void select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, GLuint idMyTexture)
+float* select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, GLuint idMyTexture)
 {
     //id = 24;
     Func m = DebuggerSelector(id).mutate(f);
@@ -1503,13 +1503,19 @@ void select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, GL
             .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
             .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
     }
+    
+    float * times = new float[2];
+    times[0] = 0.0f;
+    times[1] = 0.0f;
 
-    PROFILE_P(
+    typedef std::chrono::high_resolution_clock clock_t;
+    
+    times[0] = PROFILE(
                 "compile_jit",
                 m.compile_jit(target);
                 );
                     
-    PROFILE_P(
+    times[1] = PROFILE(
                 "realize",
                 m.realize(modified_output_buffer);
                 );
@@ -1518,24 +1524,11 @@ void select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, GL
         glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, modified_output_buffer.data());
     glBindTexture(GL_TEXTURE_2D, 0);
     
-    /*
-    Func h;
-    h(domain) = cast(type__of(f), transformed_expr);
-
-    h.output_buffer()
-        .dim(0).set_stride( output_buffer.dim(0).stride() )
-        .dim(1).set_stride( output_buffer.dim(1).stride() )
-        .dim(2).set_stride( output_buffer.dim(2).stride() );
-
-    PROFILE_P(
-              "compile_jit",
-              h.compile_jit(target);
-              );
     
-    PROFILE_P(
-              "realize",
-              h.realize(output_cropped);
-              );
+    
+    return times;
+    
+    /*
     
     mkdir("data/output", S_IRWXU | S_IRWXG | S_IRWXO);
     xsprintf(output_filename, 128, "data/output/output-%s-%d.png", target.to_string().c_str(), id);
@@ -1582,7 +1575,7 @@ expr_tree tree_from_func(Func output, Halide::Buffer<uint8_t> input_full)
     
     //IRDump3().visit(output);
 
-    Func out = transform(output);
+    //Func out = transform(output);
     //IRDump3().visit(out);
 
     //IRDump3().visit(output);
@@ -1593,7 +1586,7 @@ expr_tree tree_from_func(Func output, Halide::Buffer<uint8_t> input_full)
     //display_map(output);
     
     //return NULL; //TEMPORARY - returning before realizing image
-    
+    /*
     Halide::Buffer<uint8_t> output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(input_full.width(), input_full.height(), input_full.channels());
     out.output_buffer()
             .dim(0).set_stride( output_buffer.dim(0).stride() )
@@ -1605,14 +1598,14 @@ expr_tree tree_from_func(Func output, Halide::Buffer<uint8_t> input_full)
     //output.gpu_tile(...)
 
     typedef std::chrono::high_resolution_clock clock_t;
-
+    (
     PROFILE_P(
         "compile_jit",
         output.compile_jit(target);
     );
     //output.print_loop_nest();
     output.compile_to_lowered_stmt("data/output/output.html", {}, HTML, target);
-    
+    */
     /* NEED TO CAST FUNC TO UINT8_T
     auto domain = m.args();
     Expr body = m.function().extern_definition_proxy_expr();
@@ -1620,7 +1613,7 @@ expr_tree tree_from_func(Func output, Halide::Buffer<uint8_t> input_full)
     out(domain) = cast(type__of(output), body);
     */
     
-    
+    /*
     
     PROFILE_P(
         "realize",
@@ -1632,6 +1625,7 @@ expr_tree tree_from_func(Func output, Halide::Buffer<uint8_t> input_full)
     xsprintf(output_filename, 128, "data/output/output-%s.png", target.to_string().c_str());
     if (!SaveImage(output_filename, output_buffer))
         return expr_tree{};
+    */
 
     return std::move(full_tree);
 }
