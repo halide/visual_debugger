@@ -45,10 +45,10 @@ int main()
 {
     // redirect stdout to a log file, effectivelly silencing the console output:
     const char* logfile = "data/output/log-halide-visdbg.txt";
-    fprintf(stderr, "redirecting 'stdout' to log file '%s'\n", logfile);
+    fprintf(stdout, ">> Redirecting 'stdout' to log file '%s'\n", logfile);
     FILE* log = fopen(logfile, "w");
     assert(log);
-    redirect_permanently(stdout, log);
+    int fd_restore = redirect_temporarily(stdout, log);
 
     //NOTE(Emily): define func here instead of in treedump for now
     xsprintf(input_filename, 128, "data/pencils.jpg");
@@ -79,6 +79,9 @@ int main()
     run_gui(output, input_full);
 
     //run_gui(example_broken(), input_full);
+
+    redirect_restore(stdout, fd_restore);
+    fprintf(stdout, "<< Done with 'stdout' redirection\n");
 
     fclose(log);
 
