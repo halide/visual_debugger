@@ -8,6 +8,8 @@
 //#include "treedump.cpp"
 #include "imgui_main.cpp"
 
+#include "io-redirect.hpp"
+
 Func example_broken(){
     xsprintf(input_filename, 128, "data/pencils.jpg");
     Halide::Buffer<uint8_t> input_full = LoadImage(input_filename);
@@ -41,6 +43,13 @@ Func example_broken(){
 
 int main()
 {
+    // redirect stdout to a log file, effectivelly silencing the console output:
+    const char* logfile = "data/output/log-halide-visdbg.txt";
+    fprintf(stderr, "redirecting 'stdout' to log file '%s'\n", logfile);
+    FILE* log = fopen(logfile, "w");
+    assert(log);
+    redirect_permanently(stdout, log);
+
     //NOTE(Emily): define func here instead of in treedump for now
     xsprintf(input_filename, 128, "data/pencils.jpg");
     Halide::Buffer<uint8_t> input_full = LoadImage(input_filename);
@@ -70,6 +79,8 @@ int main()
     run_gui(output, input_full);
 
     //run_gui(example_broken(), input_full);
+
+    fclose(log);
 
     return 0;
 }
