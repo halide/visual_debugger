@@ -8,7 +8,7 @@
 //#include "treedump.cpp"
 #include "imgui_main.cpp"
 
-#include "io-redirect.hpp"
+#include "io-broadcast.hpp"
 
 Func example_broken(){
     xsprintf(input_filename, 128, "data/pencils.jpg");
@@ -48,7 +48,9 @@ int main()
     fprintf(stdout, ">> Redirecting 'stdout' to log file '%s'\n", logfile);
     FILE* log = fopen(logfile, "w");
     assert(log);
-    int fd_restore = redirect_temporarily(stdout, log);
+    Broadcaster iobc = redirect_broadcast(stdout);
+    //iobc.AddEcho();   // <- uncomment to also output to the original destination (console)
+    iobc.AddFile(log);
 
     //NOTE(Emily): define func here instead of in treedump for now
     xsprintf(input_filename, 128, "data/pencils.jpg");
@@ -80,7 +82,7 @@ int main()
 
     //run_gui(example_broken(), input_full);
 
-    redirect_restore(stdout, fd_restore);
+    iobc.Terminate();
     fprintf(stdout, "<< Done with 'stdout' redirection\n");
 
     fclose(log);

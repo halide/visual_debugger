@@ -2,6 +2,7 @@
 #define IO_STREAM_REDIRECT_H
 
 #ifdef _MSC_VER
+    #include <stdio.h>
     #include <io.h>
     #define fileno      _fileno
     #define close       _close
