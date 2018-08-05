@@ -4,18 +4,25 @@
 #include "io-redirect.hpp"
 
 #ifdef _MSC_VER
-    #include <fcntl.h>  // for O_BINARY
+    #include <crtdbg.h> // for _CrtSetReportMode
+    #include <fcntl.h>  // for O_BINARY and O_TEXT
     #define PIPE_BUF    4096
-    #define pipe(fds)   _pipe(fds, PIPE_BUF, O_BINARY)
+    #define pipe(fds)   _pipe(fds, PIPE_BUF, O_TEXT)
     #define read        _read
     #define write       _write
+    #define isatty      _isatty
 #endif
 
 #include <mutex>
 #include <thread>
 #include <vector>
 #include <atomic>
+#include <cassert>
 #include <functional>
+
+// stdin    0   STDIN_FILENO
+// stdout   1   STDOUT_FILENO
+// stderr   2   STDERR_FILENO
 
 struct RefCountBlock
 {
@@ -27,7 +34,6 @@ struct RefCountBlock
         if (--ref_count == 0)
         {
             cleanup();
-            cleanup = nullptr;
         }
     }
 };
@@ -38,6 +44,7 @@ struct AutoRefCount
     AutoRefCount() { }
     AutoRefCount(const AutoRefCount& rhs)
     : block(rhs.block) { block->inc(); }
+    AutoRefCount(AutoRefCount&& rhs) { std::swap(block, rhs.block); }
     ~AutoRefCount() { if (block) block->dec(); }
     AutoRefCount& operator = (const AutoRefCount& rhs)
     {
@@ -50,24 +57,35 @@ struct AutoRefCount
 
 struct Broadcaster
 {
-    // keep a reference to the original stream around to restore it once the
-    // breadcasting gets terminated
-    FILE* stream = nullptr;
-    int fd_restore = -1;
+    typedef void(ReceiverProc)(void*, int);
 
-    // IO pipe:
-    // fd_pipe_endpoints[0]: the  read-end of the pipe
-    // fd_pipe_endpoints[1]: the write-end of the pipe
-    int fd_pipe_endpoints [2] = { -1, -1 };
+    struct Implementation
+    {
+        // keep a reference to the original stream around to restore it once the
+        // breadcasting gets terminated
+        FILE* stream = nullptr;
+        int fd_original = -1;
+        int fd_backedup = -1;
+
+        // IO pipe:
+        // fd_pipe_endpoints[0]: the  read-end of the pipe
+        // fd_pipe_endpoints[1]: the write-end of the pipe
+        int fd_pipe_endpoints [2] = { -1, -1 };
+
+        std::mutex mtx;
+        std::vector< std::function<ReceiverProc> > receivers;
+
+        std::thread::id transmitter_thread_id;
+    };
+
+    Implementation* impl = nullptr;
 
     AutoRefCount ref_count;
 
-    typedef void(ReceiverProc)(void*,int);
-
-    std::mutex* mtx = nullptr;
-    std::vector< std::function<ReceiverProc> >* receivers = nullptr;
-
-    std::thread::id transmitter_thread_id;
+    bool Valid() const
+    {
+        return (impl != nullptr);
+    }
 
     void Terminate()
     {
@@ -77,18 +95,26 @@ struct Broadcaster
     template<typename ReceiverProcT>
     void AddReceiver(ReceiverProcT recv_proc)
     {
-        mtx->lock();
-        receivers->emplace_back(recv_proc);
-        mtx->unlock();
+        if (!Valid())
+        {
+            return;
+        }
+        impl->mtx.lock();
+        impl->receivers.emplace_back(recv_proc);
+        impl->mtx.unlock();
     }
 
     void AddEcho()
     {
         // echo: write to the original stream, as if not redirected
-        auto fd = fd_restore;
-        AddReceiver([fd](void* buff, int bytes)
+        // avoid using 'this' in the lambda since it is possible for this instance
+        // to be 'Terminate()'d and 'this->impl' will become null; instead, pass a
+        // copy of 'impl' to the lambda since it should outlive the Boradcaster as
+        // the implementation object persists in the transmitter thread.
+        auto this_impl = impl;
+        AddReceiver([this_impl](void* buff, int bytes)
         {
-            write(fd, buff, bytes);
+            write(this_impl->fd_backedup, buff, bytes);
         });
     }
 
@@ -109,45 +135,80 @@ Broadcaster redirect_broadcast(FILE* stream)
     // also POSIX poll/select to handle IO stream multiplexing; unfortunately,
     // these routines do not have POSIX-compliant implementation on Windows...
     // (Winsock provides a POSIX-like select() function, but only for sockets)
+    volatile bool ready = false;
     std::thread(
         [&]()
         {
-            Broadcaster bc;
-            bc.stream = stream;
+            Broadcaster::Implementation bci;
 
-            if (0 != pipe(bc.fd_pipe_endpoints))
+            if (0 != pipe(bci.fd_pipe_endpoints))
             {
-                // TODO(marcos): error handling and thread syncing
+                fprintf(stderr, "ERROR: unable to open redirection pipes!\n");
+                ready = true;
                 return;
             }
+            // disable buffering on the file stream object -> immediate flush
+            //setbuf(stream, NULL);
+            //setvbuf(stream, NULL, _IOFBF, BUFSIZ);    // re-enable buffering
+
+            std::mutex running, cleaning;
+            running.lock();
 
             // analogous to 'redirect_temporarily()':
-            fflush(stream);
-            int fd_before = fileno(stream);
-            bc.fd_restore = dup(fd_before);
-            int ret = dup2(bc.fd_pipe_endpoints[1], fd_before);
+            bci.stream = stream;
+            fflush(bci.stream);
+            bci.fd_original = fileno(bci.stream);
+            bci.fd_backedup = dup(bci.fd_original);
+            int ret = dup2(bci.fd_pipe_endpoints[1], bci.fd_original);
 
             RefCountBlock rcb;
-            rcb.cleanup = [&bc]()
+            rcb.cleanup = [&]()
             {
-                fflush(bc.stream);
-                //fsync(bc.fd_pipe_endpoints[1]);    // flush the write end first,
-                //fsync(bc.fd_pipe_endpoints[0]);    // then flush the read end
-                close(bc.fd_pipe_endpoints[1]);
+                cleaning.lock();
+
+                // copy values, since it will be unsafe to touch 'bci' once the
+                // write pipe gets closed below...
+                FILE* stream = bci.stream;
+                int fd_pipe_read_end  = bci.fd_pipe_endpoints[0];
+                int fd_pipe_write_end = bci.fd_pipe_endpoints[1];
+                int fd_original = bci.fd_original;
+                int fd_backedup = bci.fd_backedup;
+
+                fflush(stream);
+                //fsync(fd_pipe_write_end);   // flush the write end first,
+                //fsync(fd_pipe_read_end);    // then flush the read end
+                close(fd_pipe_write_end);
+                // from now on, do not access 'bci' fields!
+
                 // restore original stream
-                dup2(bc.fd_restore, fileno(bc.stream));
+                assert(fd_original == fileno(stream));
+                dup2(fd_backedup, fd_original);
+                close(fd_backedup);
+
+                #ifdef _MSC_VER
+                // Visual Studio shenanigans...
+                // if the original fd is tied to a terminal/console (or to any
+                // character device, really) then FILE* streaming on it should
+                // be unbuffered; just restoring the fd mapping above does not
+                // seem to recover the original unbuffered behavior...
+                if (isatty(fd_original) != 0)
+                {
+                    setvbuf(stream, NULL, _IONBF, 0);
+                }
+                #endif//_MSC_VER
+
+                // sync with transmitter thread:
+                cleaning.unlock();
+                running.lock();
+                running.unlock();
             };
 
-            std::mutex mtx;
-            std::vector< std::function<Broadcaster::ReceiverProc> > receivers;
-
             // prepare the originating 'outer' object
-            bc.mtx = &mtx;
-            bc.receivers = &receivers;
-            bc.transmitter_thread_id = std::this_thread::get_id();
-            outer = bc;
-            outer.ref_count.block = &rcb;   // <- thread syncing point
-            // outer should never be referenced again from now on...
+            bci.transmitter_thread_id = std::this_thread::get_id();
+            outer.ref_count.block = &rcb;
+            outer.impl = &bci;
+            ready = true;                  // <- thread syncing point
+            // from now on, 'outer' should never be referenced again!
 
             #ifdef  _MSC_VER
             // Visual Studio CRT shenanigans, otherwise a read on a broken pipe
@@ -167,42 +228,51 @@ Broadcaster redirect_broadcast(FILE* stream)
                     //abort();
                 };
             _set_thread_local_invalid_parameter_handler(myInvalidParameterHandler);
-            _CrtSetReportMode(_CRT_ASSERT, 0);  // <- TODO(marcos): reverse this changes later?
+            // It would seem that "_CrtSetReportMode()" is also operating on a
+            // per-thread basis, so there's no need for reversing it later
+            _CrtSetReportMode(_CRT_ASSERT, 0);
             #endif//_MSC_VER
 
             char buff [PIPE_BUF];
             while (true)
             {
-                auto bytes = read(bc.fd_pipe_endpoints[0], buff, sizeof(buff));
+                auto bytes = read(bci.fd_pipe_endpoints[0], buff, sizeof(buff));
                 if (bytes == 0)
                 {
-                    fprintf(stderr, "BROKEN PIPE: write-end has been closed!\n");
-                    close(bc.fd_pipe_endpoints[0]);
+                    fprintf(stderr, "BROKEN PIPE: the write-end of the io-broadcast redirection has been closed!\n");
+                    close(bci.fd_pipe_endpoints[0]);
                 }
                 if (bytes == -1)
                 {
-                    fprintf(stderr, "BROKEN PIPE: read-end has been closed!\n");
+                    fprintf(stderr, "BROKEN PIPE: the read-end of the io-broadcast redirection has been closed!\n");
                     break;
                 }
-                mtx.lock();
-                for (auto& receiver : receivers)
+                bci.mtx.lock();
+                for (auto& receiver : bci.receivers)
                 {
                     receiver((void*)buff, bytes);
                 }
-                mtx.unlock();
+                bci.mtx.unlock();
             }
 
             int rc = rcb.ref_count;
             if (rc != 0)
             {
                 fprintf(stderr, "FATAL: broken pipe, but ref_count is non-zero (=%d)!\n", rc);
-                //abort();  // TODO(marcos): should terminate the process?
+                abort();  // TODO(marcos): should terminate the process?
             }
+
+            // sync with cleanup thread:
+            running.unlock();
+            cleaning.lock();
+            cleaning.unlock();
         }
     ).detach();
 
-    // sync with thread (busy-wait...):
-    while (!outer.ref_count.block)
+    // sync with transmitter thread:
+    // TODO(marcos): replace this busy-waiting by some dual cross-mutex pattern
+    // as is done with the 'running-cleaning' mutexes above
+    while (!ready)
     {
         std::this_thread::yield();
     }
