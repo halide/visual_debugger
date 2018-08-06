@@ -112,7 +112,7 @@ struct Broadcaster
         // copy of 'impl' to the lambda since it should outlive the Boradcaster as
         // the implementation object persists in the transmitter thread.
         auto this_impl = impl;
-        AddReceiver([this_impl, enable_flag](void* buff, int bytes)
+        AddReceiver([this_impl, toggle](void* buff, int bytes)
         {
             if (!toggle || *toggle)
             {
@@ -123,7 +123,7 @@ struct Broadcaster
 
     void AddFile(FILE* file, bool* toggle = nullptr)
     {
-        AddReceiver([file](void* buff, int bytes)
+        AddReceiver([file, toggle](void* buff, int bytes)
         {
             if (!toggle || *toggle)
             {
