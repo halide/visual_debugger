@@ -274,17 +274,17 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t> input_full)
                 ImGui::Text("CPU: x86/x64 options");
                 
                 ImGui::Checkbox("sse41", &sse41);
-                if(sse41) target_features += "-sse41";
+                if(sse41) target_features += "-SSE41";
                 ImGui::Checkbox("avx", &avx);
-                if(avx) target_features += "-avx";
+                if(avx) target_features += "-AVX";
                 ImGui::Checkbox("avx2", &avx2);
-                if(avx2) target_features += "-avx2";
+                if(avx2) target_features += "-AVX2";
                 ImGui::Checkbox("avx512", &avx512);
-                if(avx512) target_features += "-avx512";
+                if(avx512) target_features += "-AVX512";
                 ImGui::Checkbox("fma", &fma);
-                if(fma) target_features += "-fma";
+                if(fma) target_features += "-FMA";
                 ImGui::Checkbox("fma4", &fma4);
-                if(fma4) target_features += "-fma4";
+                if(fma4) target_features += "-FMA4";
                 
             }
             if(cpu_value == 3)
@@ -292,18 +292,18 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t> input_full)
                 
                 ImGui::Text("CPU: ARM Options");
                 ImGui::Checkbox("NEON", &neon);
-                if(neon) target_features += "-neon";
+                if(neon) target_features += "-NEON";
             }
             
             ImGui::Text("GPU: ");
             
             ImGui::RadioButton("none", &gpu_value, 1);
-            ImGui::RadioButton("metal", &gpu_value, 2);
-            if(gpu_value == 2) target_features = "metal";
-            ImGui::RadioButton("cuda", &gpu_value, 3);
-            if(gpu_value == 3) target_features = "cuda";
-            ImGui::RadioButton("opencl", &gpu_value, 4);
-            if(gpu_value == 4) target_features = "opencl";
+            ImGui::RadioButton("Metal", &gpu_value, 2);
+            if(gpu_value == 2) target_features = "Metal";
+            ImGui::RadioButton("CUDA", &gpu_value, 3);
+            if(gpu_value == 3) target_features = "CUDA";
+            ImGui::RadioButton("OpenCL", &gpu_value, 4);
+            if(gpu_value == 4) target_features = "OpenCL";
             ImGui::RadioButton("d3d12", &gpu_value, 5);
             if(gpu_value == 5) target_features = "d3d12";
             
