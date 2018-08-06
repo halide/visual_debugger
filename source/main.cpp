@@ -50,7 +50,8 @@ int main()
     FILE* log = fopen(logfile, "w");
     assert(log);
     Broadcaster iobc = redirect_broadcast(stdout);
-    //iobc.AddEcho();   // <- uncomment to also output to the original destination (console)
+    bool toggle_echo = false;   // <- change it to true to have stdout also print in the console
+    iobc.AddEcho(&toggle_echo);
     iobc.AddFile(log);
 
     //NOTE(Emily): define func here instead of in treedump for now

@@ -104,7 +104,7 @@ struct Broadcaster
         impl->mtx.unlock();
     }
 
-    void AddEcho()
+    void AddEcho(bool* toggle = nullptr)
     {
         // echo: write to the original stream, as if not redirected
         // avoid using 'this' in the lambda since it is possible for this instance
@@ -112,17 +112,23 @@ struct Broadcaster
         // copy of 'impl' to the lambda since it should outlive the Boradcaster as
         // the implementation object persists in the transmitter thread.
         auto this_impl = impl;
-        AddReceiver([this_impl](void* buff, int bytes)
+        AddReceiver([this_impl, enable_flag](void* buff, int bytes)
         {
-            write(this_impl->fd_backedup, buff, bytes);
+            if (!toggle || *toggle)
+            {
+                write(this_impl->fd_backedup, buff, bytes);
+            }
         });
     }
 
-    void AddFile(FILE* file)
+    void AddFile(FILE* file, bool* toggle = nullptr)
     {
         AddReceiver([file](void* buff, int bytes)
         {
-            fwrite(buff, 1, bytes, file);
+            if (!toggle || *toggle)
+            {
+                fwrite(buff, 1, bytes, file);
+            }
         });
     }
 };
