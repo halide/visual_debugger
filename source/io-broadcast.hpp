@@ -26,7 +26,7 @@
 
 struct RefCountBlock
 {
-    std::atomic<int> ref_count = 1;
+    std::atomic<int> ref_count { 1 };
     std::function<void()> cleanup = []{};
     void inc() { ++ref_count; }
     void dec()
@@ -149,7 +149,7 @@ Broadcaster redirect_broadcast(FILE* stream)
 
             if (0 != pipe(bci.fd_pipe_endpoints))
             {
-                fprintf(stderr, "ERROR: unable to open redirection pipes!\n");
+                fprintf(stderr, "ERROR: [io-broadcast] unable to open redirection pipes!\n");
                 ready = true;
                 return;
             }
@@ -157,15 +157,29 @@ Broadcaster redirect_broadcast(FILE* stream)
             //setbuf(stream, NULL);
             //setvbuf(stream, NULL, _IOFBF, BUFSIZ);    // re-enable buffering
 
-            std::mutex running, cleaning;
-            running.lock();
-
             // analogous to 'redirect_temporarily()':
             bci.stream = stream;
             fflush(bci.stream);
             bci.fd_original = fileno(bci.stream);
             bci.fd_backedup = dup(bci.fd_original);
-            int ret = dup2(bci.fd_pipe_endpoints[1], bci.fd_original);
+            if (-1 == bci.fd_backedup)
+            {
+                fprintf(stderr, "ERROR: [io-broadcast] unable backup stream!\n");
+                return;
+            }
+            // MENTAL NOTE(marcos): It seems that the reason why the stream is
+            // losing its original buffering settings when restoring from pipe
+            // redirection is because 'dup2()' ends up closing 'fd_original' in
+            // the process (but this might also be a red herring...)
+            if (dup2(bci.fd_pipe_endpoints[1], bci.fd_original) == -1)
+            {
+                fprintf(stderr, "ERROR: [io-broadcast] unable to tie stream to pipe!\n");
+                close(bci.fd_backedup);
+                return;
+            }
+
+            std::mutex running, cleaning;
+            running.lock();
 
             RefCountBlock rcb;
             rcb.cleanup = [&]()
@@ -175,7 +189,6 @@ Broadcaster redirect_broadcast(FILE* stream)
                 // copy values, since it will be unsafe to touch 'bci' once the
                 // write pipe gets closed below...
                 FILE* stream = bci.stream;
-                int fd_pipe_read_end  = bci.fd_pipe_endpoints[0];
                 int fd_pipe_write_end = bci.fd_pipe_endpoints[1];
                 int fd_original = bci.fd_original;
                 int fd_backedup = bci.fd_backedup;
@@ -245,12 +258,12 @@ Broadcaster redirect_broadcast(FILE* stream)
                 auto bytes = read(bci.fd_pipe_endpoints[0], buff, sizeof(buff));
                 if (bytes == 0)
                 {
-                    fprintf(stderr, "BROKEN PIPE: the write-end of the io-broadcast redirection has been closed!\n");
+                    fprintf(stderr, "BROKEN PIPE: [io-broadcast] the write-end of the pipe has been closed!\n");
                     close(bci.fd_pipe_endpoints[0]);
                 }
                 if (bytes == -1)
                 {
-                    fprintf(stderr, "BROKEN PIPE: the read-end of the io-broadcast redirection has been closed!\n");
+                    fprintf(stderr, "BROKEN PIPE: [io-broadcast] the read-end of the pipe has been closed!\n");
                     break;
                 }
                 bci.mtx.lock();
@@ -264,7 +277,7 @@ Broadcaster redirect_broadcast(FILE* stream)
             int rc = rcb.ref_count;
             if (rc != 0)
             {
-                fprintf(stderr, "FATAL: broken pipe, but ref_count is non-zero (=%d)!\n", rc);
+                fprintf(stderr, "FATAL: [io-broadcast] broken pipe, but ref_count is non-zero (=%d)!\n", rc);
                 abort();  // TODO(marcos): should terminate the process?
             }
 
@@ -272,6 +285,8 @@ Broadcaster redirect_broadcast(FILE* stream)
             running.unlock();
             cleaning.lock();
             cleaning.unlock();
+            running.lock();
+            running.unlock();
         }
     ).detach();
 
