@@ -181,6 +181,8 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t> input_full)
     bool show_expr_tree = true;
     bool show_func_select = true;
     bool func_selected = false;
+    bool show_target_select = true;
+    bool target_selected = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     
     std::string selected_name = "No node selected, displaying output";
@@ -205,7 +207,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t> input_full)
     // corresponding expr_tree; this will spare us of a visitor step.
     //expr_tree tree = get_tree(funcs[0]);
     expr_tree tree;
-    std::string target_features =
+    std::string target_features;
         //"fma"     // FMA is actually orthogonal to AVX (and is even orthogonal to AVX2!)
         //"fma4"    // FMA4 is AMD-only; Intel adopted FMA3 (which Halide does not yet support)
         //"avx-sse41"
@@ -213,7 +215,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t> input_full)
         //"sse41"
         //"cuda"
         //"metal"
-        "opencl"
+        //"opencl"
         //"d3d12"
     ;
 
@@ -236,7 +238,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t> input_full)
             ImGui::Begin("Select Func to visualize: ", no_close);
             for(Func func : funcs)
             {
-                if(ImGui::Button(func.name().c_str()))
+                if(ImGui::Button(func.name().c_str()) && target_selected)
                 {
                     tree = get_tree(func);
                     times = select_and_visualize(func, 0, input_full, idMyTexture, target_features);
@@ -245,6 +247,60 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t> input_full)
                 }
             }
             ImGui::End();
+        }
+        
+        if(show_target_select)
+        {
+            bool * no_close = NULL;
+            ImGui::Begin("Select compilation target: ", no_close);
+            
+            if(ImGui::Button("fma"))
+            {
+                target_features = "fma";
+                target_selected = true;
+            }
+            if(ImGui::SmallButton("fma4"))
+            {
+                target_features = "fma4";
+                target_selected = true;
+            }
+            if(ImGui::Button("avx-sse41"))
+            {
+                target_features = "avx-sse41";
+                target_selected = true;
+            }
+            if(ImGui::Button("avx-avx2-sse41"))
+            {
+                target_features = "avx-avx2-sse41";
+                target_selected = true;
+            }
+            if(ImGui::Button("sse41"))
+            {
+                target_features = "sse41";
+                target_selected = true;
+            }
+            if(ImGui::Button("cuda"))
+            {
+                target_features = "cuda";
+                target_selected = true;
+            }
+            if(ImGui::Button("metal"))
+            {
+                target_features = "metal";
+                target_selected = true;
+            }
+            if(ImGui::Button("opencl"))
+            {
+                target_features = "opencl";
+                target_selected = true;
+            }
+            if(ImGui::Button("d3d12"))
+            {
+                target_features = "d3d12";
+                target_selected = true;
+            }
+            ImGui::End();
+            
         }
 
         // NOTE(Emily): main expression tree window
@@ -257,7 +313,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t> input_full)
             //ImGui::SetNextWindowSize(ImVec2(500,600));
             ImGui::Begin("Expression Tree", no_close, ImGuiWindowFlags_HorizontalScrollbar);
             //Note(Emily): call recursive method to display tree
-            if(func_selected)
+            if(func_selected && target_selected)
             {
                 display_node(tree.root, idMyTexture, width, height, selected, input_full, selected_name, times, target_features);
             }
