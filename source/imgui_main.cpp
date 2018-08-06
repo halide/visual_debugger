@@ -223,6 +223,12 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t> input_full)
     //Profiling times = select_and_visualize(f, 0, input_full, idMyTexture, target_features);
     Profiling times = { };
     Func selected;
+    int cpu_value(0), gpu_value(0);
+    
+    
+    //target flag bools (need to be outside of loop to maintain state)
+    bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false);
+    bool neon(false);
 
     // Main loop
     while (!glfwWindowShouldClose(window))
@@ -252,53 +258,55 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t> input_full)
         if(show_target_select)
         {
             bool * no_close = NULL;
+            
             ImGui::Begin("Select compilation target: ", no_close);
             
-            if(ImGui::Button("fma"))
+            ImGui::Text("CPU: ");
+            
+            ImGui::RadioButton("x86", &cpu_value, 1);
+            if(cpu_value == 1) target_features = "x86";
+            ImGui::RadioButton("x86-64", &cpu_value, 2);
+            if(cpu_value == 2) target_features = "x86-64";
+            ImGui::RadioButton("ARM", &cpu_value, 3);
+            if(cpu_value == 3) target_features = "ARM";
+            if(cpu_value == 1 || cpu_value == 2)
             {
-                target_features = "fma";
-                target_selected = true;
+                ImGui::Text("CPU: x86/x64 options");
+                
+                ImGui::Checkbox("sse41", &sse41);
+                if(sse41) target_features += "-SSE41";
+                ImGui::Checkbox("avx", &avx);
+                if(avx) target_features += "-AVX";
+                ImGui::Checkbox("avx2", &avx2);
+                if(avx2) target_features += "-AVX2";
+                ImGui::Checkbox("avx512", &avx512);
+                if(avx512) target_features += "-AVX512";
+                ImGui::Checkbox("fma", &fma);
+                if(fma) target_features += "-FMA";
+                ImGui::Checkbox("fma4", &fma4);
+                if(fma4) target_features += "-FMA4";
+                
             }
-            if(ImGui::SmallButton("fma4"))
+            if(cpu_value == 3)
             {
-                target_features = "fma4";
-                target_selected = true;
+                
+                ImGui::Text("CPU: ARM Options");
+                ImGui::Checkbox("NEON", &neon);
+                if(neon) target_features += "-NEON";
             }
-            if(ImGui::Button("avx-sse41"))
-            {
-                target_features = "avx-sse41";
-                target_selected = true;
-            }
-            if(ImGui::Button("avx-avx2-sse41"))
-            {
-                target_features = "avx-avx2-sse41";
-                target_selected = true;
-            }
-            if(ImGui::Button("sse41"))
-            {
-                target_features = "sse41";
-                target_selected = true;
-            }
-            if(ImGui::Button("cuda"))
-            {
-                target_features = "cuda";
-                target_selected = true;
-            }
-            if(ImGui::Button("metal"))
-            {
-                target_features = "metal";
-                target_selected = true;
-            }
-            if(ImGui::Button("opencl"))
-            {
-                target_features = "opencl";
-                target_selected = true;
-            }
-            if(ImGui::Button("d3d12"))
-            {
-                target_features = "d3d12";
-                target_selected = true;
-            }
+            
+            ImGui::Text("GPU: ");
+            
+            ImGui::RadioButton("none", &gpu_value, 1);
+            ImGui::RadioButton("Metal", &gpu_value, 2);
+            if(gpu_value == 2) target_features += "-Metal";
+            ImGui::RadioButton("CUDA", &gpu_value, 3);
+            if(gpu_value == 3) target_features += "-CUDA";
+            ImGui::RadioButton("OpenCL", &gpu_value, 4);
+            if(gpu_value == 4) target_features += "-OpenCL";
+            ImGui::RadioButton("d3d12", &gpu_value, 5);
+            if(gpu_value == 5) target_features += "-d3d12";
+            
             ImGui::End();
             
         }
