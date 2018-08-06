@@ -135,7 +135,7 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
     }
 }
 
-void run_gui(Func f, Halide::Buffer<uint8_t> input_full)
+void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t> input_full)
 {
     // Setup window
     glfwSetErrorCallback(glfw_error_callback);
@@ -179,6 +179,8 @@ void run_gui(Func f, Halide::Buffer<uint8_t> input_full)
     bool show_another_window = true;
     bool show_image = true;
     bool show_expr_tree = true;
+    bool show_func_select = true;
+    bool func_selected = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     
     std::string selected_name = "No node selected, displaying output";
@@ -201,8 +203,8 @@ void run_gui(Func f, Halide::Buffer<uint8_t> input_full)
     
     // TODO(marcos): maybe we should make 'select_and_visualize' return the
     // corresponding expr_tree; this will spare us of a visitor step.
-    expr_tree tree = get_tree(f);
-
+    //expr_tree tree = get_tree(funcs[0]);
+    expr_tree tree;
     std::string target_features =
         //"fma"     // FMA is actually orthogonal to AVX (and is even orthogonal to AVX2!)
         //"fma4"    // FMA4 is AMD-only; Intel adopted FMA3 (which Halide does not yet support)
@@ -216,7 +218,9 @@ void run_gui(Func f, Halide::Buffer<uint8_t> input_full)
     ;
 
     //NOTE(Emily): call to update buffer to display output of function
-    Profiling times = select_and_visualize(f, 0, input_full, idMyTexture, target_features);
+    //Profiling times = select_and_visualize(f, 0, input_full, idMyTexture, target_features);
+    Profiling times = { };
+    Func selected;
 
     // Main loop
     while (!glfwWindowShouldClose(window))
@@ -225,17 +229,38 @@ void run_gui(Func f, Halide::Buffer<uint8_t> input_full)
         ImGui_ImplOpenGL2_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
+        
+        if(show_func_select)
+        {
+            bool * no_close = NULL;
+            ImGui::Begin("Select Func to visualize: ", no_close);
+            for(Func func : funcs)
+            {
+                if(ImGui::Button(func.name().c_str()))
+                {
+                    tree = get_tree(func);
+                    times = select_and_visualize(func, 0, input_full, idMyTexture, target_features);
+                    selected = func;
+                    func_selected = true;
+                }
+            }
+            ImGui::End();
+        }
 
         // NOTE(Emily): main expression tree window
         // Tip: if we don't call ImGui::Begin()/ImGui::End() the widgets automatically appears in a window called "Debug".
         if(show_expr_tree)
         {
+            
             bool * no_close = NULL;
             //ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_FirstUseEver);
             //ImGui::SetNextWindowSize(ImVec2(500,600));
             ImGui::Begin("Expression Tree", no_close, ImGuiWindowFlags_HorizontalScrollbar);
             //Note(Emily): call recursive method to display tree
-            display_node(tree.root, idMyTexture, width, height, f, input_full, selected_name, times, target_features);
+            if(func_selected)
+            {
+                display_node(tree.root, idMyTexture, width, height, selected, input_full, selected_name, times, target_features);
+            }
             ImGui::End();
             
         }

@@ -10,6 +10,7 @@
 
 #include "io-broadcast.hpp"
 
+
 Func example_broken(){
     xsprintf(input_filename, 128, "data/pencils.jpg");
     Halide::Buffer<uint8_t> input_full = LoadImage(input_filename);
@@ -35,7 +36,7 @@ Func example_broken(){
     Func lut("lut");
     lut(i) = pow((i/255.0f), 1.2f) * 255.0f;
     
-    Func output("output");
+    Func output("broken output");
     output(x,y,c) = cast<uint8_t>(lut(cast<uint8_t>(blend(x,y,c))));
     
     return output;
@@ -77,8 +78,15 @@ int main()
             output(x, y, c) = f(x, y,c) + g(x,y,c);
         }
     }
+    Func broken { "broken" };
+    broken = example_broken();
     
-    run_gui(output, input_full);
+    std::vector<Func> funcs;
+    funcs.push_back(output);
+    funcs.push_back(broken);
+    run_gui(funcs, input_full);
+    
+    //run_gui(output, input_full);
 
     //run_gui(example_broken(), input_full);
 
