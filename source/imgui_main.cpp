@@ -307,52 +307,6 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t> input_full)
             ImGui::RadioButton("d3d12", &gpu_value, 5);
             if(gpu_value == 5) target_features += "-d3d12";
             
-            /*
-            if(ImGui::Button("fma"))
-            {
-                target_features = "fma";
-                target_selected = true;
-            }
-            if(ImGui::SmallButton("fma4"))
-            {
-                target_features = "fma4";
-                target_selected = true;
-            }
-            if(ImGui::Button("avx-sse41"))
-            {
-                target_features = "avx-sse41";
-                target_selected = true;
-            }
-            if(ImGui::Button("avx-avx2-sse41"))
-            {
-                target_features = "avx-avx2-sse41";
-                target_selected = true;
-            }
-            if(ImGui::Button("sse41"))
-            {
-                target_features = "sse41";
-                target_selected = true;
-            }
-            if(ImGui::Button("cuda"))
-            {
-                target_features = "cuda";
-                target_selected = true;
-            }
-            if(ImGui::Button("metal"))
-            {
-                target_features = "metal";
-                target_selected = true;
-            }
-            if(ImGui::Button("opencl"))
-            {
-                target_features = "opencl";
-                target_selected = true;
-            }
-            if(ImGui::Button("d3d12"))
-            {
-                target_features = "d3d12";
-                target_selected = true;
-            }*/
             ImGui::End();
             
         }
