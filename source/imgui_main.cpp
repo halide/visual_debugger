@@ -223,6 +223,12 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t> input_full)
     //Profiling times = select_and_visualize(f, 0, input_full, idMyTexture, target_features);
     Profiling times = { };
     Func selected;
+    int cpu_value(0), gpu_value(0);
+    
+    
+    //target flag bools (need to be outside of loop to maintain state)
+    bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false);
+    bool neon(false);
 
     // Main loop
     while (!glfwWindowShouldClose(window))
@@ -252,8 +258,56 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t> input_full)
         if(show_target_select)
         {
             bool * no_close = NULL;
+            
             ImGui::Begin("Select compilation target: ", no_close);
             
+            ImGui::Text("CPU: ");
+            
+            ImGui::RadioButton("x86", &cpu_value, 1);
+            if(cpu_value == 1) target_features = "x86";
+            ImGui::RadioButton("x86-64", &cpu_value, 2);
+            if(cpu_value == 2) target_features = "x86-64";
+            ImGui::RadioButton("ARM", &cpu_value, 3);
+            if(cpu_value == 3) target_features = "ARM";
+            if(cpu_value == 1 || cpu_value == 2)
+            {
+                ImGui::Text("CPU: x86/x64 options");
+                
+                ImGui::Checkbox("sse41", &sse41);
+                if(sse41) target_features += "-sse41";
+                ImGui::Checkbox("avx", &avx);
+                if(avx) target_features += "-avx";
+                ImGui::Checkbox("avx2", &avx2);
+                if(avx2) target_features += "-avx2";
+                ImGui::Checkbox("avx512", &avx512);
+                if(avx512) target_features += "-avx512";
+                ImGui::Checkbox("fma", &fma);
+                if(fma) target_features += "-fma";
+                ImGui::Checkbox("fma4", &fma4);
+                if(fma4) target_features += "-fma4";
+                
+            }
+            if(cpu_value == 3)
+            {
+                
+                ImGui::Text("CPU: ARM Options");
+                ImGui::Checkbox("NEON", &neon);
+                if(neon) target_features += "-neon";
+            }
+            
+            ImGui::Text("GPU: ");
+            
+            ImGui::RadioButton("none", &gpu_value, 1);
+            ImGui::RadioButton("metal", &gpu_value, 2);
+            if(gpu_value == 2) target_features = "metal";
+            ImGui::RadioButton("cuda", &gpu_value, 3);
+            if(gpu_value == 3) target_features = "cuda";
+            ImGui::RadioButton("opencl", &gpu_value, 4);
+            if(gpu_value == 4) target_features = "opencl";
+            ImGui::RadioButton("d3d12", &gpu_value, 5);
+            if(gpu_value == 5) target_features = "d3d12";
+            
+            /*
             if(ImGui::Button("fma"))
             {
                 target_features = "fma";
@@ -298,7 +352,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t> input_full)
             {
                 target_features = "d3d12";
                 target_selected = true;
-            }
+            }*/
             ImGui::End();
             
         }
