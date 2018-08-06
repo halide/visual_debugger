@@ -207,7 +207,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t> input_full)
     // corresponding expr_tree; this will spare us of a visitor step.
     //expr_tree tree = get_tree(funcs[0]);
     expr_tree tree;
-    std::string target_features;
+    std::string target_features = "";
         //"fma"     // FMA is actually orthogonal to AVX (and is even orthogonal to AVX2!)
         //"fma4"    // FMA4 is AMD-only; Intel adopted FMA3 (which Halide does not yet support)
         //"avx-sse41"
@@ -223,7 +223,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t> input_full)
     //Profiling times = select_and_visualize(f, 0, input_full, idMyTexture, target_features);
     Profiling times = { };
     Func selected;
-    int cpu_value(0), gpu_value(0);
+    int cpu_value(0), gpu_value(0), func_value(0);
     
     
     //target flag bools (need to be outside of loop to maintain state)
@@ -242,15 +242,18 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t> input_full)
         {
             bool * no_close = NULL;
             ImGui::Begin("Select Func to visualize: ", no_close);
+            int id = 0;
             for(Func func : funcs)
             {
-                if(ImGui::Button(func.name().c_str()) && target_selected)
+                ImGui::RadioButton(func.name().c_str(), &func_value, id);
+                if(func_value == id)
                 {
                     tree = get_tree(func);
                     times = select_and_visualize(func, 0, input_full, idMyTexture, target_features);
                     selected = func;
                     func_selected = true;
                 }
+                id++;
             }
             ImGui::End();
         }
@@ -321,10 +324,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t> input_full)
             //ImGui::SetNextWindowSize(ImVec2(500,600));
             ImGui::Begin("Expression Tree", no_close, ImGuiWindowFlags_HorizontalScrollbar);
             //Note(Emily): call recursive method to display tree
-            if(func_selected && target_selected)
-            {
-                display_node(tree.root, idMyTexture, width, height, selected, input_full, selected_name, times, target_features);
-            }
+            display_node(tree.root, idMyTexture, width, height, selected, input_full, selected_name, times, target_features);
             ImGui::End();
             
         }
