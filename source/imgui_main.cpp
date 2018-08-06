@@ -299,13 +299,13 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t> input_full)
             
             ImGui::RadioButton("none", &gpu_value, 1);
             ImGui::RadioButton("Metal", &gpu_value, 2);
-            if(gpu_value == 2) target_features = "Metal";
+            if(gpu_value == 2) target_features += "-Metal";
             ImGui::RadioButton("CUDA", &gpu_value, 3);
-            if(gpu_value == 3) target_features = "CUDA";
+            if(gpu_value == 3) target_features += "-CUDA";
             ImGui::RadioButton("OpenCL", &gpu_value, 4);
-            if(gpu_value == 4) target_features = "OpenCL";
+            if(gpu_value == 4) target_features += "-OpenCL";
             ImGui::RadioButton("d3d12", &gpu_value, 5);
-            if(gpu_value == 5) target_features = "d3d12";
+            if(gpu_value == 5) target_features += "-d3d12";
             
             /*
             if(ImGui::Button("fma"))
