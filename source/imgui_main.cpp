@@ -221,11 +221,12 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t> input_full)
     //Profiling times = select_and_visualize(f, 0, input_full, idMyTexture, target_features);
     Profiling times = { };
     int cpu_value(0), gpu_value(0), func_value(0);
-    
-    
+
     //target flag bools (need to be outside of loop to maintain state)
     bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false);
     bool neon(false);
+
+    Func selected;
 
     // Main loop
     while (!glfwWindowShouldClose(window))
@@ -295,8 +296,6 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t> input_full)
 
         bool target_selected = !target_features.empty();
 
-        Func selected;
-
         if(show_func_select)
         {
             bool * no_close = NULL;
@@ -304,12 +303,15 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t> input_full)
             int id = 0;
             for(Func func : funcs)
             {
+                int func_value_before = func_value;
                 ImGui::RadioButton(func.name().c_str(), &func_value, id);
-                if(func_value == id)
+                bool changed = (func_value_before != func_value) || !selected.defined();
+                if(func_value == id && changed)
                 {
                     tree = get_tree(func);
                     times = select_and_visualize(func, 0, input_full, idMyTexture, target_features);
                     selected = func;
+                    break;
                 }
                 id++;
             }
