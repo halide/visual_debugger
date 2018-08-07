@@ -24,7 +24,7 @@ typedef std::function<Func()> Def;
 
 #include "io-broadcast.hpp"
 
-bool stdout_echo_toggle (true);
+bool stdout_echo_toggle (false);
 
 static void glfw_error_callback(int error, const char* description)
 {
@@ -257,13 +257,13 @@ void run_gui(std::vector<Def> defs, Halide::Buffer<uint8_t>& input_full, Broadca
     //NOTE(Emily): call to update buffer to display output of function
     //Profiling times = select_and_visualize(f, 0, input_full, idMyTexture, target_features);
     Profiling times = { };
-    int cpu_value(0), gpu_value(2), func_value(0);
+    int cpu_value(0), gpu_value(0), func_value(0);
 
 
     //target flag bools (need to be outside of loop to maintain state)
     bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false);
     bool neon(false);
-    bool debug_runtime(true), no_asserts(false), no_bounds_query(false);
+    bool debug_runtime(false), no_asserts(false), no_bounds_query(false);
 
     Func selected;
 
