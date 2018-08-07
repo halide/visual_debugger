@@ -262,6 +262,7 @@ void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full,
     bool neon(false);
     
     bool stdout(false);
+    bool stdout_select_done(false);
 
     Func selected;
 
@@ -278,9 +279,11 @@ void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full,
             ImGui::Begin("Output", no_close);
             
             ImGui::Checkbox("Show stdout in terminal", &stdout);
-            if(stdout)
+            if(stdout && !stdout_select_done)
             {
                 iobc.AddEcho(&stdout);
+                stdout_select_done = true;
+                
             }
             ImGui::End();
         }
