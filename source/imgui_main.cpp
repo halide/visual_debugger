@@ -120,9 +120,11 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
     bool clicked = false;
     if (parent->node_id != 0)
     {
+        ImGui::PushID(parent->node_id);
         clicked = ImGui::SmallButton(" ");
+        ImGui::PopID();
         ImGui::SameLine();
-        if (clicked && parent->name == "UIntImm : 1")
+        if (parent->name == "UIntImm : 1")
             int a = 0;
     }
 
