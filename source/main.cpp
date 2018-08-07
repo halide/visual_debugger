@@ -8,10 +8,11 @@
 //#include "treedump.cpp"
 #include "imgui_main.cpp"
 
-#include "io-broadcast.hpp"
+//#include "io-broadcast.hpp"
 
 
-Func example_broken(){
+Func example_broken()
+{
     xsprintf(input_filename, 128, "data/pencils.jpg");
     Halide::Buffer<uint8_t> input_full = LoadImage(input_filename);
     assert(input_full.defined());
@@ -37,6 +38,38 @@ Func example_broken(){
     lut(i) = pow((i/255.0f), 1.2f) * 255.0f;
     
     Func output("broken output");
+    output(x,y,c) = cast<uint8_t>(lut(cast<uint8_t>(blend(x,y,c))));
+    
+    return output;
+}
+
+Func example_fixed()
+{
+    xsprintf(input_filename, 128, "data/pencils.jpg");
+    Halide::Buffer<uint8_t> input_full = LoadImage(input_filename);
+    assert(input_full.defined());
+    
+    Var x("x"), y("y"), c("c"), i("i");
+    
+    Expr clamped_x = clamp(x, 0, input_full.width()-1);
+    Expr clamped_y = clamp(y, 0, input_full.height()-1);
+    
+    Func bounded("bounded");
+    bounded(x,y,c) = input_full(clamped_x, clamped_y, c);
+    
+    Func sharpen("sharpen");
+    sharpen(x,y,c) = 2 * bounded(x,y,c) - (bounded(x-1, y, c) + bounded(x, y-1, c) + bounded(x+1, y, c) + bounded(x, y+1, c))/4;
+    
+    Func gradient("gradient");
+    gradient(x,y,c) = (x + y)/1024.0f;
+    
+    Func blend("blend");
+    blend(x,y,c) = sharpen(x,y,c) * gradient(x,y,c);
+    
+    Func lut("lut");
+    lut(i) = pow((i/255.0f), 1.2f) * 255.0f;
+    
+    Func output("fixed output");
     output(x,y,c) = cast<uint8_t>(lut(cast<uint8_t>(blend(x,y,c))));
     
     return output;
@@ -83,10 +116,13 @@ int main()
     Func broken { "broken" };
     broken = example_broken();
     
+    Func fixed { "fixed" };
+    fixed = example_fixed();
+    
     std::vector<Func> funcs;
-    funcs.push_back(output);
     funcs.push_back(broken);
-    run_gui(funcs, input_full);
+    funcs.push_back(fixed);
+    run_gui(funcs, input_full, iobc);
     
     //run_gui(output, input_full);
 

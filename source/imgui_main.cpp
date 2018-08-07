@@ -283,6 +283,11 @@ void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full,
                 stdout_select_done = true;
                 
             }
+            if(!stdout && stdout_select_done)
+            {
+                iobc.AddEcho(&stdout);
+                stdout_select_done = false;
+            }
             ImGui::End();
         }
         
