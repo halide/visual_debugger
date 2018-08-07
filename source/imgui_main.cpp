@@ -107,7 +107,7 @@ void ToggleButton(const char* str_id, bool* v)
     draw_list->AddCircleFilled(ImVec2(*v ? (p.x + width - radius) : (p.x + radius), p.y + radius), radius - 1.5f, IM_COL32(255, 255, 255, 255));
 }
 
-void display_node(expr_node * parent, GLuint idMyTexture, int width, int height, Func f, Halide::Buffer<uint8_t> input_full, std::string& selected_name, Profiling& times, const std::string& target_features)
+void display_node(expr_node * parent, GLuint idMyTexture, int width, int height, Func f, const Halide::Buffer<uint8_t>& input_full, std::string& selected_name, Profiling& times, const std::string& target_features)
 {
     if(ImGui::TreeNode(parent->name.c_str()))
     {
@@ -135,7 +135,7 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
     }
 }
 
-void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t> input_full)
+void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full)
 {
     // Setup window
     glfwSetErrorCallback(glfw_error_callback);

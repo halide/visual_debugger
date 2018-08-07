@@ -1323,7 +1323,7 @@ struct Profiling
     float run_time;
 };
 
-Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, GLuint idMyTexture, std::string target_features)
+Profiling select_and_visualize(Func f, int id, const Halide::Buffer<uint8_t>& input_full, GLuint idMyTexture, std::string target_features)
 {
     Func m = DebuggerSelector(id).mutate(f);
 
