@@ -19,6 +19,7 @@
 #include <GLFW/glfw3.h>
 
 #include "treedump.cpp"
+#include "io-broadcast.hpp"
 
 static void glfw_error_callback(int error, const char* description)
 {
@@ -165,7 +166,7 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
     ImGui::TreePop();
 }
 
-void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full)
+void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full, Broadcaster iobc)
 {
     // Setup window
     glfwSetErrorCallback(glfw_error_callback);
@@ -211,6 +212,7 @@ void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full)
     bool show_expr_tree = true;
     bool show_func_select = true;
     bool show_target_select = true;
+    bool show_stdout_box = true;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     
     std::string selected_name = "No node selected, displaying output";
@@ -252,9 +254,13 @@ void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full)
     Profiling times = { };
     int cpu_value(0), gpu_value(0), func_value(0);
 
+
     //target flag bools (need to be outside of loop to maintain state)
     bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false);
     bool neon(false);
+    
+    bool stdout(false);
+    bool stdout_select_done(false);
 
     Func selected;
 
@@ -265,6 +271,27 @@ void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full)
         ImGui_ImplOpenGL2_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
+        if(show_stdout_box)
+        {
+            bool * no_close = NULL;
+            ImGui::Begin("Output", no_close);
+            
+            ImGui::Checkbox("Show stdout in terminal", &stdout);
+            if(stdout && !stdout_select_done)
+            {
+                iobc.AddEcho(&stdout);
+                stdout_select_done = true;
+                
+            }
+            if(!stdout && stdout_select_done)
+            {
+                iobc.AddEcho(&stdout);
+                stdout_select_done = false;
+            }
+            ImGui::End();
+        }
+        
+        
         if(show_target_select)
         {
             bool * no_close = NULL;
