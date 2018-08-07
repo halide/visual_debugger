@@ -306,7 +306,6 @@ void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full)
                 ImGui::SameLine();
                 ImGui::Checkbox("fma4", &fma4);
                 if(fma4) target_features += "-fma4";
-                
             }
 
             if(cpu_value == 3)

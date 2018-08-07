@@ -1528,14 +1528,51 @@ Profiling select_and_visualize(Func f, int id, const Halide::Buffer<uint8_t>& in
 
         if (arch != host_target.arch)
         {
-            fprintf(stderr, "ERROR: must JIT compile to the same arch as the host...\n");
+            fprintf(stderr, "WARNING: must JIT compile to the same arch as the host...\n");
             arch = host_target.arch;
         }
 
         if (arch_bits != host_target.bits)
         {
-            fprintf(stderr, "ERROR: must JIT compile to the same arch-bits as the host...\n");
+            fprintf(stderr, "WARNING: must JIT compile to the same arch-bits as the host...\n");
             arch_bits = host_target.bits;
+        }
+    }
+
+    {
+        const char feature [] = "-avx512";
+        auto pos = target_features.find(feature);
+        if (pos != target_features.npos)
+        {
+            fprintf(stderr, "WARNING: host CPU does not have AVX512 support...\n");
+            target_features.erase(pos, sizeof(feature)-1);
+        }
+    }
+    {
+        const char feature [] = "-fma4";
+        auto pos = target_features.find(feature);
+        if (pos != target_features.npos)
+        {
+            fprintf(stderr, "WARNING: host CPU does not have FMA4 support...\n");
+            target_features.erase(pos, sizeof(feature)-1);
+        }
+    }
+    {
+        const char feature [] = "-d3d12compute";
+        auto pos = target_features.find(feature);
+        if (pos != target_features.npos)
+        {
+            fprintf(stderr, "WARNING: Direct3D 12 (compute) support not available in the current Halide build...\n");
+            target_features.erase(pos, sizeof(feature)-1);
+        }
+    }
+    {
+        const char feature [] = "-metal";
+        auto pos = target_features.find(feature);
+        if (pos != target_features.npos && ((os != Target::OS::OSX) || (os != Target::OS::IOS)))
+        {
+            fprintf(stderr, "WARNING: Metal is not support by the operating system of the host...\n");
+            target_features.erase(pos, sizeof(feature)-1);
         }
     }
 
@@ -1550,8 +1587,8 @@ Profiling select_and_visualize(Func f, int id, const Halide::Buffer<uint8_t>& in
     }
     else
     {
-        fprintf(stderr, "ERROR: Invalid Halide Target : %s\n", target_string.c_str());
-        fprintf(stderr, "       will revert to the default host target.\n");
+        fprintf(stderr, "WARNING: Invalid Halide Target : %s\n", target_string.c_str());
+        fprintf(stderr, "         will revert to the default host target.\n");
         target = host_target;
     }
     printf("Halide Target : %s\n", target.to_string().c_str());
