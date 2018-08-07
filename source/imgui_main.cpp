@@ -112,38 +112,57 @@ int id_expr_debugging = -1;
 void display_node(expr_node * parent, GLuint idMyTexture, int width, int height, Func f, const Halide::Buffer<uint8_t>& input_full, std::string& selected_name, Profiling& times, const std::string& target_features)
 {
     if (id_expr_debugging == parent->node_id)
-        ImGui::PushStyleColor(ImGuiCol_Text, 0xFF00CF40);
-    if(ImGui::TreeNode(parent->name.c_str()))
     {
-        if (id_expr_debugging == parent->node_id)
-            ImGui::PopStyleColor();
-        if(parent->node_id != 0)
-        {
-            static int clicked = 0;
-            if (ImGui::Button("View Result of Expr"))
-                clicked++;
-            if (clicked & 1)
-            {
-                selected_name = parent->name;
-                times = select_and_visualize(f, parent->node_id, input_full, idMyTexture, target_features);
-                id_expr_debugging = parent->node_id;
-            }
-            clicked = 0;
-        }
-        if(!parent->children.empty())
-        {
-            for(int i = 0; i < parent->children.size(); i++)
-            {
-                display_node(parent->children[i], idMyTexture, width, height, f, input_full, selected_name, times, target_features);
-            }
-        }
-        ImGui::TreePop();
+        ImGui::PushStyleColor(ImGuiCol_Text,   0xFF00CF40);
+        ImGui::PushStyleColor(ImGuiCol_Button, 0xFF00CF40);
+    }
+
+    bool clicked = false;
+    if (parent->node_id != 0)
+    {
+        clicked = ImGui::SmallButton(" ");
+        ImGui::SameLine();
+        if (clicked && parent->name == "UIntImm : 1")
+            int a = 0;
+    }
+
+    bool open = false;
+    if (parent->children.empty())
+    {
+        ImGui::Text(parent->name.c_str());
     }
     else
     {
-        if (id_expr_debugging == parent->node_id)
-            ImGui::PopStyleColor();
+        open = ImGui::TreeNode(parent->name.c_str());
     }
+
+    if (id_expr_debugging == parent->node_id)
+    {
+        ImGui::PopStyleColor();
+        ImGui::PopStyleColor();
+    }
+
+    if (clicked)
+    {
+        selected_name = parent->name;
+        times = select_and_visualize(f, parent->node_id, input_full, idMyTexture, target_features);
+        id_expr_debugging = parent->node_id;
+    }
+
+    if (!open)
+    {
+        return;
+    }
+
+    if(!parent->children.empty())
+    {
+        for(int i = 0; i < parent->children.size(); i++)
+        {
+            display_node(parent->children[i], idMyTexture, width, height, f, input_full, selected_name, times, target_features);
+        }
+    }
+
+    ImGui::TreePop();
 }
 
 void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full)
