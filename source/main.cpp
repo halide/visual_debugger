@@ -11,11 +11,8 @@
 //#include "io-broadcast.hpp"
 
 
-Func example_broken()
+Func example_broken(Halide::Buffer<uint8_t> input_full)
 {
-    xsprintf(input_filename, 128, "data/pencils.jpg");
-    Halide::Buffer<uint8_t> input_full = LoadImage(input_filename);
-    assert(input_full.defined());
     
     Var x("x"), y("y"), c("c"), i("i");
     
@@ -43,11 +40,8 @@ Func example_broken()
     return output;
 }
 
-Func example_fixed()
+Func example_fixed(Halide::Buffer<uint8_t> input_full)
 {
-    xsprintf(input_filename, 128, "data/pencils.jpg");
-    Halide::Buffer<uint8_t> input_full = LoadImage(input_filename);
-    assert(input_full.defined());
     
     Var x("x"), y("y"), c("c"), i("i");
     
@@ -115,10 +109,10 @@ int main()
     }
 
     Func broken { "broken" };
-    broken = example_broken();
+    broken = example_broken(input_full);
     
     Func fixed { "fixed" };
-    fixed = example_fixed();
+    fixed = example_fixed(input_full);
     
     std::vector<Func> funcs;
     funcs.push_back(broken);
