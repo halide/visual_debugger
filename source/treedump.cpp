@@ -1576,6 +1576,17 @@ Profiling select_and_visualize(Func f, int id, const Halide::Buffer<uint8_t>& in
         }
     }
 
+    if ( target_features.find("-metal")  != target_features.npos ||
+         target_features.find("-cuda")   != target_features.npos ||
+         target_features.find("-opencl") != target_features.npos ||
+         target_features.find("-d3d12compute") != target_features.npos)
+    {
+        Var x = m.args()[0];
+        Var y = m.args()[1];
+        Var tx, ty;
+        m.gpu_tile(x, y, tx, ty, 8, 8, Halide::TailStrategy::GuardWithIf);
+    }
+
     Target base_target (os, arch, arch_bits);
     std::string target_string = base_target.to_string();
     target_string.append(target_features);
@@ -1592,6 +1603,7 @@ Profiling select_and_visualize(Func f, int id, const Halide::Buffer<uint8_t>& in
         target = host_target;
     }
     printf("Halide Target : %s\n", target.to_string().c_str());
+    fflush(stdout);
 
     // TODO(marcos): we'll need to issue some vectorize() and/or gpu_tile() in
     // order to make sure we are running for the target features requested...
@@ -1607,6 +1619,8 @@ Profiling select_and_visualize(Func f, int id, const Halide::Buffer<uint8_t>& in
                                 "realize",
                                 m.realize(modified_output_buffer);
                             );
+
+    modified_output_buffer.copy_to_host();
 
     glBindTexture(GL_TEXTURE_2D, idMyTexture);
         glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, modified_output_buffer.data());
