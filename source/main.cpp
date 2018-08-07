@@ -55,16 +55,16 @@ Func example_fixed()
     Expr clamped_y = clamp(y, 0, input_full.height()-1);
     
     Func bounded("bounded");
-    bounded(x,y,c) = input_full(clamped_x, clamped_y, c);
+    bounded(x,y,c) = cast<int16_t>(input_full(clamped_x, clamped_y, c));
     
     Func sharpen("sharpen");
-    sharpen(x,y,c) = 2 * bounded(x,y,c) - (bounded(x-1, y, c) + bounded(x, y-1, c) + bounded(x+1, y, c) + bounded(x, y+1, c))/4;
+    sharpen(x,y,c) = cast<uint8_t>(clamp(2 * bounded(x,y,c) - (bounded(x-1, y, c) + bounded(x, y-1, c) + bounded(x+1, y, c) + bounded(x, y+1, c))/4, 0, 255));
     
     Func gradient("gradient");
-    gradient(x,y,c) = (x + y)/1024.0f;
+    gradient(x,y,c) = clamp((x + y)/1024.0f, 0, 255);
     
     Func blend("blend");
-    blend(x,y,c) = sharpen(x,y,c) * gradient(x,y,c);
+    blend(x,y,c) = clamp(sharpen(x,y,c) * gradient(x,y,c), 0, 255);
     
     Func lut("lut");
     lut(i) = pow((i/255.0f), 1.2f) * 255.0f;
