@@ -43,7 +43,7 @@ struct AutoRefCount
     RefCountBlock* block = nullptr;
     AutoRefCount() { }
     AutoRefCount(const AutoRefCount& rhs)
-    : block(rhs.block) { block->inc(); }
+    : block(rhs.block) { if (block) block->inc(); }
     AutoRefCount(AutoRefCount&& rhs) { std::swap(block, rhs.block); }
     ~AutoRefCount() { if (block) block->dec(); }
     AutoRefCount& operator = (const AutoRefCount& rhs)

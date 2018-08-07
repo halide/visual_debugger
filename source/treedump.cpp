@@ -1323,7 +1323,7 @@ struct Profiling
     float run_time;
 };
 
-Profiling select_and_visualize(Func f, int id, const Halide::Buffer<uint8_t>& input_full, GLuint idMyTexture, std::string target_features)
+Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, GLuint idMyTexture, std::string target_features)
 {
     Func m = DebuggerSelector(id).mutate(f);
 
@@ -1577,16 +1577,10 @@ Profiling select_and_visualize(Func f, int id, const Halide::Buffer<uint8_t>& in
         }
     }
 
-    if ( target_features.find("-metal")  != target_features.npos ||
-         target_features.find("-cuda")   != target_features.npos ||
-         target_features.find("-opencl") != target_features.npos ||
-         target_features.find("-d3d12compute") != target_features.npos)
-    {
-        Var x = m.args()[0];
-        Var y = m.args()[1];
-        Var tx, ty;
-        m.gpu_tile(x, y, tx, ty, 8, 8, Halide::TailStrategy::GuardWithIf);
-    }
+    bool gpu = target_features.find("-metal")  != target_features.npos
+            || target_features.find("-cuda")   != target_features.npos
+            || target_features.find("-opencl") != target_features.npos
+            || target_features.find("-d3d12compute") != target_features.npos;
 
     Target base_target (os, arch, arch_bits);
     std::string target_string = base_target.to_string();
@@ -1603,11 +1597,22 @@ Profiling select_and_visualize(Func f, int id, const Halide::Buffer<uint8_t>& in
         fprintf(stderr, "         will revert to the default host target.\n");
         target = host_target;
     }
-    printf("Halide Target : %s\n", target.to_string().c_str());
+    target_string = target.to_string();
+    printf("Halide Target : %s\n", target_string.c_str());
     fflush(stdout);
 
-    // TODO(marcos): we'll need to issue some vectorize() and/or gpu_tile() in
-    // order to make sure we are running for the target features requested...
+    if (gpu)
+    {
+        Var x = m.args()[0];
+        Var y = m.args()[1];
+        Var tx, ty;
+        m.gpu_tile(x, y, tx, ty, 8, 8, Halide::TailStrategy::GuardWithIf);
+    }
+    else
+    {
+        // TODO(marcos): we might need some here vectorize() for CPU too...
+        //m.vectorize();
+    }
 
     Profiling times = { };
 
@@ -1615,10 +1620,15 @@ Profiling select_and_visualize(Func f, int id, const Halide::Buffer<uint8_t>& in
                                 "compile_jit",
                                 m.compile_jit(target);
                             );
-                    
+
+    if (gpu)
+    {
+        //input_full.copy_to_device(DeviceAPI::OpenCL, target);
+    }
+
     times.run_time = PROFILE(
                                 "realize",
-                                m.realize(modified_output_buffer);
+                                m.realize(modified_output_buffer, target);
                             );
 
     modified_output_buffer.copy_to_host();
@@ -1627,7 +1637,8 @@ Profiling select_and_visualize(Func f, int id, const Halide::Buffer<uint8_t>& in
         glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, modified_output_buffer.data());
     glBindTexture(GL_TEXTURE_2D, 0);
     
-    
+    //if (!SaveImage("data/output/input_full.png", input_full))
+    //    printf("Error saving image\n");
     
     return times;
     

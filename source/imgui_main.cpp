@@ -19,9 +19,12 @@
 #include <GLFW/glfw3.h>
 
 #include "treedump.cpp"
+
+typedef std::function<Func()> Def;
+
 #include "io-broadcast.hpp"
 
-bool stdout_echo_toggle (false);
+bool stdout_echo_toggle (true);
 
 static void glfw_error_callback(int error, const char* description)
 {
@@ -112,7 +115,7 @@ void ToggleButton(const char* str_id, bool* v)
 
 int id_expr_debugging = -1;
 
-void display_node(expr_node * parent, GLuint idMyTexture, int width, int height, Func f, const Halide::Buffer<uint8_t>& input_full, std::string& selected_name, Profiling& times, const std::string& target_features)
+void display_node(expr_node * parent, GLuint idMyTexture, int width, int height, Func f, Halide::Buffer<uint8_t>& input_full, std::string& selected_name, Profiling& times, const std::string& target_features)
 {
     if (id_expr_debugging == parent->node_id)
     {
@@ -168,7 +171,7 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
     ImGui::TreePop();
 }
 
-void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full, Broadcaster iobc)
+void run_gui(std::vector<Def> defs, Halide::Buffer<uint8_t>& input_full, Broadcaster iobc)
 {
     // Setup window
     glfwSetErrorCallback(glfw_error_callback);
@@ -254,14 +257,22 @@ void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full,
     //NOTE(Emily): call to update buffer to display output of function
     //Profiling times = select_and_visualize(f, 0, input_full, idMyTexture, target_features);
     Profiling times = { };
-    int cpu_value(0), gpu_value(0), func_value(0);
+    int cpu_value(0), gpu_value(2), func_value(0);
 
 
     //target flag bools (need to be outside of loop to maintain state)
     bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false);
     bool neon(false);
+    bool debug_runtime(true), no_asserts(false), no_bounds_query(false);
 
     Func selected;
+
+    std::vector<Func> funcs;
+    for (auto& def : defs)
+    {
+        Func func = def();
+        funcs.emplace_back(func);
+    }
 
     // Main loop
     while (!glfwWindowShouldClose(window))
@@ -278,7 +289,8 @@ void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full,
             ImGui::End();
         }
         
-        
+        std::string target_features_before = target_features;
+
         if(show_target_select)
         {
             bool * no_close = NULL;
@@ -342,12 +354,23 @@ void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full,
             if(gpu_value == 3) target_features += "-opencl";
             ImGui::RadioButton("Direct3D 12", &gpu_value, 4);
             if(gpu_value == 4) target_features += "-d3d12compute";
-            
+
+            ImGui::Text("Halide: ");
+            ImGui::Checkbox("Debug Runtime", &debug_runtime);
+            if(debug_runtime) target_features += "-debug";
+            ImGui::Checkbox("No Asserts", &no_asserts);
+            if(no_asserts) target_features += "-no_asserts";
+            ImGui::Checkbox("No Bounds Query", &no_bounds_query);
+            if(no_bounds_query) target_features += "-no_bounds_query";
+
             //ImGui::Text("%s", target_features.c_str());
 
             ImGui::End();
             
         }
+
+        bool target_changed = (target_features_before != target_features);
+        target_features_before = target_features;
 
         bool target_selected = !target_features.empty();
 
@@ -356,16 +379,17 @@ void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full,
             bool * no_close = NULL;
             ImGui::Begin("Select Func to visualize: ", no_close);
             int id = 0;
-            for(Func func : funcs)
+            for(auto func : funcs)
             {
                 int func_value_before = func_value;
                 ImGui::RadioButton(func.name().c_str(), &func_value, id);
-                bool changed = (func_value_before != func_value) || !selected.defined();
+                bool changed = (func_value_before != func_value) || !selected.defined() || target_changed;
                 if(func_value == id && changed)
                 {
-                    tree = get_tree(func);
-                    times = select_and_visualize(func, 0, input_full, idMyTexture, target_features);
-                    selected = func;
+                    Func g = defs[id]();
+                    tree = get_tree(g);
+                    times = select_and_visualize(g, 0, input_full, idMyTexture, target_features);
+                    selected = g;
                     id_expr_debugging = -1;
                     break;
                 }
