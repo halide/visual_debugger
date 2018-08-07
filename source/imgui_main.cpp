@@ -107,10 +107,16 @@ void ToggleButton(const char* str_id, bool* v)
     draw_list->AddCircleFilled(ImVec2(*v ? (p.x + width - radius) : (p.x + radius), p.y + radius), radius - 1.5f, IM_COL32(255, 255, 255, 255));
 }
 
+int id_expr_debugging = -1;
+
 void display_node(expr_node * parent, GLuint idMyTexture, int width, int height, Func f, const Halide::Buffer<uint8_t>& input_full, std::string& selected_name, Profiling& times, const std::string& target_features)
 {
+    if (id_expr_debugging == parent->node_id)
+        ImGui::PushStyleColor(ImGuiCol_Text, 0xFF00CF40);
     if(ImGui::TreeNode(parent->name.c_str()))
     {
+        if (id_expr_debugging == parent->node_id)
+            ImGui::PopStyleColor();
         if(parent->node_id != 0)
         {
             static int clicked = 0;
@@ -120,7 +126,7 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
             {
                 selected_name = parent->name;
                 times = select_and_visualize(f, parent->node_id, input_full, idMyTexture, target_features);
-                
+                id_expr_debugging = parent->node_id;
             }
             clicked = 0;
         }
@@ -132,6 +138,11 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
             }
         }
         ImGui::TreePop();
+    }
+    else
+    {
+        if (id_expr_debugging == parent->node_id)
+            ImGui::PopStyleColor();
     }
 }
 
@@ -313,6 +324,7 @@ void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full)
                     tree = get_tree(func);
                     times = select_and_visualize(func, 0, input_full, idMyTexture, target_features);
                     selected = func;
+                    id_expr_debugging = -1;
                     break;
                 }
                 id++;
