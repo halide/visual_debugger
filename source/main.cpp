@@ -75,6 +75,8 @@ Func example_fixed()
     return output;
 }
 
+extern bool stdout_echo_toggle;    // <- from imgui_main.cpp;
+
 int main()
 {
     // redirect stdout to a log file, effectivelly silencing the console output:
@@ -83,8 +85,7 @@ int main()
     FILE* log = fopen(logfile, "w");
     assert(log);
     Broadcaster iobc = redirect_broadcast(stdout);
-    bool toggle_echo = false;   // <- change it to true to have stdout also print in the console
-    iobc.AddEcho(&toggle_echo);
+    iobc.AddEcho(&stdout_echo_toggle);
     iobc.AddFile(log);
 
     //NOTE(Emily): define func here instead of in treedump for now

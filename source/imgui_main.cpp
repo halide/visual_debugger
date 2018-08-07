@@ -21,6 +21,8 @@
 #include "treedump.cpp"
 #include "io-broadcast.hpp"
 
+bool stdout_echo_toggle (false);
+
 static void glfw_error_callback(int error, const char* description)
 {
     fprintf(stderr, "Glfw Error %d: %s\n", error, description);
@@ -258,9 +260,6 @@ void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full,
     //target flag bools (need to be outside of loop to maintain state)
     bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false);
     bool neon(false);
-    
-    bool stdout(false);
-    bool stdout_select_done(false);
 
     Func selected;
 
@@ -275,19 +274,7 @@ void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full,
         {
             bool * no_close = NULL;
             ImGui::Begin("Output", no_close);
-            
-            ImGui::Checkbox("Show stdout in terminal", &stdout);
-            if(stdout && !stdout_select_done)
-            {
-                iobc.AddEcho(&stdout);
-                stdout_select_done = true;
-                
-            }
-            if(!stdout && stdout_select_done)
-            {
-                iobc.AddEcho(&stdout);
-                stdout_select_done = false;
-            }
+            ImGui::Checkbox("Show stdout in terminal", &stdout_echo_toggle);
             ImGui::End();
         }
         
