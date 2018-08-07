@@ -213,6 +213,7 @@ void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full)
     bool show_expr_tree = true;
     bool show_func_select = true;
     bool show_target_select = true;
+    bool show_stdout_box = true;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     
     std::string selected_name = "No node selected, displaying output";
@@ -257,6 +258,8 @@ void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full)
     //target flag bools (need to be outside of loop to maintain state)
     bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false);
     bool neon(false);
+    
+    bool stdout(false);
 
     Func selected;
 
@@ -267,6 +270,20 @@ void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full)
         ImGui_ImplOpenGL2_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
+        if(show_stdout_box)
+        {
+            bool * no_close = NULL;
+            ImGui::Begin("Output", no_close);
+            
+            ImGui::Checkbox("Show stdout in terminal", &stdout);
+            if(stdout)
+            {
+                //iobc.AddEcho(&stdout);
+            }
+            ImGui::End();
+        }
+        
+        
         if(show_target_select)
         {
             bool * no_close = NULL;
