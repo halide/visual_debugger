@@ -242,13 +242,13 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t> input_full)
             ImGui::Begin("Select compilation target: ", no_close);
             
             ImGui::Text("CPU: ");
-            
+
             ImGui::RadioButton("host", &cpu_value, 0);
             if (cpu_value == 0) target_features = "host";
             ImGui::RadioButton("x86", &cpu_value, 1);
             if(cpu_value == 1) target_features = "x86";
-            ImGui::RadioButton("x86-64", &cpu_value, 2);
-            if(cpu_value == 2) target_features = "x86-64";
+            ImGui::RadioButton("x86_64", &cpu_value, 2);
+            if(cpu_value == 2) target_features = "x86_64";
             ImGui::RadioButton("ARM", &cpu_value, 3);
             if(cpu_value == 3) target_features = "armv7s";
             if(cpu_value == 1 || cpu_value == 2)
@@ -282,14 +282,16 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t> input_full)
             
             ImGui::RadioButton("none", &gpu_value, 0);
             ImGui::RadioButton("Metal", &gpu_value, 1);
-            if(gpu_value == 2) target_features += "-metal";
+            if(gpu_value == 1) target_features += "-metal";
             ImGui::RadioButton("CUDA", &gpu_value, 2);
-            if(gpu_value == 3) target_features += "-cuda";
+            if(gpu_value == 2) target_features += "-cuda";
             ImGui::RadioButton("OpenCL", &gpu_value, 3);
-            if(gpu_value == 4) target_features += "-opencl";
-            ImGui::RadioButton("d3d12", &gpu_value, 4);
-            if(gpu_value == 5) target_features += "-d3d12compute";
+            if(gpu_value == 3) target_features += "-opencl";
+            ImGui::RadioButton("Direct3D 12", &gpu_value, 4);
+            if(gpu_value == 4) target_features += "-d3d12compute";
             
+            //ImGui::Text("%s", target_features.c_str());
+
             ImGui::End();
             
         }

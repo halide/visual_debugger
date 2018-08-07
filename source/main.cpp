@@ -79,6 +79,7 @@ int main()
             output(x, y, c) = f(x, y,c) + g(x,y,c);
         }
     }
+
     Func broken { "broken" };
     broken = example_broken();
     

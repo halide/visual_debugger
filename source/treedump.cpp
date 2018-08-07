@@ -1323,7 +1323,7 @@ struct Profiling
     float run_time;
 };
 
-Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, GLuint idMyTexture, const std::string& target_features)
+Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, GLuint idMyTexture, std::string target_features)
 {
     Func m = DebuggerSelector(id).mutate(f);
 
@@ -1499,12 +1499,49 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_ful
             .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
             .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
     }
-    
-    Target host_target = get_host_target();
-    Target base_target (host_target.os, host_target.arch, host_target.bits);
 
+    Target host_target = get_host_target();
+    Target::OS os     = host_target.os;
+    Target::Arch arch = Target::ArchUnknown;
+    int arch_bits     = 0;
+
+    {
+        auto dash = target_features.find('-');
+        std::string arch_string = target_features.substr(0, dash);
+        target_features.erase(0, dash);
+
+        if (arch_string == "host")
+        {
+            arch = host_target.arch;
+            arch_bits = host_target.bits;
+        }
+        else if (arch_string == "x86")
+        {
+            arch = Target::X86;
+            arch_bits = 32;
+        }
+        else if (arch_string == "x86_64")
+        {
+            arch = Target::X86;
+            arch_bits = 64;
+        }
+
+        if (arch != host_target.arch)
+        {
+            fprintf(stderr, "ERROR: must JIT compile to the same arch as the host...\n");
+            arch = host_target.arch;
+        }
+
+        if (arch_bits != host_target.bits)
+        {
+            fprintf(stderr, "ERROR: must JIT compile to the same arch-bits as the host...\n");
+            arch_bits = host_target.bits;
+        }
+    }
+
+    Target base_target (os, arch, arch_bits);
     std::string target_string = base_target.to_string();
-    target_string.append("-").append(target_features);
+    target_string.append(target_features);
 
     Target target;
     if (Target::validate_target_string(target_string))
