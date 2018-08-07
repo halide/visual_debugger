@@ -141,7 +141,7 @@ int main()
     fprintf(stdout, ">> Redirecting 'stdout' to log file '%s'\n", logfile);
     FILE* log = fopen(logfile, "w");
     assert(log);
-    Broadcaster iobc;// = redirect_broadcast(stdout);
+    Broadcaster iobc = redirect_broadcast(stdout);
     iobc.AddEcho(&stdout_echo_toggle);
     iobc.AddFile(log);
 
