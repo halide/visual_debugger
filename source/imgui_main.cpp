@@ -124,8 +124,6 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
         clicked = ImGui::SmallButton(" ");
         ImGui::PopID();
         ImGui::SameLine();
-        if (parent->name == "UIntImm : 1")
-            int a = 0;
     }
 
     bool open = false;
