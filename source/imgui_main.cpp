@@ -125,8 +125,6 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
         clicked = ImGui::SmallButton(" ");
         ImGui::PopID();
         ImGui::SameLine();
-        if (parent->name == "UIntImm : 1")
-            int a = 0;
     }
 
     bool open = false;
@@ -299,30 +297,40 @@ void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full,
 
             ImGui::RadioButton("host", &cpu_value, 0);
             if (cpu_value == 0) target_features = "host";
+
             ImGui::RadioButton("x86", &cpu_value, 1);
             if(cpu_value == 1) target_features = "x86";
+            ImGui::SameLine();
             ImGui::RadioButton("x86_64", &cpu_value, 2);
             if(cpu_value == 2) target_features = "x86_64";
+
             ImGui::RadioButton("ARM", &cpu_value, 3);
             if(cpu_value == 3) target_features = "armv7s";
+
             if(cpu_value == 1 || cpu_value == 2)
             {
                 ImGui::Text("CPU: x86/x64 options");
                 
                 ImGui::Checkbox("sse41", &sse41);
                 if(sse41) target_features += "-sse41";
+                ImGui::SameLine();
                 ImGui::Checkbox("avx", &avx);
                 if(avx) target_features += "-avx";
+                ImGui::SameLine();
                 ImGui::Checkbox("avx2", &avx2);
                 if(avx2) target_features += "-avx2";
+                ImGui::SameLine();
                 ImGui::Checkbox("avx512", &avx512);
                 if(avx512) target_features += "-avx512";
+
                 ImGui::Checkbox("fma", &fma);
                 if(fma) target_features += "-fma";
+                ImGui::SameLine();
                 ImGui::Checkbox("fma4", &fma4);
                 if(fma4) target_features += "-fma4";
                 
             }
+
             if(cpu_value == 3)
             {
                 
