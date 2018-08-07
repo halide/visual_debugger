@@ -19,6 +19,7 @@
 #include <GLFW/glfw3.h>
 
 #include "treedump.cpp"
+#include "io-broadcast.hpp"
 
 static void glfw_error_callback(int error, const char* description)
 {
@@ -167,7 +168,7 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
     ImGui::TreePop();
 }
 
-void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full)
+void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full, Broadcaster iobc)
 {
     // Setup window
     glfwSetErrorCallback(glfw_error_callback);
@@ -255,6 +256,7 @@ void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full)
     Profiling times = { };
     int cpu_value(0), gpu_value(0), func_value(0);
 
+
     //target flag bools (need to be outside of loop to maintain state)
     bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false);
     bool neon(false);
@@ -278,7 +280,7 @@ void run_gui(std::vector<Func> funcs, const Halide::Buffer<uint8_t>& input_full)
             ImGui::Checkbox("Show stdout in terminal", &stdout);
             if(stdout)
             {
-                //iobc.AddEcho(&stdout);
+                iobc.AddEcho(&stdout);
             }
             ImGui::End();
         }
