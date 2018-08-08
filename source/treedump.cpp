@@ -1569,7 +1569,7 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
     {
         const char feature [] = "-metal";
         auto pos = target_features.find(feature);
-        bool apple = (os == Target::OS::OSX) || (os != Target::OS::IOS);
+        bool apple = (os == Target::OS::OSX) || (os == Target::OS::IOS);
         if (pos != target_features.npos && !apple)
         {
             fprintf(stderr, "WARNING: Metal is not support by the operating system of the host...\n");
