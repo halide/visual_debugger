@@ -218,6 +218,7 @@ void run_gui(std::vector<Def> defs, Halide::Buffer<uint8_t>& input_full, Broadca
     bool show_func_select = true;
     bool show_target_select = true;
     bool show_stdout_box = true;
+    bool show_save_image = true;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     
     std::string selected_name = "No node selected, displaying output";
@@ -258,6 +259,7 @@ void run_gui(std::vector<Def> defs, Halide::Buffer<uint8_t>& input_full, Broadca
     //Profiling times = select_and_visualize(f, 0, input_full, idMyTexture, target_features);
     Profiling times = { };
     int cpu_value(0), gpu_value(0), func_value(0);
+    bool save_image(false);
 
 
     //target flag bools (need to be outside of loop to maintain state)
@@ -286,6 +288,19 @@ void run_gui(std::vector<Def> defs, Halide::Buffer<uint8_t>& input_full, Broadca
             bool * no_close = NULL;
             ImGui::Begin("Output", no_close);
             ImGui::Checkbox("Show stdout in terminal", &stdout_echo_toggle);
+            ImGui::End();
+        }
+        
+        if(show_save_image)
+        {
+            bool * no_close = NULL;
+            ImGui::Begin("Save currently displayed image to disk: ", no_close);
+            ImGui::Checkbox("Save", &save_image);
+            if(save_image)
+            {
+                //save image using halide buffer/save_image() method
+                save_image = false; //done saving so set to false
+            }
             ImGui::End();
         }
         
