@@ -108,14 +108,49 @@ Type promote(Type type)
     return(promoted);
 }
 
+Expr eval(Func f)
+{
+    if (!f.defined())
+    {
+        return Expr();
+    }
+
+    auto domain = f.args();
+    Expr value = f(domain);
+    return value;
+}
+
+// TODO(marcos): maybe have def(f) return a proxy object that encapsulates 'g'
+// with proper Func cast operator and assignment operator form FuncRef...
+FuncRef def(Func g, Func f)
+{
+    assert(!g.defined());
+    assert( f.defined());
+    auto domain = f.args();
+    return g(domain);
+}
+
+Func wrap(Func f)
+{
+    if (!f.defined())
+    {
+        return Func();
+    }
+
+    Func g { f.name() };
+    //auto domain = f.args();
+    //g(domain) = f(domain);
+    def(g, f) = eval(f);
+    return g;
+}
+
 Func promote(Func f)
 {
     auto ftype = type__of(f);
     auto gtype = promote(ftype);
     Func g { f.name() };
-    auto domain = f.args();
-    g(domain) = cast(gtype, f(domain));
-    return(g);
+    def(g, f) = cast(gtype, eval(f));
+    return g;
 }
 
 Func as_weights(Func f)
@@ -124,11 +159,10 @@ Func as_weights(Func f)
     if (ftype.is_float())
         return(f);
 
-    auto domain = f.args();
-    Expr w = cast(Float(32), f(domain));
+    Expr w = cast(Float(32), eval(f));
     w /= cast(Float(32), ftype.max());
     Func g { "w_" + f.name() };
-    g(domain) = w;
+    def(g, f) = w;
     return(g);
 }
 
@@ -1243,15 +1277,16 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     Func mutate(Func f)
     {
         visit(f);
-        Func g;
         if(!selected.defined()){
             return f;
         }
         //printf("SELECTION RESULT BELOW:");
         //DebuggerSelector().visit(selected);
         //printf("SELECTION RESULT ABOVE:");
-        auto domain = f.args();
-        g(domain) = selected;
+        Func g;
+        //auto domain = f.args();
+        //g(domain) = selected;
+        def(g, f) = selected;
         return g;
     }
 
@@ -1271,16 +1306,14 @@ Func transform(Func f)
         //1801    //Let
     ).mutate(f);
 
-    auto domain = f.args();
-    Expr transformed_expr = 0;
-    if (g.defined())
+    Expr transformed_expr = eval(g);
+    if (!transformed_expr.defined())
     {
-        domain = g.args();
-        transformed_expr = g(domain);
+        transformed_expr = 0;
     }
 
     Func h;
-    h(domain) = cast(type__of(f), transformed_expr);
+    def(h, g) = cast(type__of(f), transformed_expr);
     return h;
 }
 
@@ -1327,12 +1360,10 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
 {
     Func m = DebuggerSelector(id).mutate(f);
 
-    auto domain = f.args();
-    Expr transformed_expr = 0;
-    if (m.defined())
+    Expr transformed_expr = eval(m);
+    if (!transformed_expr.defined())
     {
-        domain = m.args();
-        transformed_expr = m(domain);
+        transformed_expr = 0;
     }
     
     Halide::Buffer<uint8_t> output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(input_full.width(), input_full.height(), input_full.channels());
@@ -1589,10 +1620,7 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
 
     if (gpu)
     {
-        Func z;
-        domain = m.args();
-        z(domain) = m(domain);
-        m = z;
+        m = wrap(m);                        // <- add one level of indirection to isolate the schedule below
         Var x = m.args()[0];
         Var y = m.args()[1];
         Var tx, ty;
