@@ -1304,16 +1304,9 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
 
 struct IRDump : public DebuggerSelector { };
 
-Func transform(Func f)
+Func transform(Func f, int id=0)
 {
-    Func g = DebuggerSelector(
-        //26      //Let
-        //27      //Call, immediatelly inside a Let
-        //823     //Let
-        //1556    //Let
-        //1653    //Call, immediatelly inside a Let
-        //1801    //Let
-    ).mutate(f);
+    Func g = DebuggerSelector(id).mutate(f);
 
     Expr transformed_expr = eval(g);
     if (!transformed_expr.defined())
@@ -1321,7 +1314,7 @@ Func transform(Func f)
         transformed_expr = 0;
     }
 
-    Func h = def(g) = cast(type__of(f), transformed_expr);
+    Func h = def(g) = transformed_expr;
     return h;
 }
 
@@ -1366,20 +1359,33 @@ struct Profiling
 
 Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, GLuint idMyTexture, std::string target_features)
 {
-    Func m = DebuggerSelector(id).mutate(f);
+    Func m = transform(f, id);
 
-    Expr transformed_expr = eval(m);
-    if (!transformed_expr.defined())
+    // Apply data type view transforms here (type casts, range normalization, etc)
+    // https://git.corp.adobe.com/slomp/halide_visualdbg/issues/30
+    // (switch-case to handle the selected behavior)
+    //
+    // 1. fully normalize (that's the current behavior)
+    // do nothing
+    //
+    // 2. force-cast uint8_t by injecting a cast<uint8_t> before the Func is realized:
+    //    (basically, an "overflow" visualization for high-bit depth integer formats)
+    Type t = eval(m).type();
+    if (!t.is_float() && t.bits() > 8)
     {
-        transformed_expr = 0;
+        m = def(m) = cast<uint8_t>(eval(m));
     }
-    
+    //
+    // 3. range-normalize, by controlling the min and max values of the normalization, like in RenderDoc
+    // TODO
+    // m = ...
+
+    t = eval(m).type();
+    bool is_float = t.is_float();
+
     Halide::Buffer<uint8_t> output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(input_full.width(), input_full.height(), input_full.channels());
     auto output_cropped = Crop(output_buffer, 2, 2);
-    
-    Type t = transformed_expr.type();
-    bool is_float = t.is_float();
-    
+
     auto dims = output_buffer.dimensions();
     // only 2D or 3D images for now (no 1D LUTs or nD entities)
     assert(dims >= 2);
