@@ -173,70 +173,26 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
 
 std::string type_to_string(Halide::Type type)
 {
-    std::string value;
-    auto bits = type.bits();
-    bool is_float = type.is_float();
-    switch(type.code())
+    std::stringstream ss;
+    switch (type.code())
     {
-        case halide_type_int:
-        {
-            assert(!is_float);
-            switch(bits)
-            {
-                case 8:
-                    value = "int8";
-                    break;
-                case 16:
-                    value = "int16";
-                    break;
-                case 32:
-                    value = "int32";
-                    break;
-                default:
-                    value = "int";
-                    break;
-            }
-            break;
-        }
-            
         case halide_type_uint:
-        {
-            assert(!is_float);
-            switch(bits)
-            {
-                case 8:
-                    value = "uint8";
-                    break;
-                case 16:
-                    value = "uint16";
-                    break;
-                case 32:
-                    value = "uint32";
-                    break;
-                default:
-                    value = "uint";
-                    break;
-            }
+            ss << "u";
+        case halide_type_int:
+            ss << "int";
             break;
-        }
         case halide_type_float:
-        {
-            assert(is_float);
-            switch(bits)
-            {
-                case 32:
-                    value = "float32";
-                    break;
-                default:
-                    value = "float";
-                    break;
-            }
+            ss << "float";
             break;
-        }
-        default:
+        case halide_type_handle:
+            ss << "handle";
             break;
     }
-    return value;
+    ss << type.bits();
+    ss << "[";
+    ss << type.lanes();
+    ss << "]";
+    return ss.str();
 }
 
 void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broadcaster iobc)
