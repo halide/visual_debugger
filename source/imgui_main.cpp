@@ -112,6 +112,7 @@ void ToggleButton(const char* str_id, bool* v)
 }
 
 int id_expr_debugging = -1;
+Halide::Type selected_type;
 
 void display_node(expr_node * parent, GLuint idMyTexture, int width, int height, Func f, Halide::Buffer<uint8_t>& input_full, std::string& selected_name, Profiling& times, const std::string& target_features)
 {
@@ -151,6 +152,7 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
         selected_name = parent->name;
         times = select_and_visualize(f, parent->node_id, input_full, idMyTexture, target_features);
         id_expr_debugging = parent->node_id;
+        selected_type = parent->original.type();
     }
 
     if (!open)
@@ -167,6 +169,74 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
     }
 
     ImGui::TreePop();
+}
+
+std::string type_to_string(Halide::Type type)
+{
+    std::string value;
+    auto bits = type.bits();
+    bool is_float = type.is_float();
+    switch(type.code())
+    {
+        case halide_type_int:
+        {
+            assert(!is_float);
+            switch(bits)
+            {
+                case 8:
+                    value = "int8";
+                    break;
+                case 16:
+                    value = "int16";
+                    break;
+                case 32:
+                    value = "int32";
+                    break;
+                default:
+                    value = "int";
+                    break;
+            }
+            break;
+        }
+            
+        case halide_type_uint:
+        {
+            assert(!is_float);
+            switch(bits)
+            {
+                case 8:
+                    value = "uint8";
+                    break;
+                case 16:
+                    value = "uint16";
+                    break;
+                case 32:
+                    value = "uint32";
+                    break;
+                default:
+                    value = "uint";
+                    break;
+            }
+            break;
+        }
+        case halide_type_float:
+        {
+            assert(is_float);
+            switch(bits)
+            {
+                case 32:
+                    value = "float32";
+                    break;
+                default:
+                    value = "float";
+                    break;
+            }
+            break;
+        }
+        default:
+            break;
+    }
+    return value;
 }
 
 void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broadcaster iobc)
@@ -414,6 +484,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
                     tree = get_tree(func);
                     times = select_and_visualize(func, 0, input_full, idMyTexture, target_features);
                     selected = func;
+                    selected_type = func.output_types()[0]; //NOTE(Emily): need to handle case with multiple outputs or update definitions
                     id_expr_debugging = -1;
                     break;
                 }
@@ -423,6 +494,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
         }
 
         bool func_selected = selected.defined();
+        
 
         // NOTE(Emily): main expression tree window
         // Tip: if we don't call ImGui::Begin()/ImGui::End() the widgets automatically appears in a window called "Debug".
@@ -454,7 +526,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
             ImGui::Text("Information about the currently displayed image: ");
             std::string size_info = "width: " + std::to_string(width) + " height: " + std::to_string(height) + " channels: " + std::to_string(channels);
             ImGui::Text("%s", size_info.c_str());
-            ImGui::Text("Currently Selected Expr: %s", selected_name.c_str());
+            ImGui::Text("Type of selected expression: %s", type_to_string(selected_type).c_str());
             ImGui::Text("Time for JIT compilation: %f", times.jit_time);
             ImGui::Text("Time to realize: %f", times.run_time);
             ImGui::End();
