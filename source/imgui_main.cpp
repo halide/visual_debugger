@@ -471,7 +471,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
             static float zoom = 1.0f;
             ImGui::SliderFloat("Image Zoom", &zoom, 0, 10, "%.001f");
             
-            ImGui::BeginChild(" ");
+            ImGui::BeginChild(" ", ImVec2(0,0), false, ImGuiWindowFlags_HorizontalScrollbar); //NOTE(Emily): in order to get horizontal scrolling needed to add other parameters (from example online)
                 ImGui::Image((void *) (uintptr_t) idMyTexture , ImVec2(width*zoom, height*zoom));
             ImGui::EndChild();
             ImGui::End();
