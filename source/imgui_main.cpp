@@ -264,6 +264,9 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
     bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false);
     bool neon(false);
     bool debug_runtime(false), no_asserts(false), no_bounds_query(false);
+    
+    //NOTE(Emily): temporary to explore demo window
+    bool open_demo(false);
 
     Func selected;
 
@@ -282,6 +285,17 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
             ImGui::End();
         }
         
+        if(true)
+        {
+            ImGui::Begin("display demo window");
+            ImGui::Checkbox("open", &open_demo);
+            if(open_demo)
+            {
+                ImGui::ShowDemoWindow();
+            }
+            ImGui::End();
+        }
+        
         if(show_save_image)
         {
             bool * no_close = NULL;
@@ -290,6 +304,11 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
             if(save_image)
             {
                 //save image using halide buffer/save_image() method
+                std::string filename = ""; //need to create unique filename for saving image
+                //NOTE(Emily): could prompt user for filename like this: 
+                //static char buf[32] = "\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e";
+                //static char buf[32] = u8"NIHONGO"; // <- this is how you would write it with C++11, using real kanjis
+                //ImGui::InputText("UTF-8 input", buf, IM_ARRAYSIZE(buf));
                 save_image = false; //done saving so set to false
             }
             ImGui::End();
