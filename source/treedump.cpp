@@ -108,14 +108,58 @@ Type promote(Type type)
     return(promoted);
 }
 
+Expr eval(Func f)
+{
+    if (!f.defined())
+    {
+        return Expr();
+    }
+
+    auto domain = f.args();
+    Expr value = f(domain);
+    return value;
+}
+
+struct def
+{
+    Func _f;
+    Func g;
+    def(Func f) : _f(f), g("def-" + f.name()) { }
+    operator Func() { return g; }
+    Func operator = (Expr value)
+    {
+        dom(g, _f) = value;
+        return g;
+    }
+    static FuncRef dom(Func g, Func f)
+    {
+        assert(!g.defined());
+        assert( f.defined());
+        auto domain = f.args();
+        return g(domain);
+    }
+};
+
+Func wrap(Func f)
+{
+    if (!f.defined())
+    {
+        return Func();
+    }
+
+    //Func g { f.name() };
+    //auto domain = f.args();
+    //g(domain) = f(domain);
+    Func g = def(f) = eval(f);
+    return g;
+}
+
 Func promote(Func f)
 {
     auto ftype = type__of(f);
     auto gtype = promote(ftype);
-    Func g { f.name() };
-    auto domain = f.args();
-    g(domain) = cast(gtype, f(domain));
-    return(g);
+    Func g = def(f) = eval(f);
+    return g;
 }
 
 Func as_weights(Func f)
@@ -124,11 +168,10 @@ Func as_weights(Func f)
     if (ftype.is_float())
         return(f);
 
-    auto domain = f.args();
-    Expr w = cast(Float(32), f(domain));
+    Expr w = cast(Float(32), eval(f));
     w /= cast(Float(32), ftype.max());
     Func g { "w_" + f.name() };
-    g(domain) = w;
+    def::dom(g, f) = w;
     return(g);
 }
 
@@ -1243,15 +1286,16 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     Func mutate(Func f)
     {
         visit(f);
-        Func g;
         if(!selected.defined()){
             return f;
         }
         //printf("SELECTION RESULT BELOW:");
         //DebuggerSelector().visit(selected);
         //printf("SELECTION RESULT ABOVE:");
-        auto domain = f.args();
-        g(domain) = selected;
+        //Func g;
+        //auto domain = f.args();
+        //g(domain) = selected;
+        Func g = def(f) = selected;
         return g;
     }
 
@@ -1271,16 +1315,13 @@ Func transform(Func f)
         //1801    //Let
     ).mutate(f);
 
-    auto domain = f.args();
-    Expr transformed_expr = 0;
-    if (g.defined())
+    Expr transformed_expr = eval(g);
+    if (!transformed_expr.defined())
     {
-        domain = g.args();
-        transformed_expr = g(domain);
+        transformed_expr = 0;
     }
 
-    Func h;
-    h(domain) = cast(type__of(f), transformed_expr);
+    Func h = def(g) = cast(type__of(f), transformed_expr);
     return h;
 }
 
@@ -1327,12 +1368,10 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
 {
     Func m = DebuggerSelector(id).mutate(f);
 
-    auto domain = f.args();
-    Expr transformed_expr = 0;
-    if (m.defined())
+    Expr transformed_expr = eval(m);
+    if (!transformed_expr.defined())
     {
-        domain = m.args();
-        transformed_expr = m(domain);
+        transformed_expr = 0;
     }
     
     Halide::Buffer<uint8_t> output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(input_full.width(), input_full.height(), input_full.channels());
@@ -1486,20 +1525,6 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
             break;
     }
 
-    if(is_monochrome)
-    {
-        m.output_buffer()
-            .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
-            .dim(1).set_stride( modified_output_buffer.dim(1).stride() );
-    }
-    else
-    {
-        m.output_buffer()
-            .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
-            .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
-            .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
-    }
-
     Target host_target = get_host_target();
     Target::OS os     = host_target.os;
     Target::Arch arch = Target::ArchUnknown;
@@ -1603,15 +1628,33 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
 
     if (gpu)
     {
+        m = wrap(m);                        // <- add one level of indirection to isolate the schedule below
         Var x = m.args()[0];
         Var y = m.args()[1];
         Var tx, ty;
         m.gpu_tile(x, y, tx, ty, 8, 8, Halide::TailStrategy::GuardWithIf);
+        //input_full.device_free();         // <- not necessary: device_deallocate() will call it anyway if necessary
+        input_full.device_deallocate();     // <- to prevent "halide_copy_to_device does not support switching interfaces"
+        input_full.set_host_dirty();        // <- mandatory! otherwise data won't be re-uploaded even though a new device interface is evetually created! (Halide bug?)
     }
     else
     {
         // TODO(marcos): we might need some here vectorize() for CPU too...
         //m.vectorize();
+    }
+
+    if(is_monochrome)
+    {
+        m.output_buffer()
+            .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
+            .dim(1).set_stride( modified_output_buffer.dim(1).stride() );
+    }
+    else
+    {
+        m.output_buffer()
+            .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
+            .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
+            .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
     }
 
     Profiling times = { };
@@ -1620,11 +1663,6 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
                                 "compile_jit",
                                 m.compile_jit(target);
                             );
-
-    if (gpu)
-    {
-        //input_full.copy_to_device(DeviceAPI::OpenCL, target);
-    }
 
     times.run_time = PROFILE(
                                 "realize",
@@ -1636,12 +1674,12 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
     glBindTexture(GL_TEXTURE_2D, idMyTexture);
         glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, modified_output_buffer.data());
     glBindTexture(GL_TEXTURE_2D, 0);
-    
+
     //if (!SaveImage("data/output/input_full.png", input_full))
     //    printf("Error saving image\n");
-    
+
     return times;
-    
+
     /*
     
     mkdir("data/output", S_IRWXU | S_IRWXG | S_IRWXO);

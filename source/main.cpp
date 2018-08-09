@@ -10,79 +10,15 @@
 
 //#include "io-broadcast.hpp"
 
-struct Example
-{
-    Buffer<uint8_t> image;
-    Func input;
-    Var x{ "x" }, y{ "y" }, c{ "c" }, i{ "i" };
-
-    Example(Buffer<uint8_t> img)
-    {
-        image = Buffer<uint8_t>::make_with_shape_of(img);
-        image.copy_from(img);
-        input = Identity(image, "image");
-    }
-
-    Func broken_definition()
-    {
-        Expr clamped_x = clamp(x, 0, image.width()-1);
-        Expr clamped_y = clamp(y, 0, image.height()-1);
-    
-        Func bounded("bounded");
-        bounded(x,y,c) = input(clamped_x, clamped_y, c);
-    
-        Func sharpen("sharpen");
-        sharpen(x,y,c) = 2 * bounded(x,y,c) - (bounded(x-1, y, c) + bounded(x, y-1, c) + bounded(x+1, y, c) + bounded(x, y+1, c))/4;
-    
-        Func gradient("gradient");
-        gradient(x,y,c) = (x + y)/1024.0f;
-    
-        Func blend("blend");
-        blend(x,y,c) = sharpen(x,y,c) * gradient(x,y,c);
-    
-        Func lut("lut");
-        lut(i) = pow((i/255.0f), 1.2f) * 255.0f;
-    
-        Func output("broken output");
-        output(x,y,c) = cast<uint8_t>(lut(cast<uint8_t>(blend(x,y,c))));
-    
-        return output;
-    }
-
-    Func correct_definition()
-    {   
-        Expr clamped_x = clamp(x, 0, image.width()-1);
-        Expr clamped_y = clamp(y, 0, image.height()-1);
-
-        Func bounded("bounded");
-        bounded(x,y,c) = cast<int16_t>(input(clamped_x, clamped_y, c));
-    
-        Func sharpen("sharpen");
-        sharpen(x,y,c) = cast<uint8_t>(clamp(2 * bounded(x,y,c) - (bounded(x-1, y, c) + bounded(x, y-1, c) + bounded(x+1, y, c) + bounded(x, y+1, c))/4, 0, 255));
-    
-        Func gradient("gradient");
-        gradient(x,y,c) = clamp((x + y)/1024.0f, 0, 255);
-    
-        Func blend("blend");
-        blend(x,y,c) = clamp(sharpen(x,y,c) * gradient(x,y,c), 0, 255);
-    
-        Func lut("lut");
-        lut(i) = pow((i/255.0f), 1.2f) * 255.0f;
-    
-        Func output("fixed output");
-        output(x,y,c) = cast<uint8_t>(lut(cast<uint8_t>(blend(x,y,c))));
-    
-        return output;
-    }
-};
-
-Func example_broken(Func input, int width, int height)
+Func example_broken(Buffer<> image)
 {
     Var x("x"), y("y"), c("c"), i("i");
     
-    Expr clamped_x = clamp(x, 0, width);
-    Expr clamped_y = clamp(y, 0, height);
-    
+    Expr clamped_x = clamp(x, 0, image.width()-1);
+    Expr clamped_y = clamp(y, 0, image.height()-1);
+
+    Func input = Identity(image, "image");
+
     Func bounded("bounded");
     bounded(x,y,c) = input(clamped_x, clamped_y, c);
     
@@ -104,12 +40,14 @@ Func example_broken(Func input, int width, int height)
     return output;
 }
 
-Func example_fixed(Func input, int width, int height)
+Func example_fixed(Buffer<> image)
 {
     Var x("x"), y("y"), c("c"), i("i");
     
-    Expr clamped_x = clamp(x, 0, width);
-    Expr clamped_y = clamp(y, 0, height);
+    Expr clamped_x = clamp(x, 0, image.width()-1);
+    Expr clamped_y = clamp(y, 0, image.height()-1);
+
+    Func input = Identity(image, "image");
 
     Func bounded("bounded");
     bounded(x,y,c) = cast<int16_t>(input(clamped_x, clamped_y, c));
@@ -132,6 +70,31 @@ Func example_fixed(Func input, int width, int height)
     return output;
 }
 
+Func example_scoped(Buffer<> image)
+{
+    Func input = Identity(image, "image");
+
+    Func f ("f");
+    {
+        Var x, y, c;
+        f(x,y, c) = 10 * input(x, 0, 2-c);
+    }
+
+    Func g ("g");
+    {
+        Var x, y, c;
+        g(x,y,c) = input(x, y, c) + 1;
+    }
+
+    Func h ("h");
+    {
+        Var x, y, c;
+        h(x, y, c) = f(x, y, c) + g(x, y, c);
+    }
+
+    return h;
+}
+
 extern bool stdout_echo_toggle;    // <- from imgui_main.cpp;
 
 int main()
@@ -150,56 +113,16 @@ int main()
     Halide::Buffer<uint8_t> input_full = LoadImage(input_filename);
     if (!input_full.defined())
         return  NULL;
-    
-    //Func input = Identity(input_full, "image");
-    Func input { "image" };
-    input(x, y, c) = cast<uint8_t>( sin(x+y) / tan(c*y) );
 
-    int width  = input_full.width()  - 1;
-    int height = input_full.height() - 1;
+    Func broken = example_broken(input_full);
     
-    Func output { "output" };
-    //output(x, y, c) = cast(type__of(input), final);
+    Func fixed = example_fixed(input_full);
     
-    {
-        Func f{ "f" };
-        Func g{"g"};
-        {
-            Var x, y, c;
-            f(x,y, c) = 10 * input(x, 0, 2-c);
-            g(x,y,c) = input(x, y, c) + 1;
-        }
-        
-        {
-            Var x, y, c;
-            output(x, y, c) = f(x, y,c) + g(x,y,c);
-        }
-    }
-
-    Func broken { "broken" };
-    broken = example_broken(input, width, height);
-    
-    Func fixed { "fixed" };
-    fixed = example_fixed(input, width, height);
-    
-    std::vector<Def> pipelines;
-    pipelines.emplace_back([&]()
-    {
-        Example eg (input_full);
-        Func broken = eg.broken_definition();
-        return broken;
-    });
-    pipelines.emplace_back([&]()
-    {
-        Example eg (input_full);
-        Func fixed = eg.correct_definition();
-        return fixed;
-    });
-
-    //std::vector<Func> funcs;
-    //funcs.push_back(pipelines[0]());
-    //funcs.push_back(pipelines[1]());
-    run_gui(pipelines, input_full, iobc);
+    std::vector<Func> funcs;
+    funcs.push_back(broken);
+    funcs.push_back(fixed);
+    funcs.push_back(example_scoped(input_full));
+    run_gui(funcs, input_full, iobc);
     
     //run_gui(output, input_full);
 

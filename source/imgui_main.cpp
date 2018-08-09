@@ -20,8 +20,6 @@
 
 #include "treedump.cpp"
 
-typedef std::function<Func()> Def;
-
 #include "io-broadcast.hpp"
 
 bool stdout_echo_toggle (false);
@@ -171,7 +169,7 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
     ImGui::TreePop();
 }
 
-void run_gui(std::vector<Def> defs, Halide::Buffer<uint8_t>& input_full, Broadcaster iobc)
+void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broadcaster iobc)
 {
     // Setup window
     glfwSetErrorCallback(glfw_error_callback);
@@ -268,13 +266,6 @@ void run_gui(std::vector<Def> defs, Halide::Buffer<uint8_t>& input_full, Broadca
     bool debug_runtime(false), no_asserts(false), no_bounds_query(false);
 
     Func selected;
-
-    std::vector<Func> funcs;
-    for (auto& def : defs)
-    {
-        Func func = def();
-        funcs.emplace_back(func);
-    }
 
     // Main loop
     while (!glfwWindowShouldClose(window))
@@ -401,10 +392,9 @@ void run_gui(std::vector<Def> defs, Halide::Buffer<uint8_t>& input_full, Broadca
                 bool changed = (func_value_before != func_value) || !selected.defined() || target_changed;
                 if(func_value == id && changed)
                 {
-                    Func g = defs[id]();
-                    tree = get_tree(g);
-                    times = select_and_visualize(g, 0, input_full, idMyTexture, target_features);
-                    selected = g;
+                    tree = get_tree(func);
+                    times = select_and_visualize(func, 0, input_full, idMyTexture, target_features);
+                    selected = func;
                     id_expr_debugging = -1;
                     break;
                 }
