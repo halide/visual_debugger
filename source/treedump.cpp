@@ -1357,7 +1357,7 @@ struct Profiling
     float run_time;
 };
 
-Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, GLuint idMyTexture, std::string target_features)
+Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, GLuint idMyTexture, std::string target_features, bool save_to_disk)
 {
     Func m = transform(f, id);
 
@@ -1680,6 +1680,13 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
     glBindTexture(GL_TEXTURE_2D, idMyTexture);
         glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, modified_output_buffer.data());
     glBindTexture(GL_TEXTURE_2D, 0);
+    
+    if(save_to_disk)
+    {
+        
+        //if(!SaveImage("data/output/test.png", modified_output_buffer))
+        //    printf("Error saving image\n");
+    }
 
     //if (!SaveImage("data/output/input_full.png", input_full))
     //    printf("Error saving image\n");

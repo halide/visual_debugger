@@ -22,7 +22,7 @@
 
 #include "io-broadcast.hpp"
 
-bool stdout_echo_toggle (false);
+bool stdout_echo_toggle (false), save_images(false);
 
 static void glfw_error_callback(int error, const char* description)
 {
@@ -150,7 +150,7 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
     if (clicked)
     {
         selected_name = parent->name;
-        times = select_and_visualize(f, parent->node_id, input_full, idMyTexture, target_features);
+        times = select_and_visualize(f, parent->node_id, input_full, idMyTexture, target_features, save_images);
         id_expr_debugging = parent->node_id;
         selected_type = parent->original.type();
     }
@@ -327,7 +327,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
     //Profiling times = select_and_visualize(f, 0, input_full, idMyTexture, target_features);
     Profiling times = { };
     int cpu_value(0), gpu_value(0), func_value(0);
-    bool save_image(false);
+    
 
 
     //target flag bools (need to be outside of loop to maintain state)
@@ -369,17 +369,14 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
         if(show_save_image)
         {
             bool * no_close = NULL;
-            ImGui::Begin("Save currently displayed image to disk: ", no_close);
-            ImGui::Checkbox("Save", &save_image);
-            if(save_image)
+            ImGui::Begin("Save images to disk upon selection: ", no_close);
+            ImGui::Checkbox("Save selected expressions", &save_images);
+            if(save_images)
             {
-                //save image using halide buffer/save_image() method
-                std::string filename = ""; //need to create unique filename for saving image
                 //NOTE(Emily): could prompt user for filename like this: 
                 //static char buf[32] = "\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e";
                 //static char buf[32] = u8"NIHONGO"; // <- this is how you would write it with C++11, using real kanjis
                 //ImGui::InputText("UTF-8 input", buf, IM_ARRAYSIZE(buf));
-                save_image = false; //done saving so set to false
             }
             ImGui::End();
         }
@@ -482,7 +479,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
                 if(func_value == id && changed)
                 {
                     tree = get_tree(func);
-                    times = select_and_visualize(func, 0, input_full, idMyTexture, target_features);
+                    times = select_and_visualize(func, 0, input_full, idMyTexture, target_features, save_images);
                     selected = func;
                     selected_type = func.output_types()[0]; //NOTE(Emily): need to handle case with multiple outputs or update definitions
                     id_expr_debugging = -1;
