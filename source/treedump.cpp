@@ -1486,20 +1486,6 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
             break;
     }
 
-    if(is_monochrome)
-    {
-        m.output_buffer()
-            .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
-            .dim(1).set_stride( modified_output_buffer.dim(1).stride() );
-    }
-    else
-    {
-        m.output_buffer()
-            .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
-            .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
-            .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
-    }
-
     Target host_target = get_host_target();
     Target::OS os     = host_target.os;
     Target::Arch arch = Target::ArchUnknown;
@@ -1603,15 +1589,36 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
 
     if (gpu)
     {
+        Func z;
+        domain = m.args();
+        z(domain) = m(domain);
+        m = z;
         Var x = m.args()[0];
         Var y = m.args()[1];
         Var tx, ty;
         m.gpu_tile(x, y, tx, ty, 8, 8, Halide::TailStrategy::GuardWithIf);
+        //input_full.device_free();         // <- not necessary: device_deallocate() will call it anyway if necessary
+        input_full.device_deallocate();     // <- to prevent "halide_copy_to_device does not support switching interfaces"
+        input_full.set_host_dirty();        // <- mandatory! otherwise data won't be re-uploaded even though a new device interface is evetually created! (Halide bug?)
     }
     else
     {
         // TODO(marcos): we might need some here vectorize() for CPU too...
         //m.vectorize();
+    }
+
+    if(is_monochrome)
+    {
+        m.output_buffer()
+            .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
+            .dim(1).set_stride( modified_output_buffer.dim(1).stride() );
+    }
+    else
+    {
+        m.output_buffer()
+            .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
+            .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
+            .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
     }
 
     Profiling times = { };
@@ -1620,11 +1627,6 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
                                 "compile_jit",
                                 m.compile_jit(target);
                             );
-
-    if (gpu)
-    {
-        //input_full.copy_to_device(DeviceAPI::OpenCL, target);
-    }
 
     times.run_time = PROFILE(
                                 "realize",
@@ -1636,12 +1638,12 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
     glBindTexture(GL_TEXTURE_2D, idMyTexture);
         glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, modified_output_buffer.data());
     glBindTexture(GL_TEXTURE_2D, 0);
-    
+
     //if (!SaveImage("data/output/input_full.png", input_full))
     //    printf("Error saving image\n");
-    
+
     return times;
-    
+
     /*
     
     mkdir("data/output", S_IRWXU | S_IRWXG | S_IRWXO);
