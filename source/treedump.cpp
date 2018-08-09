@@ -120,15 +120,25 @@ Expr eval(Func f)
     return value;
 }
 
-// TODO(marcos): maybe have def(f) return a proxy object that encapsulates 'g'
-// with proper Func cast operator and assignment operator form FuncRef...
-FuncRef def(Func g, Func f)
+struct def
 {
-    assert(!g.defined());
-    assert( f.defined());
-    auto domain = f.args();
-    return g(domain);
-}
+    Func _f;
+    Func g;
+    def(Func f) : _f(f), g("def-" + f.name()) { }
+    operator Func() { return g; }
+    Func operator = (Expr value)
+    {
+        dom(g, _f) = value;
+        return g;
+    }
+    static FuncRef dom(Func g, Func f)
+    {
+        assert(!g.defined());
+        assert( f.defined());
+        auto domain = f.args();
+        return g(domain);
+    }
+};
 
 Func wrap(Func f)
 {
@@ -137,10 +147,10 @@ Func wrap(Func f)
         return Func();
     }
 
-    Func g { f.name() };
+    //Func g { f.name() };
     //auto domain = f.args();
     //g(domain) = f(domain);
-    def(g, f) = eval(f);
+    Func g = def(f) = eval(f);
     return g;
 }
 
@@ -148,8 +158,7 @@ Func promote(Func f)
 {
     auto ftype = type__of(f);
     auto gtype = promote(ftype);
-    Func g { f.name() };
-    def(g, f) = cast(gtype, eval(f));
+    Func g = def(f) = eval(f);
     return g;
 }
 
@@ -162,7 +171,7 @@ Func as_weights(Func f)
     Expr w = cast(Float(32), eval(f));
     w /= cast(Float(32), ftype.max());
     Func g { "w_" + f.name() };
-    def(g, f) = w;
+    def::dom(g, f) = w;
     return(g);
 }
 
@@ -1283,10 +1292,10 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         //printf("SELECTION RESULT BELOW:");
         //DebuggerSelector().visit(selected);
         //printf("SELECTION RESULT ABOVE:");
-        Func g;
+        //Func g;
         //auto domain = f.args();
         //g(domain) = selected;
-        def(g, f) = selected;
+        Func g = def(f) = selected;
         return g;
     }
 
@@ -1312,8 +1321,7 @@ Func transform(Func f)
         transformed_expr = 0;
     }
 
-    Func h;
-    def(h, g) = cast(type__of(f), transformed_expr);
+    Func h = def(g) = cast(type__of(f), transformed_expr);
     return h;
 }
 
