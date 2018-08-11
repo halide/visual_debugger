@@ -1351,6 +1351,40 @@ expr_tree get_tree(Func f)
     
 }
 
+struct FindInputBuffers : public Halide::Internal::IRVisitor
+{
+    std::vector< Buffer<> > buffers;
+
+    virtual void visit(const Call* op) override
+    {
+        if (op->call_type == Call::CallType::Image)
+        {
+            // TODO(marcos): the same buffer is likely to be accessed multiple
+            // times by an expression... right now, this visitor will collect
+            // the same buffer multiple times -- not really a problem, but it
+            // would be nice to track uniqueness with an additional set<name>.
+            assert(op->image.defined());
+            buffers.emplace_back(op->image);
+        }
+        IRVisitor::visit(op);
+        if (op->call_type == Call::CallType::Halide)
+        {
+            assert(op->func.defined());
+            auto definition = Function(op->func).definition();
+            for (auto& expr : definition.values())
+            {
+                expr.accept(this);
+            }
+        }
+    }
+
+    std::vector< Buffer<> > visit(Func f)
+    {
+        eval(f).accept(this);
+        return std::move(buffers);
+    }
+};
+
 struct Profiling
 {
     float jit_time;
@@ -1360,6 +1394,7 @@ struct Profiling
 Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, GLuint idMyTexture, std::string target_features, bool save_to_disk)
 {
     Func m = transform(f, id);
+    auto input_buffers = FindInputBuffers().visit(m);
 
     // Apply data type view transforms here (type casts, range normalization, etc)
     // https://git.corp.adobe.com/slomp/halide_visualdbg/issues/30
@@ -1639,9 +1674,12 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
         Var y = m.args()[1];
         Var tx, ty;
         m.gpu_tile(x, y, tx, ty, 8, 8, Halide::TailStrategy::GuardWithIf);
-        //input_full.device_free();         // <- not necessary: device_deallocate() will call it anyway if necessary
-        input_full.device_deallocate();     // <- to prevent "halide_copy_to_device does not support switching interfaces"
-        input_full.set_host_dirty();        // <- mandatory! otherwise data won't be re-uploaded even though a new device interface is evetually created! (Halide bug?)
+        for (auto buffer : input_buffers)
+        {
+            //buffer.device_free();         // <- not necessary: device_deallocate() will call it anyway if necessary
+            buffer.device_deallocate();     // <- to prevent "halide_copy_to_device does not support switching interfaces"
+            buffer.set_host_dirty();        // <- mandatory! otherwise data won't be re-uploaded even though a new device interface is evetually created! (Halide bug?)
+        }
     }
     else
     {
