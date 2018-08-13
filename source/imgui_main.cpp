@@ -236,7 +236,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
     //ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
     //IM_ASSERT(font != NULL);
 
-    bool show_another_window = true;
+    //bool show_another_window = true;
     bool show_image = true;
     bool show_expr_tree = true;
     bool show_func_select = true;
@@ -468,7 +468,8 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
         }
         
         
-        //NOTE(Emily): Window to show image info
+        //NOTE(Emily): Window to show image info - making more compact and putting info as title of image box
+        /*
         if (show_another_window)
         {
             
@@ -484,14 +485,20 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
             ImGui::Text("Time to realize: %f", times.run_time);
             ImGui::End();
         }
+         */
         
         if (show_image)
         {
             bool * no_close = NULL;
             
+            std::string info = std::to_string(width) + "x" + std::to_string(height)
+                            + "x" + std::to_string(channels) + " | " + type_to_string(selected_type)
+                            + " | " + std::to_string(times.run_time) + "s | (jit: "
+                            + std::to_string(times.jit_time) + "s)";
+            
             //ImGui::SetNextWindowPos(ImVec2(650, 200), ImGuiCond_FirstUseEver);
             //ImGui::SetNextWindowSize(ImVec2(500,500));
-            ImGui::Begin("Image", no_close, ImGuiWindowFlags_HorizontalScrollbar);
+            ImGui::Begin(info.c_str() , no_close, ImGuiWindowFlags_HorizontalScrollbar);
             
             static float zoom = 1.0f;
             ImGui::SliderFloat("Image Zoom", &zoom, 0, 10, "%.001f");
