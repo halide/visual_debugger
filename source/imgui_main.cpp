@@ -518,6 +518,8 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
         // NOTE(marcos): moving event handling to the end of the main loop so
         // that we don't "lose" the very first frame and are left staring at a
         // blank screen until the mouse starts hovering the window:
+        // (alternatively, we can use 'glfwPostEmptyEvent()' to force an event
+        //  artificially into the event queue)
 
         // Poll and handle events (inputs, window resize, etc.)
         // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.

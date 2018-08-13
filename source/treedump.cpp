@@ -1414,6 +1414,9 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
     // 3. range-normalize, by controlling the min and max values of the normalization, like in RenderDoc
     // TODO
     // m = ...
+    //
+    // 4. for automatic mon-max range normalization, there's the Halide inline reductions:
+    // http://halide-lang.org/docs/namespace_halide.html#a9d7999c3871839488df9d591b3f55adf
 
     t = eval(m).type();
     bool is_float = t.is_float();
