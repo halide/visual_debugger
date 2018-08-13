@@ -494,7 +494,8 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
             std::string info = std::to_string(width) + "x" + std::to_string(height)
                             + "x" + std::to_string(channels) + " | " + type_to_string(selected_type)
                             + " | " + std::to_string(times.run_time) + "s | (jit: "
-                            + std::to_string(times.jit_time) + "s)";
+                            + std::to_string(times.jit_time) + "s)"
+                            + "###ImageDisplay";   // <- ImGui ID control (###): we want this window to be the same, regardless of its title
             
             //ImGui::SetNextWindowPos(ImVec2(650, 200), ImGuiCond_FirstUseEver);
             //ImGui::SetNextWindowSize(ImVec2(500,500));
