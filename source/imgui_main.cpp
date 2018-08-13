@@ -22,7 +22,8 @@
 
 #include "io-broadcast.hpp"
 
-bool stdout_echo_toggle (false), save_images(false);
+bool stdout_echo_toggle (false);
+int save_images(0);
 
 static void glfw_error_callback(int error, const char* description)
 {
@@ -195,6 +196,31 @@ std::string type_to_string(Halide::Type type)
     return ss.str();
 }
 
+void render_gui(GLFWwindow* window)
+{
+    ImGui::Render();
+    //int display_w, display_h;
+    //glfwGetFramebufferSize(window, &display_w, &display_h);
+    //glViewport(0, 0, display_w, display_h);
+    //glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
+
+    //glfwMakeContextCurrent(window);
+    glfwSwapBuffers(window);
+}
+
+void glfw_on_window_resized(GLFWwindow* window, int width, int height)
+{
+    assert(glfwGetCurrentContext() == window);
+    glViewport(0, 0, width, height);
+
+    ImGui_ImplOpenGL2_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    render_gui(window);
+}
+
 void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broadcaster iobc)
 {
     // Setup window
@@ -215,11 +241,12 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL2_Init();
+    //glfwSetWindowSizeCallback(window, glfw_on_window_resized);
+    glfwSetFramebufferSizeCallback(window, glfw_on_window_resized);
 
     // Setup style
     //ImGui::StyleColorsDark();
     ImGui::StyleColorsClassic();
-    
 
     // Load Fonts
     // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them. 
@@ -250,6 +277,8 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
     int width = input_full.width();
     int height = input_full.height();
     int channels = input_full.channels();
+
+    glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
     
     GLuint idMyTexture = 0;
     glGenTextures(1, &idMyTexture);
@@ -290,7 +319,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
     bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false);
     bool neon(false);
     bool debug_runtime(false), no_asserts(false), no_bounds_query(false);
-    
+    bool save_current(false);
     //NOTE(Emily): temporary to explore demo window
     bool open_demo(false);
 
@@ -326,8 +355,13 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
         {
             bool * no_close = NULL;
             ImGui::Begin("Save images to disk upon selection: ", no_close);
-            ImGui::Checkbox("Save selected expressions", &save_images);
-            if(save_images)
+            ImGui::RadioButton("Save all selected expressions", &save_images, 1);
+            if(save_images == 0)
+            {
+                //allow user to select individual images to save
+                ImGui::Checkbox("Save current image", &save_current);
+            }
+            if(save_images == 1)
             {
                 //NOTE(Emily): could prompt user for filename like this: 
                 //static char buf[32] = "\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e";
@@ -485,7 +519,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
             ImGui::Text("Time to realize: %f", times.run_time);
             ImGui::End();
         }
-         */
+        */
         
         if (show_image)
         {
@@ -511,17 +545,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
         }
 
         // Rendering
-        ImGui::Render();
-        int display_w, display_h;
-        glfwGetFramebufferSize(window, &display_w, &display_h);
-        glViewport(0, 0, display_w, display_h);
-        glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
-
-        glfwMakeContextCurrent(window);
-        glfwSwapBuffers(window);
+        render_gui(window);
 
         // NOTE(marcos): moving event handling to the end of the main loop so
         // that we don't "lose" the very first frame and are left staring at a
