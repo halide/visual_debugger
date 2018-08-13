@@ -1471,7 +1471,9 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
     int width  = output_buffer.dim(0).extent();
     int height = output_buffer.dim(1).extent();
     
+    
     Halide::Runtime::Buffer<> modified_output_buffer;
+    std::string out_type;
 
     switch(t.code())
     {
@@ -1482,6 +1484,7 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
             {
                 case 8:
                 {
+                    out_type = "int8_t";
                     if (is_monochrome)
                         modified_output_buffer = Halide::Runtime::Buffer<int8_t, 2>::make_interleaved(width, height, 1);
                     else
@@ -1490,6 +1493,7 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
                 }
                 case 16:
                 {
+                    out_type = "int16_t";
                     if (is_monochrome)
                         modified_output_buffer = Halide::Runtime::Buffer<int16_t, 2>::make_interleaved(width, height, 1);
                     else
@@ -1498,6 +1502,7 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
                 }
                 case 32:
                 {
+                    out_type = "int32_t";
                     if (is_monochrome)
                         modified_output_buffer = Halide::Runtime::Buffer<int32_t, 2>::make_interleaved(width, height, 1);
                     else
@@ -1517,6 +1522,7 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
             {
                 case 8:
                 {
+                    out_type = "uint8_t";
                     if (is_monochrome)
                         modified_output_buffer = Halide::Runtime::Buffer<uint8_t, 2>::make_interleaved(width, height, 1);
                     else
@@ -1525,6 +1531,7 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
                 }
                 case 16:
                 {
+                    out_type = "uint16_t";
                     if (is_monochrome)
                         modified_output_buffer = Halide::Runtime::Buffer<uint16_t, 2>::make_interleaved(width, height, 1);
                     else
@@ -1533,6 +1540,7 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
                 }
                 case 32:
                 {
+                    out_type = "uint32_t";
                     if (is_monochrome)
                         modified_output_buffer = Halide::Runtime::Buffer<uint32_t, 2>::make_interleaved(width, height, 1);
                     else
@@ -1552,6 +1560,7 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
             {
                 case 32:
                 {
+                    out_type = "float";
                     if (is_monochrome)
                         modified_output_buffer = Halide::Runtime::Buffer<float, 2>::make_interleaved(width, height, 1);
                     else
@@ -1573,6 +1582,7 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
     Target::OS os     = host_target.os;
     Target::Arch arch = Target::ArchUnknown;
     int arch_bits     = 0;
+    
 
     {
         auto dash = target_features.find('-');
@@ -1717,6 +1727,7 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
                             );
 
     modified_output_buffer.copy_to_host();
+    
 
     glBindTexture(GL_TEXTURE_2D, idMyTexture);
         glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, modified_output_buffer.data());
@@ -1725,7 +1736,9 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
     if(save_to_disk)
     {
         
-        //if(!SaveImage("data/output/test.png", modified_output_buffer))
+        //NOTE(Emily): somehow use string from above and channels as template params to templated SaveImage calls
+        
+        //if(!SaveImage<out_type>("data/output/test.png", modified_output_buffer.raw_buffer()))
         //    printf("Error saving image\n");
     }
 
