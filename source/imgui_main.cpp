@@ -195,6 +195,31 @@ std::string type_to_string(Halide::Type type)
     return ss.str();
 }
 
+void render_gui(GLFWwindow* window)
+{
+    ImGui::Render();
+    //int display_w, display_h;
+    //glfwGetFramebufferSize(window, &display_w, &display_h);
+    //glViewport(0, 0, display_w, display_h);
+    //glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
+
+    //glfwMakeContextCurrent(window);
+    glfwSwapBuffers(window);
+}
+
+void glfw_on_window_resized(GLFWwindow* window, int width, int height)
+{
+    assert(glfwGetCurrentContext() == window);
+    glViewport(0, 0, width, height);
+
+    ImGui_ImplOpenGL2_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    render_gui(window);
+}
+
 void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broadcaster iobc)
 {
     // Setup window
@@ -215,11 +240,12 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL2_Init();
+    //glfwSetWindowSizeCallback(window, glfw_on_window_resized);
+    glfwSetFramebufferSizeCallback(window, glfw_on_window_resized);
 
     // Setup style
     //ImGui::StyleColorsDark();
     ImGui::StyleColorsClassic();
-    
 
     // Load Fonts
     // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them. 
@@ -250,6 +276,8 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
     int width = input_full.width();
     int height = input_full.height();
     int channels = input_full.channels();
+
+    glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
     
     GLuint idMyTexture = 0;
     glGenTextures(1, &idMyTexture);
@@ -485,7 +513,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
             ImGui::Text("Time to realize: %f", times.run_time);
             ImGui::End();
         }
-         */
+        */
         
         if (show_image)
         {
@@ -511,17 +539,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
         }
 
         // Rendering
-        ImGui::Render();
-        int display_w, display_h;
-        glfwGetFramebufferSize(window, &display_w, &display_h);
-        glViewport(0, 0, display_w, display_h);
-        glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
-
-        glfwMakeContextCurrent(window);
-        glfwSwapBuffers(window);
+        render_gui(window);
 
         // NOTE(marcos): moving event handling to the end of the main loop so
         // that we don't "lose" the very first frame and are left staring at a
