@@ -1724,9 +1724,9 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
     
     if(save_to_disk)
     {
-        
-        //if(!SaveImage("data/output/test.png", modified_output_buffer))
-        //    printf("Error saving image\n");
+        Halide::Buffer<> wrapped = std::move(modified_output_buffer);
+        if(!SaveImage("data/output/test.png", wrapped))
+            fprintf(stderr, "Error saving image\n");
     }
 
     //if (!SaveImage("data/output/input_full.png", input_full))
