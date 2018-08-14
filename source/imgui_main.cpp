@@ -23,7 +23,7 @@
 #include "io-broadcast.hpp"
 
 bool stdout_echo_toggle (false);
-int save_images(0);
+bool save_images(false);
 
 static void glfw_error_callback(int error, const char* description)
 {
@@ -355,13 +355,15 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
         {
             bool * no_close = NULL;
             ImGui::Begin("Save images to disk upon selection: ", no_close);
-            ImGui::RadioButton("Save all selected expressions", &save_images, 1);
-            if(save_images == 0)
+            ToggleButton("Save all images", &save_images);
+            ImGui::SameLine();
+            ImGui::Text("Save all displayed images");
+            if(!save_images)
             {
                 //allow user to select individual images to save
                 ImGui::Checkbox("Save current image", &save_current);
             }
-            if(save_images == 1)
+            if(save_images)
             {
                 //NOTE(Emily): could prompt user for filename like this: 
                 //static char buf[32] = "\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e";
