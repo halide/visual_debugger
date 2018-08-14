@@ -1,9 +1,15 @@
 add_executable(
 	visdbg
+	
+	./imgui_main.cpp
 	./main.cpp
-	./imconfig.h
-	./utils.h
+	./system.cpp
+	./treedump.cpp
 	../data/force_working_directory.cpp
+	
+	./imconfig.h
+	./HalideImageIO.h
+	./utils.h
 )
 
 

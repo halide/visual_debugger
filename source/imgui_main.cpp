@@ -17,9 +17,10 @@
 #include <imgui_impl_opengl2.h>
 #include <stdio.h>
 #include <GLFW/glfw3.h>
+#include <Halide.h>
 
 #include "system.hpp"
-#include "treedump.cpp"
+#include "utils.h"
 
 bool stdout_echo_toggle (false), save_images(false);
 
@@ -113,6 +114,12 @@ void ToggleButton(const char* str_id, bool* v)
 int id_expr_debugging = -1;
 Halide::Type selected_type;
 
+// from 'treedump.cpp':
+expr_tree get_tree(Func f);
+Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, GLuint idMyTexture, std::string target_features);
+// from 'main.cpp':
+const bool SaveImage(const char* filename, Halide::Buffer<>& image, const float scale=1.0f);
+
 void display_node(expr_node * parent, GLuint idMyTexture, int width, int height, Func f, Halide::Buffer<uint8_t>& input_full, std::string& selected_name, Profiling& times, const std::string& target_features)
 {
     if (id_expr_debugging == parent->node_id)
@@ -149,7 +156,13 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
     if (clicked)
     {
         selected_name = parent->name;
-        times = select_and_visualize(f, parent->node_id, input_full, idMyTexture, target_features, save_images);
+        Halide::Buffer<> output;
+        times = select_and_visualize(f, parent->node_id, input_full, output, idMyTexture, target_features);
+        if(save_images)
+        {
+            if(!SaveImage("data/output/test.png", output))
+                fprintf(stderr, "Error saving image\n");
+        }
         id_expr_debugging = parent->node_id;
         selected_type = parent->original.type();
     }
@@ -492,7 +505,8 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                 if(func_value == id && changed)
                 {
                     tree = get_tree(func);
-                    times = select_and_visualize(func, 0, input_full, idMyTexture, target_features, save_images);
+                    Halide::Buffer<> output;
+                    times = select_and_visualize(func, 0, input_full, output, idMyTexture, target_features);
                     selected = func;
                     selected_type = func.output_types()[0]; //NOTE(Emily): need to handle case with multiple outputs or update definitions
                     id_expr_debugging = -1;

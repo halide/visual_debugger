@@ -24,31 +24,13 @@
 #ifndef STR
 #define STR(x) XSTR(x)
 #endif//XSTR
-
-// auxiliary function to manipulate strings directly in stack memory
-#define xsprintf(var, size, ...) char var [size]; sprintf(var, __VA_ARGS__)
 ///////////////////////////////////////////////////////////// Utilities //// //
 
+#include <GLFW/glfw3.h>
 
 #include "utils.h"
 
 
-
-// //// stb image I/O /////////////////////////////////////////////////////////
-#define STB_IMAGE_STATIC
-#define STB_IMAGE_IMPLEMENTATION
-#include "../third-party/stb/stb_image.h"
-
-#define STB_IMAGE_WRITE_STATIC
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "../third-party/stb/stb_image_write.h"
-
-#define STB_IMAGE_RESIZE_STATIC
-#define STB_IMAGE_RESIZE_IMPLEMENTATION
-#include "../third-party/stb/stb_image_resize.h"
-///////////////////////////////////////////////////////// stb image I/O //// //
-
-#include "HalideImageIO.h"
 
 #define GL_RGBA32F 0x8814
 
@@ -1370,13 +1352,7 @@ struct FindInputBuffers : public Halide::Internal::IRVisitor
     }
 };
 
-struct Profiling
-{
-    float jit_time;
-    float run_time;
-};
-
-Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, GLuint idMyTexture, std::string target_features, bool save_to_disk)
+Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, GLuint idMyTexture, std::string target_features)
 {
     Func m = transform(f, id);
     auto input_buffers = FindInputBuffers().visit(m);
@@ -1706,16 +1682,11 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
     glBindTexture(GL_TEXTURE_2D, idMyTexture);
         glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, modified_output_buffer.data());
     glBindTexture(GL_TEXTURE_2D, 0);
-    
-    if(save_to_disk)
-    {
-        Halide::Buffer<> wrapped = std::move(modified_output_buffer);
-        if(!SaveImage("data/output/test.png", wrapped))
-            fprintf(stderr, "Error saving image\n");
-    }
 
     //if (!SaveImage("data/output/input_full.png", input_full))
     //    printf("Error saving image\n");
+
+    output = std::move(modified_output_buffer);
 
     return times;
 

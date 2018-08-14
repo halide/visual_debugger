@@ -4,11 +4,31 @@
     #endif//_CRT_SECURE_NO_WARNINGS
 #endif//_MSC_VER
 
-//#include "kawase.cpp"
-//#include "treedump.cpp"
-#include "imgui_main.cpp"
+#include <Halide.h>
+#include "HalideIdentity.h"
+
+// //// stb image I/O /////////////////////////////////////////////////////////
+#define STB_IMAGE_STATIC
+#define STB_IMAGE_IMPLEMENTATION
+#include "../third-party/stb/stb_image.h"
+
+#define STB_IMAGE_WRITE_STATIC
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "../third-party/stb/stb_image_write.h"
+
+#define STB_IMAGE_RESIZE_STATIC
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
+#include "../third-party/stb/stb_image_resize.h"
+///////////////////////////////////////////////////////// stb image I/O //// //
+
+#include "HalideImageIO.h"
+
+// auxiliary function to manipulate strings directly in stack memory
+#define xsprintf(var, size, ...) char var [size]; sprintf(var, __VA_ARGS__)
 
 #include "io-broadcast.hpp"
+
+using namespace Halide;
 
 Func example_broken(Buffer<> image)
 {
@@ -95,7 +115,9 @@ Func example_scoped(Buffer<> image)
     return h;
 }
 
-extern bool stdout_echo_toggle;    // <- from imgui_main.cpp;
+// from 'imgui_main.cpp':
+extern bool stdout_echo_toggle;
+void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full); 
 
 int main()
 {
