@@ -221,6 +221,17 @@ void glfw_on_window_resized(GLFWwindow* window, int width, int height)
     render_gui(window);
 }
 
+void file_system_popup()
+{
+    ImGui::OpenPopup("Save Image");
+    const bool popup_ok = ImGui::BeginPopupModal("Save Image");
+    if(!popup_ok) return;
+    
+    ImGui::Text("Here is the popup");
+    
+    ImGui::EndPopup();
+}
+
 void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broadcaster iobc)
 {
     // Setup window
@@ -361,14 +372,11 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
             if(!save_images)
             {
                 //allow user to select individual images to save
-                ImGui::Checkbox("Save current image", &save_current);
+                ImGui::Checkbox("Save current image:" , &save_current);
             }
-            if(save_images)
+            if(save_current)
             {
-                //NOTE(Emily): could prompt user for filename like this: 
-                //static char buf[32] = "\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e";
-                //static char buf[32] = u8"NIHONGO"; // <- this is how you would write it with C++11, using real kanjis
-                //ImGui::InputText("UTF-8 input", buf, IM_ARRAYSIZE(buf));
+                file_system_popup();
             }
             ImGui::End();
         }
