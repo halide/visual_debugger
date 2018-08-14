@@ -218,6 +218,33 @@ void glfw_on_window_resized(GLFWwindow* window, int width, int height)
     render_gui(window);
 }
 
+bool OptionalCheckbox(const char* label, bool* v, bool enabled=true)
+{
+    if (enabled)
+    {
+        return ImGui::Checkbox(label, v);
+    }
+
+    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+    bool dummy = false;
+    bool result = ImGui::Checkbox(label, &dummy);
+    ImGui::PopStyleVar();
+    return result;
+}
+
+bool OptionalRadioButton(const char* label, int* v, int v_button, bool enabled=true)
+{
+    if (enabled)
+    {
+        return ImGui::RadioButton(label, v, v_button);
+    }
+
+    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+    bool result = ImGui::RadioButton(label, false);
+    ImGui::PopStyleVar();
+    return result;
+}
+
 void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
 {
     // Setup window
@@ -314,9 +341,10 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
 
 
     //target flag bools (need to be outside of loop to maintain state)
-    bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false);
+    bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false), f16c(false);
     bool neon(false);
     bool debug_runtime(false), no_asserts(false), no_bounds_query(false);
+    Target host = get_host_target();
     
     //NOTE(Emily): temporary to explore demo window
     bool open_demo(false);
@@ -375,73 +403,76 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             ImGui::Text("CPU: ");
 
             ImGui::RadioButton("host", &cpu_value, 0);
-            if (cpu_value == 0) target_features = "host";
 
-            ImGui::RadioButton("x86", &cpu_value, 1);
-            if(cpu_value == 1) target_features = "x86";
-            ImGui::SameLine();
-            ImGui::RadioButton("x86_64", &cpu_value, 2);
-            if(cpu_value == 2) target_features = "x86_64";
-
-            ImGui::RadioButton("ARM", &cpu_value, 3);
-            if(cpu_value == 3) target_features = "armv7s";
-
-            if(cpu_value == 1 || cpu_value == 2)
+            if (host.arch == Target::Arch::X86)
             {
-                ImGui::Text("CPU: x86/x64 options");
-                
-                ImGui::Checkbox("sse41", &sse41);
-                if(sse41) target_features += "-sse41";
+                OptionalRadioButton("x86",    &cpu_value, 1, (host.bits == 32));
                 ImGui::SameLine();
-                ImGui::Checkbox("avx", &avx);
-                if(avx) target_features += "-avx";
-                ImGui::SameLine();
-                ImGui::Checkbox("avx2", &avx2);
-                if(avx2) target_features += "-avx2";
-                ImGui::SameLine();
-                ImGui::Checkbox("avx512", &avx512);
-                if(avx512) target_features += "-avx512";
+                OptionalRadioButton("x86_64", &cpu_value, 2, (host.bits == 64));
 
-                ImGui::Checkbox("fma", &fma);
-                if(fma) target_features += "-fma";
-                ImGui::SameLine();
-                ImGui::Checkbox("fma4", &fma4);
-                if(fma4) target_features += "-fma4";
+                if(cpu_value == 1 || cpu_value == 2)
+                {
+                    OptionalCheckbox("sse41", &sse41, host.has_feature(Target::SSE41));
+                    ImGui::SameLine();
+                    OptionalCheckbox("avx", &avx, host.has_feature(Target::AVX));
+                    ImGui::SameLine();
+                    OptionalCheckbox("avx2", &avx2, host.has_feature(Target::AVX2));
+                    ImGui::SameLine();
+                    OptionalCheckbox("avx512", &avx512, host.has_feature(Target::AVX512));
+
+                    OptionalCheckbox("fma", &fma, host.has_feature(Target::FMA));
+                    ImGui::SameLine();
+                    OptionalCheckbox("fma4", &fma4, host.has_feature(Target::FMA4));
+
+                    OptionalCheckbox("f16c", &f16c, host.has_feature(Target::F16C));
+                }
             }
 
+            OptionalRadioButton("ARM", &cpu_value, 3, (host.arch == Target::Arch::ARM));
             if(cpu_value == 3)
             {
-                
-                ImGui::Text("CPU: ARM Options");
                 ImGui::Checkbox("NEON", &neon);
-                if(neon) target_features += "-neon";
-                else target_features += "-no_neon";
+                target_features += (neon) ? "-neon" : "-no_neon";
             }
-            
+
             ImGui::Text("GPU: ");
             
             ImGui::RadioButton("none", &gpu_value, 0);
             ImGui::RadioButton("Metal", &gpu_value, 1);
-            if(gpu_value == 1) target_features += "-metal";
             ImGui::RadioButton("CUDA", &gpu_value, 2);
-            if(gpu_value == 2) target_features += "-cuda";
             ImGui::RadioButton("OpenCL", &gpu_value, 3);
-            if(gpu_value == 3) target_features += "-opencl";
             ImGui::RadioButton("Direct3D 12", &gpu_value, 4);
-            if(gpu_value == 4) target_features += "-d3d12compute";
 
             ImGui::Text("Halide: ");
             ImGui::Checkbox("Debug Runtime", &debug_runtime);
-            if(debug_runtime) target_features += "-debug";
             ImGui::Checkbox("No Asserts", &no_asserts);
-            if(no_asserts) target_features += "-no_asserts";
             ImGui::Checkbox("No Bounds Query", &no_bounds_query);
-            if(no_bounds_query) target_features += "-no_bounds_query";
 
             //ImGui::Text("%s", target_features.c_str());
 
             ImGui::End();
-            
+
+            if (cpu_value == 0) target_features = "host";
+            if (cpu_value == 1) target_features = "x86";
+            if (cpu_value == 2) target_features = "x86_64";
+            if (cpu_value == 3) target_features = "armv7s";
+
+            target_features += (sse41)  ? "-sse41"  : "" ;
+            target_features += (avx)    ? "-avx"    : "" ;
+            target_features += (avx2)   ? "-avx2"   : "" ;
+            target_features += (avx512) ? "-avx512" : "" ;
+            target_features += (fma)    ? "-fma"    : "" ;
+            target_features += (fma4)   ? "-fma4"   : "" ;
+            target_features += (f16c)   ? "-f16c"   : "" ;
+
+            if (gpu_value == 1) target_features += "-metal";
+            if (gpu_value == 2) target_features += "-cuda";
+            if (gpu_value == 3) target_features += "-opencl";
+            if (gpu_value == 4) target_features += "-d3d12compute";
+
+            target_features += (debug_runtime)   ? "-debug"           : "" ;
+            target_features += (no_asserts)      ? "-no_asserts"      : "" ;
+            target_features += (no_bounds_query) ? "-no_bounds_query" : "" ;
         }
 
         bool target_changed = (target_features_before != target_features);
