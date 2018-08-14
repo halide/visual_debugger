@@ -3,6 +3,7 @@
 #ifdef _WIN32
     #include <Windows.h>
 #else
+    #include <dlfcn.h>
 #endif
 
 #include <iterator>     // std::size
@@ -29,11 +30,11 @@ void free_library(void* handle)
     #endif
 }
 
-void* load_any(const char* filenames [], size_t count)
+template<int count>
+void* load_any(const char* (&filenames) [count])
 {
-    for (int i = 0; i < count; ++i)
+    for (auto filename : filenames)
     {
-        const char* filename = filenames[i];
         void* handle = load_library(filename);
         if (handle != nullptr)
         {
@@ -55,7 +56,7 @@ bool check_CUDA()
             "/Library/Frameworks/CUDA.framework/CUDA",
         #endif
     };
-    static void* lib_handle = load_any(libs, std::size(libs));
+    static void* lib_handle = load_any(libs);
     bool has = (lib_handle != nullptr);
     //free_library(lib_handle);
     return has;
@@ -72,7 +73,7 @@ bool check_OpenCL()
             "/System/Library/Frameworks/OpenCL.framework/OpenCL",
         #endif
     };
-    static void* lib_handle = load_any(libs, std::size(libs));
+    static void* lib_handle = load_any(libs);
     bool has = (lib_handle != nullptr);
     //free_library(lib_handle);
     return has;
@@ -83,12 +84,12 @@ bool check_Metal()
     const char* libs [] =
     {
         #ifdef _WIN32
-            nullptr
+            ""
         #else
             "/System/Library/Frameworks/Metal.framework/Versions/Current/Metal",
         #endif
     };
-    static void* lib_handle = load_any(libs, std::size(libs));
+    static void* lib_handle = load_any(libs);
     bool has = (lib_handle != nullptr);
     //free_library(lib_handle);
     return has;
@@ -101,10 +102,10 @@ bool check_D3D12()
         #ifdef _WIN32
             "d3d12.dll",
         #else
-            nullptr
+            ""
         #endif
     };
-    static void* lib_handle = load_any(libs, std::size(libs));
+    static void* lib_handle = load_any(libs);
     bool has = (lib_handle != nullptr);
     //free_library(lib_handle);
     return has;
