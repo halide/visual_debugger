@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <GLFW/glfw3.h>
 
+#include "system.hpp"
 #include "treedump.cpp"
 
 bool stdout_echo_toggle (false), save_images(false);
@@ -344,7 +345,8 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false), f16c(false);
     bool neon(false);
     bool debug_runtime(false), no_asserts(false), no_bounds_query(false);
-    Target host = get_host_target();
+
+    SystemInfo sys;
     
     //NOTE(Emily): temporary to explore demo window
     bool open_demo(false);
@@ -404,31 +406,28 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
 
             ImGui::RadioButton("host", &cpu_value, 0);
 
-            if (host.arch == Target::Arch::X86)
+            OptionalRadioButton("x86",    &cpu_value, 1, sys.Supports(Target::Arch::X86, 32));
+            ImGui::SameLine();
+            OptionalRadioButton("x86_64", &cpu_value, 2, sys.Supports(Target::Arch::X86, 64));
+
+            if(cpu_value == 1 || cpu_value == 2)
             {
-                OptionalRadioButton("x86",    &cpu_value, 1, (host.bits == 32));
+                OptionalCheckbox("sse41", &sse41, sys.Supports(Target::SSE41));
                 ImGui::SameLine();
-                OptionalRadioButton("x86_64", &cpu_value, 2, (host.bits == 64));
+                OptionalCheckbox("avx", &avx, sys.Supports(Target::AVX));
+                ImGui::SameLine();
+                OptionalCheckbox("avx2", &avx2, sys.Supports(Target::AVX2));
+                ImGui::SameLine();
+                OptionalCheckbox("avx512", &avx512, sys.Supports(Target::AVX512));
 
-                if(cpu_value == 1 || cpu_value == 2)
-                {
-                    OptionalCheckbox("sse41", &sse41, host.has_feature(Target::SSE41));
-                    ImGui::SameLine();
-                    OptionalCheckbox("avx", &avx, host.has_feature(Target::AVX));
-                    ImGui::SameLine();
-                    OptionalCheckbox("avx2", &avx2, host.has_feature(Target::AVX2));
-                    ImGui::SameLine();
-                    OptionalCheckbox("avx512", &avx512, host.has_feature(Target::AVX512));
+                OptionalCheckbox("fma", &fma, sys.Supports(Target::FMA));
+                ImGui::SameLine();
+                OptionalCheckbox("fma4", &fma4, sys.Supports(Target::FMA4));
 
-                    OptionalCheckbox("fma", &fma, host.has_feature(Target::FMA));
-                    ImGui::SameLine();
-                    OptionalCheckbox("fma4", &fma4, host.has_feature(Target::FMA4));
-
-                    OptionalCheckbox("f16c", &f16c, host.has_feature(Target::F16C));
-                }
+                OptionalCheckbox("f16c", &f16c, sys.Supports(Target::F16C));
             }
 
-            OptionalRadioButton("ARM", &cpu_value, 3, (host.arch == Target::Arch::ARM));
+            OptionalRadioButton("ARM", &cpu_value, 3, sys.Supports(Target::Arch::ARM));
             if(cpu_value == 3)
             {
                 ImGui::Checkbox("NEON", &neon);
@@ -437,11 +436,11 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
 
             ImGui::Text("GPU: ");
             
-            ImGui::RadioButton("none", &gpu_value, 0);
-            ImGui::RadioButton("Metal", &gpu_value, 1);
-            ImGui::RadioButton("CUDA", &gpu_value, 2);
-            ImGui::RadioButton("OpenCL", &gpu_value, 3);
-            ImGui::RadioButton("Direct3D 12", &gpu_value, 4);
+            OptionalRadioButton("none",        &gpu_value, 0);
+            OptionalRadioButton("Metal",       &gpu_value, 1, sys.metal);
+            OptionalRadioButton("CUDA",        &gpu_value, 2, sys.cuda);
+            OptionalRadioButton("OpenCL",      &gpu_value, 3, sys.opencl);
+            OptionalRadioButton("Direct3D 12", &gpu_value, 4, sys.d3d12);
 
             ImGui::Text("Halide: ");
             ImGui::Checkbox("Debug Runtime", &debug_runtime);

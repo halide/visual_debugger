@@ -30,10 +30,7 @@
 ///////////////////////////////////////////////////////////// Utilities //// //
 
 
-//#include "utils.h"
-
-#include "varmap.cpp"
-
+#include "utils.h"
 
 
 
@@ -1316,18 +1313,6 @@ Func transform(Func f, int id=0)
 
     Func h = def(g) = transformed_expr;
     return h;
-}
-
-void display_map(Func f)
-{
-    IRVarMap test;
-    test.visit(f);
-    std::map<std::string, Halide::Expr> map = test.var_map;
-    for(auto name : map)
-    {
-        printf("%s\n", name.first.c_str());
-        IRDump().visit(name.second);
-    }
 }
 
 //NOTE(Emily): helper function to print out expr_node tree
