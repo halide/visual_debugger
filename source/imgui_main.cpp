@@ -20,8 +20,6 @@
 
 #include "treedump.cpp"
 
-#include "io-broadcast.hpp"
-
 bool stdout_echo_toggle (false), save_images(false);
 
 static void glfw_error_callback(int error, const char* description)
@@ -220,15 +218,16 @@ void glfw_on_window_resized(GLFWwindow* window, int width, int height)
     render_gui(window);
 }
 
-void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broadcaster iobc)
+void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
 {
     // Setup window
     glfwSetErrorCallback(glfw_error_callback);
     if (!glfwInit())
         return;
     GLFWwindow* window = glfwCreateWindow(1280, 720, "Halide Visual Debugger", NULL, NULL);
+    assert(window);
     glfwMakeContextCurrent(window);
-    glfwSwapInterval(1); // Enable vsync
+    glfwSwapInterval(0); // Disable vsync to reduce input response lag
 
     // Setup Dear ImGui binding
     IMGUI_CHECKVERSION();

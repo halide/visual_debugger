@@ -1446,7 +1446,7 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
     GLenum internal_format(GL_INVALID_ENUM), external_format(GL_INVALID_ENUM), external_type(GL_INVALID_ENUM);
     external_format = (is_monochrome) ? GL_RED
                                       : GL_RGB;
-    
+
     auto bits = t.bits(); //size of type
     switch(bits)
     {

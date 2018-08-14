@@ -8,7 +8,7 @@
 //#include "treedump.cpp"
 #include "imgui_main.cpp"
 
-//#include "io-broadcast.hpp"
+#include "io-broadcast.hpp"
 
 Func example_broken(Buffer<> image)
 {
@@ -122,7 +122,7 @@ int main()
     funcs.push_back(broken);
     funcs.push_back(fixed);
     funcs.push_back(example_scoped(input_full));
-    run_gui(funcs, input_full, iobc);
+    run_gui(funcs, input_full);
     
     //run_gui(output, input_full);
 
