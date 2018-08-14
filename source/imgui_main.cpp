@@ -221,6 +221,29 @@ void glfw_on_window_resized(GLFWwindow* window, int width, int height)
     render_gui(window);
 }
 
+
+// FILE SYSTEM USAGE EXAMPLE:
+/*
+ #include "imguifilesystem.h"                                                    // imguifilesystem.cpp must be compiled
+ // Inside a ImGui window:
+ const bool browseButtonPressed = ImGui::Button("...");                          // we need a trigger boolean variable
+ static ImGuiFs::Dialog dlg;                                                     // one per dialog (and must be static)
+ const char* chosenPath = dlg.chooseFileDialog(browseButtonPressed);             // see other dialog types and the full list of arguments for advanced usage
+ if (strlen(chosenPath)>0) {
+ // A path (chosenPath) has been chosen RIGHT NOW. However we can retrieve it later more comfortably using: dlg.getChosenPath()
+ }
+ if (strlen(dlg.getChosenPath())>0) {
+ ImGui::Text("Chosen file: \"%s\"",dlg.getChosenPath());
+ }
+ // If you want to copy the (valid) returned path somewhere, you can use something like:
+ static char myPath[ImGuiFs::MAX_PATH_BYTES];
+ if (strlen(dlg.getChosenPath())>0) {
+ strcpy(myPath,dlg.getChosenPath());
+ }
+ */
+
+std::string save_filename = "data/output/test.png";
+int n(0);
 void file_system_popup()
 {
     ImGui::OpenPopup("Save Image");
@@ -228,6 +251,11 @@ void file_system_popup()
     if(!popup_ok) return;
     
     ImGui::Text("Here is the popup");
+    
+    n++;
+    //std::string filename = "data/output/test.png";
+    save_filename = "data/output/test" + std::to_string(n) + ".png";
+    //ImGui::CloseCurrentPopup();
     
     ImGui::EndPopup();
 }
@@ -284,6 +312,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     
     std::string selected_name = "No node selected, displaying output";
+    
     
     int width = input_full.width();
     int height = input_full.height();
@@ -377,6 +406,8 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
             if(save_current)
             {
                 file_system_popup();
+                times = select_and_visualize(selected, id_expr_debugging, input_full, idMyTexture, target_features, save_current);
+                
             }
             ImGui::End();
         }
