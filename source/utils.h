@@ -56,6 +56,6 @@ struct expr_tree
 
 struct Profiling
 {
-    float jit_time;
-    float run_time;
+    double jit_time;
+    double run_time;
 };

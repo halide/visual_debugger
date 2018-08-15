@@ -134,7 +134,7 @@ int main()
     xsprintf(input_filename, 128, "data/pencils.jpg");
     Halide::Buffer<uint8_t> input_full = LoadImage(input_filename);
     if (!input_full.defined())
-        return  NULL;
+        return -1;
 
     Func broken = example_broken(input_full);
     
