@@ -1667,15 +1667,15 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
 
     Profiling times = { };
 
-    times.jit_time = PROFILE(
-                                "compile_jit",
-                                m.compile_jit(target);
-                            );
+    times.jit_time =
+        PROFILE(
+            m.compile_jit(target);
+        );
 
-    times.run_time = PROFILE(
-                                "realize",
-                                m.realize(modified_output_buffer, target);
-                            );
+    times.run_time =
+        PROFILE(
+            m.realize(modified_output_buffer, target);
+        );
 
     modified_output_buffer.copy_to_host();
 
