@@ -1,15 +1,16 @@
 #ifndef IO_STREAM_REDIRECT_H
 #define IO_STREAM_REDIRECT_H
 
+#include <stdio.h>
+
 #ifdef _MSC_VER
-    #include <stdio.h>
     #include <io.h>
     #define fileno      _fileno
     #define close       _close
     #define dup         _dup
     #define dup2        _dup2
 #else // UNIX/POSIX
-    #include <poll.h>
+    #include <unistd.h>
 #endif
 
 bool redirect_permanently(FILE* before, FILE* after)

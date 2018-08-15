@@ -58,6 +58,11 @@ elseif(WIN32)
 			LLVM REQUIRED CONFIG
 			HINTS "${CMAKE_CURRENT_LIST_DIR}/../build/llvm/msvc/Win64/Release"
 		)
+	else()
+		find_package(
+			LLVM REQUIRED CONFIG
+			HINTS "${CMAKE_CURRENT_LIST_DIR}/../build/llvm/mingw-make/Win64/Release"
+		)
 	endif()
 endif()
 
@@ -83,13 +88,23 @@ elseif(LINUX)
         HINTS "${CMAKE_CURRENT_LIST_DIR}/../build/halide/make/Linux/Release/lib"
 	)
 elseif(WIN32)
-	set(HALIDE_INCLUDE_DIR
-		${CMAKE_CURRENT_LIST_DIR}/../build/halide/msvc/Win64/Release/include)
-	find_library(
-		HALIDE_LIBRARY 
-		NAMES Halide libHalide
-		HINTS "${CMAKE_CURRENT_LIST_DIR}/../build/halide/msvc/Win64/Release/lib/Release"
-	)
+	if (MSVC)
+		set(HALIDE_INCLUDE_DIR
+			${CMAKE_CURRENT_LIST_DIR}/../build/halide/msvc/Win64/Release/include)
+		find_library(
+			HALIDE_LIBRARY 
+			NAMES Halide libHalide
+			HINTS "${CMAKE_CURRENT_LIST_DIR}/../build/halide/msvc/Win64/Release/lib/Release"
+		)
+	else()
+		set(HALIDE_INCLUDE_DIR
+			${CMAKE_CURRENT_LIST_DIR}/../build/halide/mingw-make/Win64/Release/include)
+		find_library(
+			HALIDE_LIBRARY 
+			NAMES Halide libHalide
+			HINTS "${CMAKE_CURRENT_LIST_DIR}/../build/halide/mingw-make/Win64/Release/lib"
+		)
+	endif()
 endif()
 
 
