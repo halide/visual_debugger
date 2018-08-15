@@ -22,7 +22,8 @@
 #include "system.hpp"
 #include "utils.h"
 
-bool stdout_echo_toggle (false), save_images(false);
+bool stdout_echo_toggle (false);
+bool save_images(false);
 
 static void glfw_error_callback(int error, const char* description)
 {
@@ -232,6 +233,45 @@ void glfw_on_window_resized(GLFWwindow* window, int width, int height)
     render_gui(window);
 }
 
+
+// FILE SYSTEM USAGE EXAMPLE:
+/*
+ #include "imguifilesystem.h"                                                    // imguifilesystem.cpp must be compiled
+ // Inside a ImGui window:
+ const bool browseButtonPressed = ImGui::Button("...");                          // we need a trigger boolean variable
+ static ImGuiFs::Dialog dlg;                                                     // one per dialog (and must be static)
+ const char* chosenPath = dlg.chooseFileDialog(browseButtonPressed);             // see other dialog types and the full list of arguments for advanced usage
+ if (strlen(chosenPath)>0) {
+ // A path (chosenPath) has been chosen RIGHT NOW. However we can retrieve it later more comfortably using: dlg.getChosenPath()
+ }
+ if (strlen(dlg.getChosenPath())>0) {
+ ImGui::Text("Chosen file: \"%s\"",dlg.getChosenPath());
+ }
+ // If you want to copy the (valid) returned path somewhere, you can use something like:
+ static char myPath[ImGuiFs::MAX_PATH_BYTES];
+ if (strlen(dlg.getChosenPath())>0) {
+ strcpy(myPath,dlg.getChosenPath());
+ }
+ */
+
+std::string save_filename = "data/output/test.png";
+int n(0);
+void file_system_popup()
+{
+    ImGui::OpenPopup("Save Image");
+    const bool popup_ok = ImGui::BeginPopupModal("Save Image");
+    if(!popup_ok) return;
+    
+    ImGui::Text("Here is the popup");
+    
+    n++;
+    //std::string filename = "data/output/test.png";
+    save_filename = "data/output/test" + std::to_string(n) + ".png";
+    //ImGui::CloseCurrentPopup();
+    
+    ImGui::EndPopup();
+}
+
 bool OptionalCheckbox(const char* label, bool* v, bool enabled=true)
 {
     if (enabled)
@@ -313,6 +353,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     
     std::string selected_name = "No node selected, displaying output";
     
+    
     int width = input_full.width();
     int height = input_full.height();
     int channels = input_full.channels();
@@ -358,6 +399,8 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false), f16c(false);
     bool neon(false);
     bool debug_runtime(false), no_asserts(false), no_bounds_query(false);
+    
+    bool save_current(false);
 
     SystemInfo sys;
     
@@ -396,13 +439,20 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
         {
             bool * no_close = NULL;
             ImGui::Begin("Save images to disk upon selection: ", no_close);
-            ImGui::Checkbox("Save selected expressions", &save_images);
-            if(save_images)
+            ToggleButton("Save all images", &save_images);
+            ImGui::SameLine();
+            ImGui::Text("Save all displayed images");
+            if(!save_images)
             {
-                //NOTE(Emily): could prompt user for filename like this: 
-                //static char buf[32] = "\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e";
-                //static char buf[32] = u8"NIHONGO"; // <- this is how you would write it with C++11, using real kanjis
-                //ImGui::InputText("UTF-8 input", buf, IM_ARRAYSIZE(buf));
+                //allow user to select individual images to save
+                ImGui::Checkbox("Save current image:" , &save_current);
+            }
+            if(save_current)
+            {
+                file_system_popup();
+                Halide::Buffer<> output;
+                times = select_and_visualize(selected, id_expr_debugging, input_full, output, idMyTexture, target_features);
+                
             }
             ImGui::End();
         }
