@@ -1275,7 +1275,23 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         node_op->name = IRNodePrinter::print(f);
         Expr expr = f(f.args());
         node_op->original = expr;
+        node_op->func_tuple_values = true;
         tree.enter(node_op);
+        
+        int tuples = f.outputs();
+        int updates = f.num_update_definitions();
+        
+        auto tuple_defs = f.output_buffers();
+        for(auto out : tuple_defs)
+        {
+            if(out.defined())
+            {
+                //Note(Emily):
+                //out is an OutputImageParam
+                //need to somehow get Func in out's definition
+                //essentially want to visit out.func.function
+            }
+        }
         
         add_indent();
             visit(f.function());

@@ -407,6 +407,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
             {
                 file_system_popup();
                 times = select_and_visualize(selected, id_expr_debugging, input_full, idMyTexture, target_features, save_current);
+                save_current = false; //NOTE(Emily): want to "uncheck" the box after saving
                 
             }
             ImGui::End();
@@ -525,7 +526,6 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
         
 
         // NOTE(Emily): main expression tree window
-        // Tip: if we don't call ImGui::Begin()/ImGui::End() the widgets automatically appears in a window called "Debug".
         if(show_expr_tree)
         {
             
