@@ -1086,7 +1086,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         
         leave_spacer_node(arg_spacer);
         //NOTE(Emily): adding separation node here
-        expr_node* spacer = add_spacer_node("<callable>");
+        
 
         add_indent();
             indented_printf("<callable>\n");
@@ -1095,9 +1095,11 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
                 {
                     case Call::CallType::Halide :
                     {
+                        expr_node* spacer = add_spacer_node("<callable>");
                         assert(op->func.defined());     // paranoid check...
                         auto inner_func = Function(op->func);
                         visit(inner_func);
+                        leave_spacer_node(spacer);
                         break;
                     }
                     case Call::CallType::Intrinsic :
@@ -1114,7 +1116,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
                 }
             remove_indent();
         remove_indent();
-        leave_spacer_node(spacer);
+        
         
         arg_selected = (!had_selection && has_selection);
 
