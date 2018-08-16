@@ -17,10 +17,10 @@
 #include <imgui_impl_opengl2.h>
 #include <stdio.h>
 #include <GLFW/glfw3.h>
+#include <Halide.h>
 
-#include "treedump.cpp"
-
-#include "io-broadcast.hpp"
+#include "system.hpp"
+#include "utils.h"
 
 bool stdout_echo_toggle (false);
 bool save_images(false);
@@ -115,6 +115,12 @@ void ToggleButton(const char* str_id, bool* v)
 int id_expr_debugging = -1;
 Halide::Type selected_type;
 
+// from 'treedump.cpp':
+expr_tree get_tree(Func f);
+Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, GLuint idMyTexture, std::string target_features);
+// from 'main.cpp':
+const bool SaveImage(const char* filename, Halide::Buffer<>& image, const float scale=1.0f);
+
 void display_node(expr_node * parent, GLuint idMyTexture, int width, int height, Func f, Halide::Buffer<uint8_t>& input_full, std::string& selected_name, Profiling& times, const std::string& target_features)
 {
     if (id_expr_debugging == parent->node_id)
@@ -135,7 +141,7 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
     bool open = false;
     if (parent->children.empty())
     {
-        ImGui::Text(parent->name.c_str());
+        ImGui::TreeNodeEx(parent->name.c_str(), ImGuiTreeNodeFlags_Leaf);
     }
     else
     {
@@ -151,7 +157,13 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
     if (clicked)
     {
         selected_name = parent->name;
-        times = select_and_visualize(f, parent->node_id, input_full, idMyTexture, target_features, save_images);
+        Halide::Buffer<> output;
+        times = select_and_visualize(f, parent->node_id, input_full, output, idMyTexture, target_features);
+        if(save_images)
+        {
+            if(!SaveImage("data/output/test.png", output))
+                fprintf(stderr, "Error saving image\n");
+        }
         id_expr_debugging = parent->node_id;
         selected_type = parent->original.type();
     }
@@ -260,15 +272,43 @@ void file_system_popup()
     ImGui::EndPopup();
 }
 
-void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broadcaster iobc)
+bool OptionalCheckbox(const char* label, bool* v, bool enabled=true)
+{
+    if (enabled)
+    {
+        return ImGui::Checkbox(label, v);
+    }
+
+    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+    bool dummy = false;
+    bool result = ImGui::Checkbox(label, &dummy);
+    ImGui::PopStyleVar();
+    return result;
+}
+
+bool OptionalRadioButton(const char* label, int* v, int v_button, bool enabled=true)
+{
+    if (enabled)
+    {
+        return ImGui::RadioButton(label, v, v_button);
+    }
+
+    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+    bool result = ImGui::RadioButton(label, false);
+    ImGui::PopStyleVar();
+    return result;
+}
+
+void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
 {
     // Setup window
     glfwSetErrorCallback(glfw_error_callback);
     if (!glfwInit())
         return;
     GLFWwindow* window = glfwCreateWindow(1280, 720, "Halide Visual Debugger", NULL, NULL);
+    assert(window);
     glfwMakeContextCurrent(window);
-    glfwSwapInterval(1); // Enable vsync
+    glfwSwapInterval(0); // Disable vsync to reduce input response lag
 
     // Setup Dear ImGui binding
     IMGUI_CHECKVERSION();
@@ -356,10 +396,14 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
 
 
     //target flag bools (need to be outside of loop to maintain state)
-    bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false);
+    bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false), f16c(false);
     bool neon(false);
     bool debug_runtime(false), no_asserts(false), no_bounds_query(false);
+    
     bool save_current(false);
+
+    SystemInfo sys;
+    
     //NOTE(Emily): temporary to explore demo window
     bool open_demo(false);
 
@@ -406,8 +450,12 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
             if(save_current)
             {
                 file_system_popup();
-                times = select_and_visualize(selected, id_expr_debugging, input_full, idMyTexture, target_features, save_current);
-                save_current = false; //NOTE(Emily): want to "uncheck" the box after saving
+
+                //times = select_and_visualize(selected, id_expr_debugging, input_full, idMyTexture, target_features, save_current);
+                //save_current = false; //NOTE(Emily): want to "uncheck" the box after saving
+
+                Halide::Buffer<> output;
+                times = select_and_visualize(selected, id_expr_debugging, input_full, output, idMyTexture, target_features);
                 
             }
             ImGui::End();
@@ -424,73 +472,73 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
             ImGui::Text("CPU: ");
 
             ImGui::RadioButton("host", &cpu_value, 0);
-            if (cpu_value == 0) target_features = "host";
 
-            ImGui::RadioButton("x86", &cpu_value, 1);
-            if(cpu_value == 1) target_features = "x86";
+            OptionalRadioButton("x86",    &cpu_value, 1, sys.Supports(Target::Arch::X86, 32));
             ImGui::SameLine();
-            ImGui::RadioButton("x86_64", &cpu_value, 2);
-            if(cpu_value == 2) target_features = "x86_64";
-
-            ImGui::RadioButton("ARM", &cpu_value, 3);
-            if(cpu_value == 3) target_features = "armv7s";
+            OptionalRadioButton("x86_64", &cpu_value, 2, sys.Supports(Target::Arch::X86, 64));
 
             if(cpu_value == 1 || cpu_value == 2)
             {
-                ImGui::Text("CPU: x86/x64 options");
-                
-                ImGui::Checkbox("sse41", &sse41);
-                if(sse41) target_features += "-sse41";
+                OptionalCheckbox("sse41", &sse41, sys.Supports(Target::SSE41));
                 ImGui::SameLine();
-                ImGui::Checkbox("avx", &avx);
-                if(avx) target_features += "-avx";
+                OptionalCheckbox("avx", &avx, sys.Supports(Target::AVX));
                 ImGui::SameLine();
-                ImGui::Checkbox("avx2", &avx2);
-                if(avx2) target_features += "-avx2";
+                OptionalCheckbox("avx2", &avx2, sys.Supports(Target::AVX2));
                 ImGui::SameLine();
-                ImGui::Checkbox("avx512", &avx512);
-                if(avx512) target_features += "-avx512";
+                OptionalCheckbox("avx512", &avx512, sys.Supports(Target::AVX512));
 
-                ImGui::Checkbox("fma", &fma);
-                if(fma) target_features += "-fma";
+                OptionalCheckbox("fma", &fma, sys.Supports(Target::FMA));
                 ImGui::SameLine();
-                ImGui::Checkbox("fma4", &fma4);
-                if(fma4) target_features += "-fma4";
+                OptionalCheckbox("fma4", &fma4, sys.Supports(Target::FMA4));
+
+                OptionalCheckbox("f16c", &f16c, sys.Supports(Target::F16C));
             }
 
+            OptionalRadioButton("ARM", &cpu_value, 3, sys.Supports(Target::Arch::ARM));
             if(cpu_value == 3)
             {
-                
-                ImGui::Text("CPU: ARM Options");
                 ImGui::Checkbox("NEON", &neon);
-                if(neon) target_features += "-neon";
-                else target_features += "-no_neon";
+                target_features += (neon) ? "-neon" : "-no_neon";
             }
-            
+
             ImGui::Text("GPU: ");
             
-            ImGui::RadioButton("none", &gpu_value, 0);
-            ImGui::RadioButton("Metal", &gpu_value, 1);
-            if(gpu_value == 1) target_features += "-metal";
-            ImGui::RadioButton("CUDA", &gpu_value, 2);
-            if(gpu_value == 2) target_features += "-cuda";
-            ImGui::RadioButton("OpenCL", &gpu_value, 3);
-            if(gpu_value == 3) target_features += "-opencl";
-            ImGui::RadioButton("Direct3D 12", &gpu_value, 4);
-            if(gpu_value == 4) target_features += "-d3d12compute";
+            OptionalRadioButton("none",        &gpu_value, 0);
+            OptionalRadioButton("Metal",       &gpu_value, 1, sys.metal);
+            OptionalRadioButton("CUDA",        &gpu_value, 2, sys.cuda);
+            OptionalRadioButton("OpenCL",      &gpu_value, 3, sys.opencl);
+            OptionalRadioButton("Direct3D 12", &gpu_value, 4, sys.d3d12);
 
             ImGui::Text("Halide: ");
             ImGui::Checkbox("Debug Runtime", &debug_runtime);
-            if(debug_runtime) target_features += "-debug";
             ImGui::Checkbox("No Asserts", &no_asserts);
-            if(no_asserts) target_features += "-no_asserts";
             ImGui::Checkbox("No Bounds Query", &no_bounds_query);
-            if(no_bounds_query) target_features += "-no_bounds_query";
 
             //ImGui::Text("%s", target_features.c_str());
 
             ImGui::End();
-            
+
+            if (cpu_value == 0) target_features = "host";
+            if (cpu_value == 1) target_features = "x86";
+            if (cpu_value == 2) target_features = "x86_64";
+            if (cpu_value == 3) target_features = "armv7s";
+
+            target_features += (sse41)  ? "-sse41"  : "" ;
+            target_features += (avx)    ? "-avx"    : "" ;
+            target_features += (avx2)   ? "-avx2"   : "" ;
+            target_features += (avx512) ? "-avx512" : "" ;
+            target_features += (fma)    ? "-fma"    : "" ;
+            target_features += (fma4)   ? "-fma4"   : "" ;
+            target_features += (f16c)   ? "-f16c"   : "" ;
+
+            if (gpu_value == 1) target_features += "-metal";
+            if (gpu_value == 2) target_features += "-cuda";
+            if (gpu_value == 3) target_features += "-opencl";
+            if (gpu_value == 4) target_features += "-d3d12compute";
+
+            target_features += (debug_runtime)   ? "-debug"           : "" ;
+            target_features += (no_asserts)      ? "-no_asserts"      : "" ;
+            target_features += (no_bounds_query) ? "-no_bounds_query" : "" ;
         }
 
         bool target_changed = (target_features_before != target_features);
@@ -511,7 +559,8 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Broad
                 if(func_value == id && changed)
                 {
                     tree = get_tree(func);
-                    times = select_and_visualize(func, 0, input_full, idMyTexture, target_features, save_images);
+                    Halide::Buffer<> output;
+                    times = select_and_visualize(func, 0, input_full, output, idMyTexture, target_features);
                     selected = func;
                     selected_type = func.output_types()[0]; //NOTE(Emily): need to handle case with multiple outputs or update definitions
                     id_expr_debugging = -1;

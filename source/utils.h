@@ -8,10 +8,6 @@
 
 //////////////////////////////////////////////////////////////// Halide //// //
 
-#include "HalideIdentity.h"
-#include "HalideGaussian.h"
-#include "HalideKawase.h"
-
 using namespace Halide;
 
 struct expr_node {
@@ -59,3 +55,8 @@ struct expr_tree
     }
 };
 
+struct Profiling
+{
+    double jit_time;
+    double run_time;
+};

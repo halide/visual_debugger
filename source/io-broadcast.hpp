@@ -11,6 +11,10 @@
     #define read        _read
     #define write       _write
     #define isatty      _isatty
+#elif defined(__MINGW32__)
+    #include <fcntl.h>  // for O_BINARY and O_TEXT
+    #define PIPE_BUF    4096
+    #define pipe(fds)   _pipe(fds, PIPE_BUF, O_TEXT)
 #endif
 
 #include <mutex>

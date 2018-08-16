@@ -24,34 +24,13 @@
 #ifndef STR
 #define STR(x) XSTR(x)
 #endif//XSTR
-
-// auxiliary function to manipulate strings directly in stack memory
-#define xsprintf(var, size, ...) char var [size]; sprintf(var, __VA_ARGS__)
 ///////////////////////////////////////////////////////////// Utilities //// //
 
+#include <GLFW/glfw3.h>
 
-//#include "utils.h"
-
-#include "varmap.cpp"
-
+#include "utils.h"
 
 
-
-// //// stb image I/O /////////////////////////////////////////////////////////
-#define STB_IMAGE_STATIC
-#define STB_IMAGE_IMPLEMENTATION
-#include "../third-party/stb/stb_image.h"
-
-#define STB_IMAGE_WRITE_STATIC
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "../third-party/stb/stb_image_write.h"
-
-#define STB_IMAGE_RESIZE_STATIC
-#define STB_IMAGE_RESIZE_IMPLEMENTATION
-#include "../third-party/stb/stb_image_resize.h"
-///////////////////////////////////////////////////////// stb image I/O //// //
-
-#include "HalideImageIO.h"
 
 #define GL_RGBA32F 0x8814
 
@@ -1333,18 +1312,6 @@ Func transform(Func f, int id=0, int def_id = 0)
     return h;
 }
 
-void display_map(Func f)
-{
-    IRVarMap test;
-    test.visit(f);
-    std::map<std::string, Halide::Expr> map = test.var_map;
-    for(auto name : map)
-    {
-        printf("%s\n", name.first.c_str());
-        IRDump().visit(name.second);
-    }
-}
-
 //NOTE(Emily): helper function to print out expr_node tree
 void display_node(expr_node * parent)
 {
@@ -1400,13 +1367,9 @@ struct FindInputBuffers : public Halide::Internal::IRVisitor
     }
 };
 
-struct Profiling
-{
-    float jit_time;
-    float run_time;
-};
+//Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, GLuint idMyTexture, std::string target_features, bool save_to_disk, std::string fname = "")
 
-Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, GLuint idMyTexture, std::string target_features, bool save_to_disk, std::string fname = "")
+Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, GLuint idMyTexture, std::string target_features, bool save_to_disk = false, std::string fname = "")
 {
     Func m = transform(f, id);
     auto input_buffers = FindInputBuffers().visit(m);
@@ -1461,7 +1424,7 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
     GLenum internal_format(GL_INVALID_ENUM), external_format(GL_INVALID_ENUM), external_type(GL_INVALID_ENUM);
     external_format = (is_monochrome) ? GL_RED
                                       : GL_RGB;
-    
+
     auto bits = t.bits(); //size of type
     switch(bits)
     {
@@ -1731,15 +1694,15 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
 
     Profiling times = { };
 
-    times.jit_time = PROFILE(
-                                "compile_jit",
-                                m.compile_jit(target);
-                            );
+    times.jit_time =
+        PROFILE(
+            m.compile_jit(target);
+        );
 
-    times.run_time = PROFILE(
-                                "realize",
-                                m.realize(modified_output_buffer, target);
-                            );
+    times.run_time =
+        PROFILE(
+            m.realize(modified_output_buffer, target);
+        );
 
     modified_output_buffer.copy_to_host();
     
@@ -1770,6 +1733,8 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
 
     //if (!SaveImage("data/output/input_full.png", input_full))
     //    printf("Error saving image\n");
+
+    output = std::move(modified_output_buffer);
 
     return times;
 
