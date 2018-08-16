@@ -115,6 +115,14 @@ Func example_scoped(Buffer<> image)
     return h;
 }
 
+Func example_tuple()
+{
+    Var x, y, c;
+    Func multi_valued_2 ("example_tuple");
+    multi_valued_2(x, y, c) = { x + y, sin(x*y) };
+    return multi_valued_2;
+}
+
 // from 'imgui_main.cpp':
 extern bool stdout_echo_toggle;
 void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full); 
@@ -147,6 +155,7 @@ int main()
     funcs.push_back(broken);
     funcs.push_back(fixed);
     funcs.push_back(example_scoped(input_full));
+    funcs.push_back(example_tuple());
 
     //funcs.push_back(test_tuple);
     //run_gui(funcs, input_full, iobc);
