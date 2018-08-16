@@ -161,7 +161,21 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
         times = select_and_visualize(f, parent->node_id, input_full, output, idMyTexture, target_features);
         if(save_images)
         {
-            if(!SaveImage("data/output/test.png", output))
+            //NOTE(Emily): if filename isn't passed in, create default filename
+            //we want to decide file extension based on data type
+            int id = parent->node_id;
+            std::string fname = "";
+            if(fname == ""){
+                if(output.type().is_float())
+                {
+                    fname = "data/output/" + f.name() + "_" + std::to_string(id) + ".hdr";
+                }
+                else
+                {
+                    fname = "data/output/" + f.name() + "_" + std::to_string(id) + ".png";
+                }
+            }
+            if(!SaveImage(fname.c_str(), output))
                 fprintf(stderr, "Error saving image\n");
         }
         id_expr_debugging = parent->node_id;

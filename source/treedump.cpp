@@ -1369,7 +1369,7 @@ struct FindInputBuffers : public Halide::Internal::IRVisitor
 
 //Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, GLuint idMyTexture, std::string target_features, bool save_to_disk, std::string fname = "")
 
-Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, GLuint idMyTexture, std::string target_features, bool save_to_disk = false, std::string fname = "")
+Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, GLuint idMyTexture, std::string target_features)
 {
     Func m = transform(f, id);
     auto input_buffers = FindInputBuffers().visit(m);
@@ -1710,26 +1710,6 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
     glBindTexture(GL_TEXTURE_2D, idMyTexture);
         glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, modified_output_buffer.data());
     glBindTexture(GL_TEXTURE_2D, 0);
-    
-    if(save_to_disk)
-    {
-        
-        //NOTE(Emily): if filename isn't passed in, create default filename
-        //we want to decide file extension based on data type
-        if(fname == ""){
-            if(is_float)
-            {
-                fname = "data/output/" + f.name() + "_" + std::to_string(id) + ".bmp";
-            }
-            else
-            {
-                fname = "data/output/" + f.name() + "_" + std::to_string(id) + ".png";
-            }
-        }
-        Halide::Buffer<> wrapped = std::move(modified_output_buffer);
-        if(!SaveImage(fname.c_str(), wrapped))
-            fprintf(stderr, "Error saving image\n");
-    }
 
     //if (!SaveImage("data/output/input_full.png", input_full))
     //    printf("Error saving image\n");
