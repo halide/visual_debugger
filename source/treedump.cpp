@@ -1290,6 +1290,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
                 //out is an OutputImageParam
                 //need to somehow get Func in out's definition
                 //essentially want to visit out.func.function
+                
             }
         }
         
@@ -1409,7 +1410,7 @@ struct Profiling
     float run_time;
 };
 
-Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, GLuint idMyTexture, std::string target_features, bool save_to_disk)
+Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, GLuint idMyTexture, std::string target_features, bool save_to_disk, std::string fname = "")
 {
     Func m = transform(f, id);
     auto input_buffers = FindInputBuffers().visit(m);
@@ -1753,8 +1754,21 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
     
     if(save_to_disk)
     {
+        
+        //NOTE(Emily): if filename isn't passed in, create default filename
+        //we want to decide file extension based on data type
+        if(fname == ""){
+            if(is_float)
+            {
+                fname = "data/output/" + f.name() + "_" + std::to_string(id) + ".bmp";
+            }
+            else
+            {
+                fname = "data/output/" + f.name() + "_" + std::to_string(id) + ".png";
+            }
+        }
         Halide::Buffer<> wrapped = std::move(modified_output_buffer);
-        if(!SaveImage("data/output/test.png", wrapped))
+        if(!SaveImage(fname.c_str(), wrapped))
             fprintf(stderr, "Error saving image\n");
     }
 
