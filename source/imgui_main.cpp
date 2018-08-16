@@ -25,6 +25,11 @@
 bool stdout_echo_toggle (false);
 bool save_images(false);
 
+
+//NOTE(Emily): vars related to saving images
+Halide::Buffer<> output;
+std::string fname = "";
+
 static void glfw_error_callback(int error, const char* description)
 {
     fprintf(stderr, "Glfw Error %d: %s\n", error, description);
@@ -112,6 +117,19 @@ void ToggleButton(const char* str_id, bool* v)
     draw_list->AddCircleFilled(ImVec2(*v ? (p.x + width - radius) : (p.x + radius), p.y + radius), radius - 1.5f, IM_COL32(255, 255, 255, 255));
 }
 
+void default_output_name(std::string name, int id)
+{
+    if(output.type().is_float())
+    {
+        fname = "data/output/" + name + "_" + std::to_string(id) + ".jpg";
+        //fname = "data/output/" + name + "_" + std::to_string(id) + ".hdr";
+    }
+    else
+    {
+        fname = "data/output/" + name + "_" + std::to_string(id) + ".png";
+    }
+}
+
 int id_expr_debugging = -1;
 Halide::Type selected_type;
 
@@ -157,24 +175,18 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
     if (clicked)
     {
         selected_name = parent->name;
-        Halide::Buffer<> output;
+        
         times = select_and_visualize(f, parent->node_id, input_full, output, idMyTexture, target_features);
         if(save_images)
         {
+            assert(output.defined());
             //NOTE(Emily): if filename isn't passed in, create default filename
             //we want to decide file extension based on data type
             int id = parent->node_id;
-            std::string fname = "";
-            if(fname == ""){
-                if(output.type().is_float())
-                {
-                    fname = "data/output/" + f.name() + "_" + std::to_string(id) + ".hdr";
-                }
-                else
-                {
-                    fname = "data/output/" + f.name() + "_" + std::to_string(id) + ".png";
-                }
-            }
+            
+            
+            if(fname == "") default_output_name(f.name(), id);
+            
             if(!SaveImage(fname.c_str(), output))
                 fprintf(stderr, "Error saving image\n");
         }
@@ -268,8 +280,8 @@ void glfw_on_window_resized(GLFWwindow* window, int width, int height)
  }
  */
 
-std::string save_filename = "data/output/test.png";
-int n(0);
+
+
 void file_system_popup()
 {
     ImGui::OpenPopup("Save Image");
@@ -278,9 +290,7 @@ void file_system_popup()
     
     ImGui::Text("Here is the popup");
     
-    n++;
     //std::string filename = "data/output/test.png";
-    save_filename = "data/output/test" + std::to_string(n) + ".png";
     //ImGui::CloseCurrentPopup();
     
     ImGui::EndPopup();
@@ -463,13 +473,17 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             }
             if(save_current)
             {
-                file_system_popup();
+                //file_system_popup();
 
-                //times = select_and_visualize(selected, id_expr_debugging, input_full, idMyTexture, target_features, save_current);
+                //times = select_and_visualize(selected, id_expr_debugging, input_full, output, idMyTexture, target_features);
                 //save_current = false; //NOTE(Emily): want to "uncheck" the box after saving
-
-                Halide::Buffer<> output;
-                times = select_and_visualize(selected, id_expr_debugging, input_full, output, idMyTexture, target_features);
+                
+                if(fname == "") default_output_name(selected.name(), id_expr_debugging);
+    
+                if(!SaveImage(fname.c_str(), output))
+                    fprintf(stderr, "Error saving image\n");
+                
+                save_current = false;
                 
             }
             ImGui::End();
