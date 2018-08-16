@@ -108,15 +108,25 @@ Type promote(Type type)
     return(promoted);
 }
 
-Expr eval(Func f)
+Expr eval(Func f, int def_idx = 0)
 {
     if (!f.defined())
     {
         return Expr();
     }
 
+    Expr value;
+    
     auto domain = f.args();
-    Expr value = f(domain);
+    if(f.outputs() > 1)
+    {
+        value = f(domain)[def_idx];
+    }
+    else
+    {
+        assert(def_idx == 0);
+        value = f(domain);
+    }
     return value;
 }
 
@@ -1273,27 +1283,13 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         // NOTE(emily): need to add the root Func as root of expr_node tree
         expr_node* node_op = tree.new_expr_node();
         node_op->name = IRNodePrinter::print(f);
-        Expr expr = f(f.args());
-        node_op->original = expr;
+        //Expr expr = f(f.args());
+        //node_op->original = expr;
         node_op->func_tuple_values = true;
         tree.enter(node_op);
         
-        int tuples = f.outputs();
         int updates = f.num_update_definitions();
-        
-        auto tuple_defs = f.output_buffers();
-        for(auto out : tuple_defs)
-        {
-            if(out.defined())
-            {
-                //Note(Emily):
-                //out is an OutputImageParam
-                //need to somehow get Func in out's definition
-                //essentially want to visit out.func.function
-                
-            }
-        }
-        
+        int tuples = f.outputs();
         add_indent();
             visit(f.function());
         remove_indent();
@@ -1323,11 +1319,11 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
 
 struct IRDump : public DebuggerSelector { };
 
-Func transform(Func f, int id=0)
+Func transform(Func f, int id=0, int def_id = 0)
 {
     Func g = DebuggerSelector(id).mutate(f);
 
-    Expr transformed_expr = eval(g);
+    Expr transformed_expr = eval(g, def_id);
     if (!transformed_expr.defined())
     {
         transformed_expr = 0;

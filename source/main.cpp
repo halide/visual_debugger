@@ -118,10 +118,14 @@ int main()
     
     Func fixed = example_fixed(input_full);
     
+    Var x, y, c;
+    Func test_tuple("test");
+    test_tuple(x, y, c) = Tuple(broken(x,y,c), fixed(x,y,c));
     std::vector<Func> funcs;
     funcs.push_back(broken);
     funcs.push_back(fixed);
     funcs.push_back(example_scoped(input_full));
+    funcs.push_back(test_tuple);
     run_gui(funcs, input_full, iobc);
     
     //run_gui(output, input_full);
