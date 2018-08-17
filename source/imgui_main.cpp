@@ -90,7 +90,7 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
     bool open = false;
     if (parent->children.empty())
     {
-        ImGui::TreeNodeEx(parent->name.c_str(), ImGuiTreeNodeFlags_Leaf);
+        open = ImGui::TreeNodeEx(parent->name.c_str(), ImGuiTreeNodeFlags_Leaf);
     }
     else
     {
