@@ -355,20 +355,20 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     bool show_stdout_box = true;
     bool show_save_image = true;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-    
+
     std::string selected_name = "No node selected, displaying output";
-    
-    
+
     int width = input_full.width();
     int height = input_full.height();
     int channels = input_full.channels();
 
     glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
-    
+
     GLuint idMyTexture = 0;
     glGenTextures(1, &idMyTexture);
     assert(idMyTexture != 0);
-    
+
+    bool linear_filter = true;
     glBindTexture(GL_TEXTURE_2D, idMyTexture);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -376,7 +376,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
     glBindTexture(GL_TEXTURE_2D, 0);
-    
+
     // TODO(marcos): maybe we should make 'select_and_visualize' return the
     // corresponding expr_tree; this will spare us of a visitor step.
     //expr_tree tree = get_tree(funcs[0]);
@@ -386,8 +386,6 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     //NOTE(Emily): call to update buffer to display output of function
     Profiling times = { };
     int cpu_value(0), gpu_value(0), func_value(0);
-    
-
 
     //target flag bools (need to be outside of loop to maintain state)
     bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false), f16c(false);
@@ -397,7 +395,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     bool save_current(false);
 
     SystemInfo sys;
-    
+
     //NOTE(Emily): temporary to explore demo window
     bool open_demo(false);
 
@@ -593,7 +591,23 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                 //allow user to select individual images to save
                 ImGui::Checkbox("Save current image:" , &save_current);
             }*/
-            
+
+            static float zoom = 1.0f;
+            ImGui::SliderFloat("Image Zoom", &zoom, 0, 10, "%.001f");
+
+            ImGui::SameLine();
+
+            if (ImGui::Checkbox("filter", &linear_filter))
+            {
+                GLenum filter = (linear_filter) ? GL_LINEAR : GL_NEAREST;
+                glBindTexture(GL_TEXTURE_2D, idMyTexture);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+                glBindTexture(GL_TEXTURE_2D, 0);
+            }
+
+            ImGui::SameLine();
+
             if(ImGui::Button("Save Image"))
             {
                 //file_system_popup();
@@ -609,14 +623,11 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                 fname = ""; //NOTE(Emily): done saving so want to reset fname
                 
             }
-            ImGui::SameLine();
-            
-            static float zoom = 1.0f;
-            ImGui::SliderFloat("Image Zoom", &zoom, 0, 10, "%.001f");
-            
+
             ImGui::BeginChild(" ", ImVec2(0,0), false, ImGuiWindowFlags_HorizontalScrollbar); //NOTE(Emily): in order to get horizontal scrolling needed to add other parameters (from example online)
                 ImGui::Image((void *) (uintptr_t) idMyTexture , ImVec2(width*zoom, height*zoom));
             ImGui::EndChild();
+
             ImGui::End();
         }
 
