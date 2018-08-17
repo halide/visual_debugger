@@ -14,9 +14,6 @@
     #include <sys/stat.h>
 #endif//_MSC_VER
 
-#include <GLFW/glfw3.h>
-#define GL_RGBA32F 0x8814
-
 #include "utils.h"
 using namespace Halide;
 
@@ -1085,9 +1082,7 @@ struct FindInputBuffers : public Halide::Internal::IRVisitor
     }
 };
 
-//Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, GLuint idMyTexture, std::string target_features, bool save_to_disk, std::string fname = "")
-
-Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, GLuint idMyTexture, std::string target_features)
+Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, std::string target_features)
 {
     Func m = transform(f, id);
     auto input_buffers = FindInputBuffers().visit(m);
@@ -1125,51 +1120,18 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
     assert(dims >= 2);
     assert(dims <= 3);
 
-    int channels = 0;
-    if(dims == 2)
-    {
-        channels = 1;
-    }
-    else if(dims == 3)
-    {
-        channels = output_buffer.dim(2).extent();
-    }
+    auto bits = t.bits(); //size of type
+
+    int width    = output_buffer.width();       // same as output.dim(0).extent()
+    int height   = output_buffer.height();      // same as output.dim(1).extent()
+    int channels = output_buffer.channels();    // same as output.dim(2).extent() when 'dims >= 2', or 1 otherwise
+
     // only monochrome or rgb for now
     assert(channels == 1 || channels == 3);
 
     bool is_monochrome = (channels == 1);
-    
-    GLenum internal_format(GL_INVALID_ENUM), external_format(GL_INVALID_ENUM), external_type(GL_INVALID_ENUM);
-    external_format = (is_monochrome) ? GL_RED
-                                      : GL_RGB;
 
-    auto bits = t.bits(); //size of type
-    switch(bits)
-    {
-        case 8:
-            external_type   = GL_UNSIGNED_BYTE;
-            internal_format = GL_RGBA8;
-            break;
-        case 16:
-            external_type   = GL_UNSIGNED_SHORT;
-            internal_format = GL_RGBA16;                                    // maybe force GL_RGBA8 fow now?
-            break;
-        case 32:
-            external_type   = (is_float) ? GL_FLOAT   : GL_UNSIGNED_INT;
-            internal_format = (is_float) ? GL_RGBA32F : GL_RGBA16;          // maybe force GL_RGBA8 for now?
-            break;
-        default:
-            assert(false);
-            break;
-            
-    }
-    
-    int width  = output_buffer.dim(0).extent();
-    int height = output_buffer.dim(1).extent();
-    
-    
     Halide::Runtime::Buffer<> modified_output_buffer;
-    std::string out_type;
 
     switch(t.code())
     {
@@ -1180,7 +1142,6 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
             {
                 case 8:
                 {
-                    out_type = "int8_t";
                     if (is_monochrome)
                         modified_output_buffer = Halide::Runtime::Buffer<int8_t, 2>::make_interleaved(width, height, 1);
                     else
@@ -1189,7 +1150,6 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
                 }
                 case 16:
                 {
-                    out_type = "int16_t";
                     if (is_monochrome)
                         modified_output_buffer = Halide::Runtime::Buffer<int16_t, 2>::make_interleaved(width, height, 1);
                     else
@@ -1198,7 +1158,6 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
                 }
                 case 32:
                 {
-                    out_type = "int32_t";
                     if (is_monochrome)
                         modified_output_buffer = Halide::Runtime::Buffer<int32_t, 2>::make_interleaved(width, height, 1);
                     else
@@ -1218,7 +1177,6 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
             {
                 case 8:
                 {
-                    out_type = "uint8_t";
                     if (is_monochrome)
                         modified_output_buffer = Halide::Runtime::Buffer<uint8_t, 2>::make_interleaved(width, height, 1);
                     else
@@ -1227,7 +1185,6 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
                 }
                 case 16:
                 {
-                    out_type = "uint16_t";
                     if (is_monochrome)
                         modified_output_buffer = Halide::Runtime::Buffer<uint16_t, 2>::make_interleaved(width, height, 1);
                     else
@@ -1236,7 +1193,6 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
                 }
                 case 32:
                 {
-                    out_type = "uint32_t";
                     if (is_monochrome)
                         modified_output_buffer = Halide::Runtime::Buffer<uint32_t, 2>::make_interleaved(width, height, 1);
                     else
@@ -1256,7 +1212,6 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
             {
                 case 32:
                 {
-                    out_type = "float";
                     if (is_monochrome)
                         modified_output_buffer = Halide::Runtime::Buffer<float, 2>::make_interleaved(width, height, 1);
                     else
@@ -1278,7 +1233,6 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
     Target::OS os     = host_target.os;
     Target::Arch arch = Target::ArchUnknown;
     int arch_bits     = 0;
-    
 
     {
         auto dash = target_features.find('-');
@@ -1433,11 +1387,6 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
         );
 
     modified_output_buffer.copy_to_host();
-
-    // TODO(marcos): move texture upload to 'imgui_main.cpp'
-    glBindTexture(GL_TEXTURE_2D, idMyTexture);
-        glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, modified_output_buffer.data());
-    glBindTexture(GL_TEXTURE_2D, 0);
 
     output = std::move(modified_output_buffer);
 

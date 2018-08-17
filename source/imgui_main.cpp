@@ -69,7 +69,62 @@ Halide::Type selected_type;
 
 // from 'treedump.cpp':
 expr_tree get_tree(Func f);
-Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, GLuint idMyTexture, std::string target_features);
+Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, std::string target_features);
+
+void refresh_texture(GLuint idMyTexture, Halide::Buffer<>& output)
+{
+    auto dims = output.dimensions();
+    // only 2D or 3D images for now (no 1D LUTs or nD entities)
+    assert(dims >= 2);
+    assert(dims <= 3);
+
+    int width    = output.width();      // same as output.dim(0).extent()
+    int height   = output.height();     // same as output.dim(1).extent()
+    int channels = output.channels();   // same as output.dim(2).extent() when 'dims >= 2', or 1 otherwise
+
+    // only monochrome or rgb for now
+    assert(channels == 1 || channels == 3);
+
+    bool is_monochrome = (channels == 1);
+
+    GLenum internal_format (GL_INVALID_ENUM),
+           external_format (GL_INVALID_ENUM),
+           external_type   (GL_INVALID_ENUM);
+
+    external_format = (is_monochrome) ? GL_RED
+                                      : GL_RGB;
+
+    #ifndef GL_RGBA32F
+    #define GL_RGBA32F 0x8814
+    #endif//GL_RGBA32F
+
+    Type type = output.type();
+    bool is_float = type.is_float();
+    auto bits = type.bits();
+    switch(bits)
+    {
+        case 8:
+            external_type   = GL_UNSIGNED_BYTE;
+            internal_format = GL_RGBA8;
+            break;
+        case 16:
+            external_type   = GL_UNSIGNED_SHORT;
+            internal_format = GL_RGBA16;                                    // maybe force GL_RGBA8 fow now?
+            break;
+        case 32:
+            external_type   = (is_float) ? GL_FLOAT   : GL_UNSIGNED_INT;
+            internal_format = (is_float) ? GL_RGBA32F : GL_RGBA16;          // maybe force GL_RGBA8 for now?
+            break;
+        default:
+            assert(false);
+            break;
+            
+    }
+
+    glBindTexture(GL_TEXTURE_2D, idMyTexture);
+        glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, output.data());
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
 
 void display_node(expr_node* node, GLuint idMyTexture, Func f, Halide::Buffer<uint8_t>& input_full, std::string& selected_name, Profiling& times, const std::string& target_features)
 {
@@ -106,7 +161,8 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, Halide::Buffer<ui
 
     if (clicked)
     {
-        times = select_and_visualize(f, id, input_full, output, idMyTexture, target_features);
+        times = select_and_visualize(f, id, input_full, output, target_features);
+        refresh_texture(idMyTexture, output);
         if(save_images)
         {
             assert(output.defined());
@@ -328,7 +384,6 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     std::string target_features;
 
     //NOTE(Emily): call to update buffer to display output of function
-    //Profiling times = select_and_visualize(f, 0, input_full, idMyTexture, target_features);
     Profiling times = { };
     int cpu_value(0), gpu_value(0), func_value(0);
     
@@ -485,7 +540,8 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                 if(func_value == id && changed)
                 {
                     tree = get_tree(func);
-                    times = select_and_visualize(func, 0, input_full, output, idMyTexture, target_features);
+                    times = select_and_visualize(func, 0, input_full, output, target_features);
+                    refresh_texture(idMyTexture, output);
                     selected = func;
                     selected_type = func.output_types()[0]; //NOTE(Emily): need to handle case with multiple outputs or update definitions
                     id_expr_debugging = -1;
