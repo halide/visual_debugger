@@ -1419,8 +1419,15 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
             m.compile_jit(target);
         );
 
-    // TODO(marcos): upload input buffers here to avoid having their upload
-    // times spoil the realize time...
+    times.upl_time =
+        PROFILE(
+            if (!gpu)
+                return 0.0;
+            for (auto buffer : input_buffers)
+            {
+                buffer.copy_to_device(target);
+            }
+        );
 
     times.run_time =
         PROFILE(
@@ -1428,7 +1435,6 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
         );
 
     modified_output_buffer.copy_to_host();
-    
 
     glBindTexture(GL_TEXTURE_2D, idMyTexture);
         glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, modified_output_buffer.data());
