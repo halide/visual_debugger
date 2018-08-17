@@ -72,6 +72,7 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
 void display_node(expr_node* parent, GLuint idMyTexture, int width, int height, Func f, Halide::Buffer<uint8_t>& input_full, std::string& selected_name, Profiling& times, const std::string& target_features)
 {
     const int id = parent->node_id;
+    const char* label = parent->name.c_str();
     const bool selected = (id_expr_debugging == id);
     const bool terminal = parent->children.empty();
     const bool viewable = (id != 0);   // <- whether or not this expr_node can be visualized
@@ -92,8 +93,8 @@ void display_node(expr_node* parent, GLuint idMyTexture, int width, int height, 
         ImGui::SameLine();
     }
 
-    bool open = (terminal) ? ImGui::TreeNodeEx(parent->name.c_str(), ImGuiTreeNodeFlags_Leaf)
-                           : ImGui::TreeNode(parent->name.c_str());
+    bool open = (terminal) ? ImGui::TreeNodeEx(label, ImGuiTreeNodeFlags_Leaf)
+                           : ImGui::TreeNode(label);
 
     if (selected)
     {
@@ -103,8 +104,6 @@ void display_node(expr_node* parent, GLuint idMyTexture, int width, int height, 
 
     if (clicked)
     {
-        selected_name = parent->name;
-        
         times = select_and_visualize(f, id, input_full, output, idMyTexture, target_features);
         if(save_images)
         {
@@ -119,6 +118,7 @@ void display_node(expr_node* parent, GLuint idMyTexture, int width, int height, 
         }
         id_expr_debugging = id;
         selected_type = parent->original.type();
+        selected_name = label;
     }
 
     if (!open)
@@ -128,9 +128,9 @@ void display_node(expr_node* parent, GLuint idMyTexture, int width, int height, 
 
     if(!terminal)
     {
-        for(int i = 0; i < parent->children.size(); i++)
+        for(auto& child : parent->children)
         {
-            display_node(parent->children[i], idMyTexture, width, height, f, input_full, selected_name, times, target_features);
+            display_node(child, idMyTexture, width, height, f, input_full, selected_name, times, target_features);
         }
     }
 
