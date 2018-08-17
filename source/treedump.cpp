@@ -1436,6 +1436,7 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
 
     modified_output_buffer.copy_to_host();
 
+    // TODO(marcos): move texture upload to 'imgui_main.cpp'
     glBindTexture(GL_TEXTURE_2D, idMyTexture);
         glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, modified_output_buffer.data());
     glBindTexture(GL_TEXTURE_2D, 0);
