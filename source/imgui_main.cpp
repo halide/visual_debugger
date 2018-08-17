@@ -69,12 +69,12 @@ Halide::Type selected_type;
 expr_tree get_tree(Func f);
 Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, GLuint idMyTexture, std::string target_features);
 
-void display_node(expr_node* parent, GLuint idMyTexture, int width, int height, Func f, Halide::Buffer<uint8_t>& input_full, std::string& selected_name, Profiling& times, const std::string& target_features)
+void display_node(expr_node* node, GLuint idMyTexture, Func f, Halide::Buffer<uint8_t>& input_full, std::string& selected_name, Profiling& times, const std::string& target_features)
 {
-    const int id = parent->node_id;
-    const char* label = parent->name.c_str();
+    const int id = node->node_id;
+    const char* label = node->name.c_str();
     const bool selected = (id_expr_debugging == id);
-    const bool terminal = parent->children.empty();
+    const bool terminal = node->children.empty();
     const bool viewable = (id != 0);   // <- whether or not this expr_node can be visualized
 
     if (selected)
@@ -117,7 +117,7 @@ void display_node(expr_node* parent, GLuint idMyTexture, int width, int height, 
                 fprintf(stderr, "Error saving image\n");
         }
         id_expr_debugging = id;
-        selected_type = parent->original.type();
+        selected_type = node->original.type();
         selected_name = label;
     }
 
@@ -126,12 +126,9 @@ void display_node(expr_node* parent, GLuint idMyTexture, int width, int height, 
         return;
     }
 
-    if(!terminal)
+    for(auto& child : node->children)
     {
-        for(auto& child : parent->children)
-        {
-            display_node(child, idMyTexture, width, height, f, input_full, selected_name, times, target_features);
-        }
+        display_node(child, idMyTexture, f, input_full, selected_name, times, target_features);
     }
 
     // NOTE(marcos): TreePop() must be called only when TreeNode*() returns true
@@ -527,7 +524,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             //Note(Emily): call recursive method to display tree
             if(func_selected && target_selected)
             {
-                display_node(tree.root, idMyTexture, width, height, selected, input_full, selected_name, times, target_features);
+                display_node(tree.root, idMyTexture, selected, input_full, selected_name, times, target_features);
             }
             ImGui::End();
             
