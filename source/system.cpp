@@ -8,6 +8,7 @@
 
 #include <iterator>     // std::size
 
+static
 void* load_library(const char* filename)
 {
     void* handle = nullptr;
@@ -20,6 +21,7 @@ void* load_library(const char* filename)
     return handle;
 }
 
+static
 void free_library(void* handle)
 {
     #ifdef _WIN32
@@ -44,8 +46,21 @@ void* load_any(const char* (&filenames) [count])
     return nullptr;
 }
 
+static
+bool check_halide_features(const char* features)
+{
+    std::string target_string = "host-";
+    target_string += features;
+    bool valid = Halide::Target::validate_target_string(target_string);
+    return valid;
+}
+
+static
 bool check_CUDA()
 {
+    if (!check_halide_features("cuda"))
+        return false;
+
     const char* libs [] =
     {
         #ifdef _WIN32
@@ -58,12 +73,17 @@ bool check_CUDA()
     };
     static void* lib_handle = load_any(libs);
     bool has = (lib_handle != nullptr);
+    // NOTE(marcos): keeping the handle open to prevent external deletion
     //free_library(lib_handle);
     return has;
 }
 
+static
 bool check_OpenCL()
 {
+    if (!check_halide_features("opencl"))
+        return false;
+
     const char* libs [] =
     {
         #ifdef _WIN32
@@ -75,12 +95,17 @@ bool check_OpenCL()
     };
     static void* lib_handle = load_any(libs);
     bool has = (lib_handle != nullptr);
+    // NOTE(marcos): keeping the handle open to prevent external deletion
     //free_library(lib_handle);
     return has;
 }
 
+static
 bool check_Metal()
 {
+    if (!check_halide_features("metal"))
+        return false;
+
     const char* libs [] =
     {
         #ifdef _WIN32
@@ -91,12 +116,17 @@ bool check_Metal()
     };
     static void* lib_handle = load_any(libs);
     bool has = (lib_handle != nullptr);
+    // NOTE(marcos): keeping the handle open to prevent external deletion
     //free_library(lib_handle);
     return has;
 }
 
+static
 bool check_D3D12()
 {
+    if (!check_halide_features("d3d12compute"))
+        return false;
+
     const char* libs [] =
     {
         #ifdef _WIN32
@@ -107,6 +137,7 @@ bool check_D3D12()
     };
     static void* lib_handle = load_any(libs);
     bool has = (lib_handle != nullptr);
+    // NOTE(marcos): keeping the handle open to prevent external deletion
     //free_library(lib_handle);
     return has;
 }

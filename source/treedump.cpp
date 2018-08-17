@@ -1230,90 +1230,19 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
     }
 
     Target host_target = get_host_target();
-    Target::OS os     = host_target.os;
-    Target::Arch arch = Target::ArchUnknown;
-    int arch_bits     = 0;
-
-    {
-        auto dash = target_features.find('-');
-        std::string arch_string = target_features.substr(0, dash);
-        target_features.erase(0, dash);
-
-        if (arch_string == "host")
-        {
-            arch = host_target.arch;
-            arch_bits = host_target.bits;
-        }
-        else if (arch_string == "x86")
-        {
-            arch = Target::X86;
-            arch_bits = 32;
-        }
-        else if (arch_string == "x86_64")
-        {
-            arch = Target::X86;
-            arch_bits = 64;
-        }
-
-        if (arch != host_target.arch)
-        {
-            fprintf(stderr, "WARNING: must JIT compile to the same arch as the host...\n");
-            arch = host_target.arch;
-        }
-
-        if (arch_bits != host_target.bits)
-        {
-            fprintf(stderr, "WARNING: must JIT compile to the same arch-bits as the host...\n");
-            arch_bits = host_target.bits;
-        }
-    }
-
-    {
-        const char feature [] = "-avx512";
-        auto pos = target_features.find(feature);
-        if (pos != target_features.npos)
-        {
-            fprintf(stderr, "WARNING: host CPU does not have AVX512 support...\n");
-            target_features.erase(pos, sizeof(feature)-1);
-        }
-    }
-    {
-        const char feature [] = "-fma4";
-        auto pos = target_features.find(feature);
-        if (pos != target_features.npos)
-        {
-            fprintf(stderr, "WARNING: host CPU does not have FMA4 support...\n");
-            target_features.erase(pos, sizeof(feature)-1);
-        }
-    }
-    {
-        const char feature [] = "-d3d12compute";
-        auto pos = target_features.find(feature);
-        if (pos != target_features.npos)
-        {
-            fprintf(stderr, "WARNING: Direct3D 12 (compute) support not available in the current Halide build...\n");
-            target_features.erase(pos, sizeof(feature)-1);
-        }
-    }
-    {
-        const char feature [] = "-metal";
-        auto pos = target_features.find(feature);
-        bool apple = (os == Target::OS::OSX) || (os == Target::OS::IOS);
-        if (pos != target_features.npos && !apple)
-        {
-            fprintf(stderr, "WARNING: Metal is not support by the operating system of the host...\n");
-            target_features.erase(pos, sizeof(feature)-1);
-        }
-    }
-
-    bool gpu = target_features.find("-metal")  != target_features.npos
-            || target_features.find("-cuda")   != target_features.npos
-            || target_features.find("-opencl") != target_features.npos
-            || target_features.find("-d3d12compute") != target_features.npos;
+    Target::OS os      = host_target.os;
+    Target::Arch arch  = host_target.arch;
+    int arch_bits      = host_target.bits;
 
     Target base_target (os, arch, arch_bits);
     std::string target_string = base_target.to_string();
-    target_string.append(target_features);
+    target_features.erase(0, target_features.find("-"));    // erase the cpu feature, since base_target already has the correct one
+    if (!target_features.empty())
+    {
+        target_features.erase(0, target_features.find("-")+1);
+        target_string.append("-");
+        target_string.append(target_features);
+    }
 
     Target target;
     if (Target::validate_target_string(target_string))
@@ -1329,6 +1258,8 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
     target_string = target.to_string();
     printf("Halide Target : %s\n", target_string.c_str());
     fflush(stdout);
+
+    bool gpu = target.has_gpu_feature();
 
     if (gpu)
     {
