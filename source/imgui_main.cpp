@@ -69,9 +69,14 @@ Halide::Type selected_type;
 expr_tree get_tree(Func f);
 Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, GLuint idMyTexture, std::string target_features);
 
-void display_node(expr_node * parent, GLuint idMyTexture, int width, int height, Func f, Halide::Buffer<uint8_t>& input_full, std::string& selected_name, Profiling& times, const std::string& target_features)
+void display_node(expr_node* parent, GLuint idMyTexture, int width, int height, Func f, Halide::Buffer<uint8_t>& input_full, std::string& selected_name, Profiling& times, const std::string& target_features)
 {
-    if (id_expr_debugging == parent->node_id)
+    const int id = parent->node_id;
+    const bool selected = (id_expr_debugging == id);
+    const bool terminal = parent->children.empty();
+    const bool viewable = (id != 0);   // <- whether or not this expr_node can be visualized
+
+    if (selected)
     {
         const ImU32 LimeGreen = 0xFF00CF40;
         ImGui::PushStyleColor(ImGuiCol_Text,   LimeGreen);
@@ -79,25 +84,18 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
     }
 
     bool clicked = false;
-    if (parent->node_id != 0)
+    if (viewable)
     {
-        ImGui::PushID(parent->node_id);
+        ImGui::PushID(id);
         clicked = ImGui::SmallButton(" ");
         ImGui::PopID();
         ImGui::SameLine();
     }
 
-    bool open = false;
-    if (parent->children.empty())
-    {
-        open = ImGui::TreeNodeEx(parent->name.c_str(), ImGuiTreeNodeFlags_Leaf);
-    }
-    else
-    {
-        open = ImGui::TreeNode(parent->name.c_str());
-    }
+    bool open = (terminal) ? ImGui::TreeNodeEx(parent->name.c_str(), ImGuiTreeNodeFlags_Leaf)
+                           : ImGui::TreeNode(parent->name.c_str());
 
-    if (id_expr_debugging == parent->node_id)
+    if (selected)
     {
         ImGui::PopStyleColor();
         ImGui::PopStyleColor();
@@ -107,21 +105,19 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
     {
         selected_name = parent->name;
         
-        times = select_and_visualize(f, parent->node_id, input_full, output, idMyTexture, target_features);
+        times = select_and_visualize(f, id, input_full, output, idMyTexture, target_features);
         if(save_images)
         {
             assert(output.defined());
             //NOTE(Emily): if filename isn't passed in, create default filename
             //we want to decide file extension based on data type
-            int id = parent->node_id;
-            
-            
+
             if(fname == "") default_output_name(f.name(), id);
             
             if(!SaveImage(fname.c_str(), output))
                 fprintf(stderr, "Error saving image\n");
         }
-        id_expr_debugging = parent->node_id;
+        id_expr_debugging = id;
         selected_type = parent->original.type();
     }
 
@@ -130,7 +126,7 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
         return;
     }
 
-    if(!parent->children.empty())
+    if(!terminal)
     {
         for(int i = 0; i < parent->children.size(); i++)
         {
@@ -138,6 +134,7 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
         }
     }
 
+    // NOTE(marcos): TreePop() must be called only when TreeNode*() returns true
     ImGui::TreePop();
 }
 
