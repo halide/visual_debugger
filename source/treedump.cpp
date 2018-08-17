@@ -14,27 +14,13 @@
     #include <sys/stat.h>
 #endif//_MSC_VER
 
-
-
-// //// Utilities /////////////////////////////////////////////////////////////
-#ifndef XSTR
-#define XSTR(x) #x
-#endif//XSTR
-
-#ifndef STR
-#define STR(x) XSTR(x)
-#endif//XSTR
-///////////////////////////////////////////////////////////// Utilities //// //
-
 #include <GLFW/glfw3.h>
-
-#include "utils.h"
-
-
-
 #define GL_RGBA32F 0x8814
 
+#include "utils.h"
 using namespace Halide;
+
+
 
 template<typename T>
 Runtime::Buffer<T> Crop(Buffer<T>& image, int hBorder, int vBorder)
@@ -66,26 +52,6 @@ Buffer<T>& Uncrop(Buffer<T>& image)
 }
 
 
-
-Type type__of(Func f)
-{
-    // assuming 'f' is not a tuple and only resolves to a single value:
-    Expr expr = f.value();
-    Type type = expr.type();
-    return(type);
-}
-
-Type promote(Type type)
-{
-    if (type.is_float())
-    {
-        return(type);
-    }
-
-    auto more_bits = type.bits() * 2;
-    auto promoted = Int(more_bits);
-    return(promoted);
-}
 
 Expr eval(Func f, int def_idx = 0)
 {
@@ -143,108 +109,7 @@ Func wrap(Func f)
     return g;
 }
 
-Func promote(Func f)
-{
-    auto ftype = type__of(f);
-    auto gtype = promote(ftype);
-    Func g = def(f) = eval(f);
-    return g;
-}
 
-Func as_weights(Func f)
-{
-    auto ftype = type__of(f);
-    if (ftype.is_float())
-        return(f);
-
-    Expr w = cast(Float(32), eval(f));
-    w /= cast(Float(32), ftype.max());
-    Func g { "w_" + f.name() };
-    def::dom(g, f) = w;
-    return(g);
-}
-
-Var x { "x" };
-Var y { "y" };
-Var c { "c" };
-
-Func Sobel(Func input)
-{
-    Var x, y, c;
-
-    Type base_type = type__of(input);
-    Type high_type = promote(base_type);
-
-    Func I { "input" };
-    I(x, y, c) = cast(high_type, input(x, y, c));
-
-    /*
-        *     -1    0   +1         1    0   +1
-        *   +--------------+    +--------------+
-        * -1| -1 |  0 |  1 |  -1| -1 | -2 | -1 |
-        *   +--------------+    +--------------+
-        *  0| -2 |  0 |  2 |   0|  0 |  0 |  0 |
-        *   +--------------+    +--------------+
-        * +1| -1 |  0 |  1 |  +1|  1 |  2 |  1 |
-        *   +--------------+    +--------------+
-        *        sobel_x             sobel_y
-        */
-    Func sobel_x ("sobel_x");
-    sobel_x(x, y, c) = I(x+1, y-1, c)
-                     - I(x-1, y-1, c)
-                     + 2 * (I(x+1, y, c) - I(x-1, y, c))
-                     + I(x+1, y+1, c)
-                     - I(x-1, y+1, c);
-
-    Func sobel_y ("sobel_y");
-    sobel_y(x, y, c) = I(x-1, y+1, c)
-                     - I(x-1, y-1, c)
-                     + 2 * (I(x, y+1, c) - I(x, y-1, c))
-                     + I(x+1, y+1, c)
-                     - I(x+1, y-1, c);
-
-    Expr sobel_xy = sobel_x(x, y, c) * sobel_x(x, y, c)
-                  + sobel_y(x, y, c) * sobel_y(x, y, c);
-
-    sobel_xy = sqrt(sobel_xy);
-    sobel_xy = cast(high_type, sobel_xy);
-    sobel_xy = clamp(sobel_xy, 0, base_type.max());
-
-    Func output { "Sobel" };
-    output(x, y, c) = cast(base_type, sobel_xy);;
-    return output;
-}
-
-Func Blur(Func input)
-{
-    Var x, y, c;
-
-    Type base_type = type__of(input);
-    Type high_type = promote(base_type);
-
-    Func I { "input" };
-    I(x, y, c) = cast(high_type, input(x, y, c));
-
-    /*
-     * +--------------+
-     * |  0 |  1 |  0 |
-     * +--------------+
-     * |  1 |  4 |  1 |
-     * +--------------+
-     * |  0 |  1 |  0 |
-     * +--------------+
-     */
-    Expr blur = I(x, y - 1, c)
-              + I(x - 1, y, c)
-              + 4 * I(x, y, c)
-              + I(x + 1, y, c)
-              + I(x, y + 1, c);
-    blur /= 8;
-
-    Func output { "Blur" };
-    output(x, y, c) = cast(base_type, blur);
-    return(output);
-}
 
 using namespace Halide::Internal;
 
@@ -641,10 +506,14 @@ struct IRNodePrinter
         ss << "Func : " << f.name();
         return ss.str();
     }
-    
+
+    // NOTE(marcos): we'll need an auxiliary class that inherits from IRVisitor
+    // to implement this...
     //static std::string print(Expr e)
     //{
-    //    e.accept(this);
+    //    IRNodePrinterVisitor vis;
+    //    e.accept(vis);
+    //    return vis.str;
     //}
 };
 
@@ -811,19 +680,11 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     virtual Expr visit(const Add* op) override
     {
         return mutate_and_select(op);
-        //Expr keep = mutate_and_select(op);
-        //op = keep.as<Add>();
-        //Expr replaced = Div::make(op->a, op->b);
-        //return replaced;
     }
 
     virtual Expr visit(const Mul* op) override
     {
         return mutate_and_select(op);
-        //Expr keep = mutate_and_select(op);
-        //op = keep.as<Mul>();
-        //Expr replaced = Div::make(op->b, op->a);
-        //return replaced;
     }
     
     virtual Expr visit(const Div* op) override
@@ -1262,6 +1123,9 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         // NOTE(emily): need to add the root Func as root of expr_node tree
         expr_node* node_op = tree.new_expr_node();
         node_op->name = IRNodePrinter::print(f);
+        // NOTE(marcos): skipping the original expression in the expr_tree
+        // because 'f' might emcapsulate a Tuple of values, and a Tuple is
+        // not an Expr in Halide.
         //Expr expr = f(f.args());
         //node_op->original = expr;
         node_op->func_tuple_values = true;
@@ -1699,6 +1563,9 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
             m.compile_jit(target);
         );
 
+    // TODO(marcos): upload input buffers here to avoid having their upload
+    // times spoil the realize time...
+
     times.run_time =
         PROFILE(
             m.realize(modified_output_buffer, target);
@@ -1711,18 +1578,7 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
         glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, modified_output_buffer.data());
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    //if (!SaveImage("data/output/input_full.png", input_full))
-    //    printf("Error saving image\n");
-
     output = std::move(modified_output_buffer);
 
     return times;
-
-    /*
-    
-    mkdir("data/output", S_IRWXU | S_IRWXG | S_IRWXO);
-    xsprintf(output_filename, 128, "data/output/output-%s-%d.png", target.to_string().c_str(), id);
-    if (!SaveImage(output_filename, output_buffer))
-        printf("Error saving image\n");
-    */
 }

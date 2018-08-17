@@ -1,30 +1,22 @@
-// ImGui - standalone example application for GLFW + OpenGL2, using legacy fixed pipeline
-// If you are new to ImGui, see examples/README.txt and documentation at the top of imgui.cpp.
-// (GLFW is a cross-platform general purpose library for handling windows, inputs, OpenGL/Vulkan graphics context creation, etc.)
-
-// **DO NOT USE THIS CODE IF YOUR CODE/ENGINE IS USING MODERN OPENGL (SHADERS, VBO, VAO, etc.)**
-// **Prefer using the code in the example_glfw_opengl2/ folder**
-// See imgui_impl_glfw.cpp for details.
-
 // include our own local copy of imconfig.h, should we need to customize it
 #include "imconfig.h"
 // we also need to define this to prevent imgui.h form including the stock
 // version of imconfig.h
 #define IMGUI_DISABLE_INCLUDE_IMCONFIG_H
-
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl2.h>
+
 #include <stdio.h>
 #include <GLFW/glfw3.h>
 #include <Halide.h>
 
 #include "system.hpp"
 #include "utils.h"
+#include "HalideImageIO.h"
 
 bool stdout_echo_toggle (false);
 bool save_images(false);
-
 
 //NOTE(Emily): vars related to saving images
 Halide::Buffer<> output;
@@ -33,67 +25,6 @@ std::string fname = "";
 static void glfw_error_callback(int error, const char* description)
 {
     fprintf(stderr, "Glfw Error %d: %s\n", error, description);
-}
-
-struct rgba {
-    float r, g, b, a;
-};
-
-
-//NOTE(Emily): method to generate example tree using struc
-expr_node * generate_example_tree(){
-    expr_node * root = new expr_node();
-    root->name = "Func: output";
-    expr_node * temp = new expr_node();
-    temp->name = "<arguments>";
-    root->children.push_back(temp);
-    temp->name = "Variable: v60 | let";
-    root->children[0]->children.push_back(temp);
-    temp->name = "Variable: v61 | let";
-    root->children[0]->children.push_back(temp);
-    temp->name = "Variable: v62 | let";
-    root->children[0]->children.push_back(temp);
-    temp->name = "<definition>";
-    root->children.push_back(temp);
-    temp->name = "Function: f";
-    root->children[1]->children.push_back(temp);
-    temp->name = "<arguments>";
-    root->children[1]->children[0]->children.push_back(temp);
-    temp->name = "Variable: v54 | let";
-    root->children[1]->children[0]->children[0]->children.push_back(temp);
-    temp->name = "Variable: v55 | let";
-    root->children[1]->children[0]->children[0]->children.push_back(temp);
-    temp->name = "Variable: v56 | let";
-    root->children[1]->children[0]->children[0]->children.push_back(temp);
-    temp->name = "<definition>";
-    root->children[1]->children[0]->children.push_back(temp);
-    temp->name = "Mul";
-    root->children[1]->children[0]->children[1]->children.push_back(temp);
-    temp->name = "UIntImm: 10";
-    root->children[1]->children[0]->children[1]->children[0]->children.push_back(temp);
-    temp->name = "Call: image | Halide";
-    root->children[1]->children[0]->children[1]->children[0]->children.push_back(temp);
-    temp->name = "...";
-    root->children[1]->children[0]->children[1]->children[0]->children[1]->children.push_back(temp);
-    return root;
-}
-
-void set_color(std::vector<rgba>& pixels){
-    float R = rand()/(float)RAND_MAX;
-    float G = rand()/(float)RAND_MAX;
-    float B = rand()/(float)RAND_MAX;
-    for(auto& p : pixels){
-        p.r = R;
-        p.g = G;
-        p.b = B;
-        p.a = 1;
-    }
-}
-
-void update_buffer(GLuint idMyTexture, std::vector<rgba> pixels, int width, int height){
-    glBindTexture(GL_TEXTURE_2D, idMyTexture);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_FLOAT, pixels.data());
-    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 void ToggleButton(const char* str_id, bool* v)
@@ -119,6 +50,7 @@ void ToggleButton(const char* str_id, bool* v)
 
 void default_output_name(std::string name, int id)
 {
+    assert(output.defined());
     if(output.type().is_float())
     {
         fname = "data/output/" + name + "_" + std::to_string(id) + ".jpg";
@@ -136,8 +68,6 @@ Halide::Type selected_type;
 // from 'treedump.cpp':
 expr_tree get_tree(Func f);
 Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, GLuint idMyTexture, std::string target_features);
-// from 'main.cpp':
-const bool SaveImage(const char* filename, Halide::Buffer<>& image, const float scale=1.0f);
 
 void display_node(expr_node * parent, GLuint idMyTexture, int width, int height, Func f, Halide::Buffer<uint8_t>& input_full, std::string& selected_name, Profiling& times, const std::string& target_features)
 {
@@ -233,20 +163,17 @@ std::string type_to_string(Halide::Type type)
     ss << type.lanes();
     ss << "]";
     return ss.str();
+    return ss.str();
 }
 
 void render_gui(GLFWwindow* window)
 {
+    assert(glfwGetCurrentContext() == window);
+
     ImGui::Render();
-    //int display_w, display_h;
-    //glfwGetFramebufferSize(window, &display_w, &display_h);
-    //glViewport(0, 0, display_w, display_h);
-    //glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
+
     glClear(GL_COLOR_BUFFER_BIT);
-
     ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
-
-    //glfwMakeContextCurrent(window);
     glfwSwapBuffers(window);
 }
 
@@ -367,7 +294,6 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     //ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
     //IM_ASSERT(font != NULL);
 
-    //bool show_another_window = true;
     bool show_image = true;
     bool show_expr_tree = true;
     bool show_func_select = true;
@@ -401,17 +327,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     // corresponding expr_tree; this will spare us of a visitor step.
     //expr_tree tree = get_tree(funcs[0]);
     expr_tree tree;
-    std::string target_features = "";
-        //"fma"     // FMA is actually orthogonal to AVX (and is even orthogonal to AVX2!)
-        //"fma4"    // FMA4 is AMD-only; Intel adopted FMA3 (which Halide does not yet support)
-        //"avx-sse41"
-        //"avx-avx2-sse41"
-        //"sse41"
-        //"cuda"
-        //"metal"
-        //"opencl"
-        //"d3d12"
-    ;
+    std::string target_features;
 
     //NOTE(Emily): call to update buffer to display output of function
     //Profiling times = select_and_visualize(f, 0, input_full, idMyTexture, target_features);
@@ -516,8 +432,10 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                 ImGui::SameLine();
                 OptionalCheckbox("avx512", &avx512, sys.Supports(Target::AVX512));
 
+                // FMA is actually orthogonal to AVX (and is even orthogonal to AVX2!)
                 OptionalCheckbox("fma", &fma, sys.Supports(Target::FMA));
                 ImGui::SameLine();
+                // FMA4 is AMD-only; Intel adopted FMA3 (which Halide does not yet support)
                 OptionalCheckbox("fma4", &fma4, sys.Supports(Target::FMA4));
 
                 OptionalCheckbox("f16c", &f16c, sys.Supports(Target::F16C));
@@ -600,7 +518,6 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
         }
 
         bool func_selected = selected.defined();
-        
 
         // NOTE(Emily): main expression tree window
         if(show_expr_tree)
@@ -618,27 +535,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             ImGui::End();
             
         }
-        
-        
-        //NOTE(Emily): Window to show image info - making more compact and putting info as title of image box
-        /*
-        if (show_another_window)
-        {
-            
-            bool * no_close = NULL;
-            //ImGui::SetNextWindowPos(ImVec2(650, 20), ImGuiCond_FirstUseEver);
-            //ImGui::SetNextWindowSize(ImVec2(300,100));
-            ImGui::Begin("Image Information", no_close);
-            ImGui::Text("Information about the currently displayed image: ");
-            std::string size_info = "width: " + std::to_string(width) + " height: " + std::to_string(height) + " channels: " + std::to_string(channels);
-            ImGui::Text("%s", size_info.c_str());
-            ImGui::Text("Type of selected expression: %s", type_to_string(selected_type).c_str());
-            ImGui::Text("Time for JIT compilation: %f", times.jit_time);
-            ImGui::Text("Time to realize: %f", times.run_time);
-            ImGui::End();
-        }
-        */
-        
+
         if (show_image)
         {
             bool * no_close = NULL;
