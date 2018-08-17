@@ -39,57 +39,6 @@ struct rgba {
     float r, g, b, a;
 };
 
-
-//NOTE(Emily): method to generate example tree using struc
-expr_node * generate_example_tree(){
-    expr_node * root = new expr_node();
-    root->name = "Func: output";
-    expr_node * temp = new expr_node();
-    temp->name = "<arguments>";
-    root->children.push_back(temp);
-    temp->name = "Variable: v60 | let";
-    root->children[0]->children.push_back(temp);
-    temp->name = "Variable: v61 | let";
-    root->children[0]->children.push_back(temp);
-    temp->name = "Variable: v62 | let";
-    root->children[0]->children.push_back(temp);
-    temp->name = "<definition>";
-    root->children.push_back(temp);
-    temp->name = "Function: f";
-    root->children[1]->children.push_back(temp);
-    temp->name = "<arguments>";
-    root->children[1]->children[0]->children.push_back(temp);
-    temp->name = "Variable: v54 | let";
-    root->children[1]->children[0]->children[0]->children.push_back(temp);
-    temp->name = "Variable: v55 | let";
-    root->children[1]->children[0]->children[0]->children.push_back(temp);
-    temp->name = "Variable: v56 | let";
-    root->children[1]->children[0]->children[0]->children.push_back(temp);
-    temp->name = "<definition>";
-    root->children[1]->children[0]->children.push_back(temp);
-    temp->name = "Mul";
-    root->children[1]->children[0]->children[1]->children.push_back(temp);
-    temp->name = "UIntImm: 10";
-    root->children[1]->children[0]->children[1]->children[0]->children.push_back(temp);
-    temp->name = "Call: image | Halide";
-    root->children[1]->children[0]->children[1]->children[0]->children.push_back(temp);
-    temp->name = "...";
-    root->children[1]->children[0]->children[1]->children[0]->children[1]->children.push_back(temp);
-    return root;
-}
-
-void set_color(std::vector<rgba>& pixels){
-    float R = rand()/(float)RAND_MAX;
-    float G = rand()/(float)RAND_MAX;
-    float B = rand()/(float)RAND_MAX;
-    for(auto& p : pixels){
-        p.r = R;
-        p.g = G;
-        p.b = B;
-        p.a = 1;
-    }
-}
-
 void update_buffer(GLuint idMyTexture, std::vector<rgba> pixels, int width, int height){
     glBindTexture(GL_TEXTURE_2D, idMyTexture);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_FLOAT, pixels.data());
@@ -121,8 +70,8 @@ void default_output_name(std::string name, int id)
 {
     if(output.type().is_float())
     {
-        fname = "data/output/" + name + "_" + std::to_string(id) + ".jpg";
-        //fname = "data/output/" + name + "_" + std::to_string(id) + ".hdr";
+        //fname = "data/output/" + name + "_" + std::to_string(id) + ".jpg";
+        fname = "data/output/" + name + "_" + std::to_string(id) + ".hdr";
     }
     else
     {
@@ -180,18 +129,19 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
         if(save_images)
         {
             assert(output.defined());
-            //NOTE(Emily): if filename isn't passed in, create default filename
+            //NOTE(Emily): need to create default filename for all images
             //we want to decide file extension based on data type
             int id = parent->node_id;
-            
             
             if(fname == "") default_output_name(f.name(), id);
             
             if(!SaveImage(fname.c_str(), output))
                 fprintf(stderr, "Error saving image\n");
+            
+            fname = ""; //NOTE(Emily): done saving so want to reset fname
         }
         id_expr_debugging = parent->node_id;
-        selected_type = parent->original.type();
+        if(parent->original.defined()) selected_type = parent->original.type();
     }
 
     if (!open)
@@ -476,14 +426,14 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                 //file_system_popup();
 
                 //times = select_and_visualize(selected, id_expr_debugging, input_full, output, idMyTexture, target_features);
-                //save_current = false; //NOTE(Emily): want to "uncheck" the box after saving
                 
                 if(fname == "") default_output_name(selected.name(), id_expr_debugging);
     
                 if(!SaveImage(fname.c_str(), output))
                     fprintf(stderr, "Error saving image\n");
                 
-                save_current = false;
+                save_current = false; //NOTE(Emily): want to "uncheck" the box after saving
+                fname = ""; //NOTE(Emily): done saving so want to reset fname
                 
             }
             ImGui::End();
@@ -619,25 +569,6 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             
         }
         
-        
-        //NOTE(Emily): Window to show image info - making more compact and putting info as title of image box
-        /*
-        if (show_another_window)
-        {
-            
-            bool * no_close = NULL;
-            //ImGui::SetNextWindowPos(ImVec2(650, 20), ImGuiCond_FirstUseEver);
-            //ImGui::SetNextWindowSize(ImVec2(300,100));
-            ImGui::Begin("Image Information", no_close);
-            ImGui::Text("Information about the currently displayed image: ");
-            std::string size_info = "width: " + std::to_string(width) + " height: " + std::to_string(height) + " channels: " + std::to_string(channels);
-            ImGui::Text("%s", size_info.c_str());
-            ImGui::Text("Type of selected expression: %s", type_to_string(selected_type).c_str());
-            ImGui::Text("Time for JIT compilation: %f", times.jit_time);
-            ImGui::Text("Time to realize: %f", times.run_time);
-            ImGui::End();
-        }
-        */
         
         if (show_image)
         {

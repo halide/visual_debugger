@@ -1205,7 +1205,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     {
         dump_head(f);
         
-        // NOTE(emily): need to add the root Func as root of expr_node tree
         expr_node* node_op = tree.new_expr_node();
         node_op->name = IRNodePrinter::print(f);
         tree.enter(node_op);
@@ -1237,18 +1236,18 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
             remove_indent();
         
         leave_spacer_node(arg_spacer);
-            //NOTE(Emily): adding separation node here
-            expr_node * spacer = add_spacer_node("<value>");
-        
-            int value_idx = 0;
-            for (auto& expr : definition.values())
-            {
-                indented_printf("<value %d>\n", value_idx++);
-                add_indent();
-                    IRMutator2::mutate(expr);
-                remove_indent();
-            }
-            leave_spacer_node(spacer);
+        //NOTE(Emily): adding separation node here
+        expr_node * spacer = add_spacer_node("<value>");
+    
+        int value_idx = 0;
+        for (auto& expr : definition.values())
+        {
+            indented_printf("<value %d>\n", value_idx++);
+            add_indent();
+                IRMutator2::mutate(expr);
+            remove_indent();
+        }
+        leave_spacer_node(spacer);
         remove_indent();
 
         tree.leave(node_op);
@@ -1264,7 +1263,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         node_op->name = IRNodePrinter::print(f);
         //Expr expr = f(f.args());
         //node_op->original = expr;
-        node_op->func_tuple_values = true;
         tree.enter(node_op);
         
         int updates = f.num_update_definitions();
