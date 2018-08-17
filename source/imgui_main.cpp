@@ -53,8 +53,8 @@ void default_output_name(std::string name, int id)
     assert(output.defined());
     if(output.type().is_float())
     {
-        fname = "data/output/" + name + "_" + std::to_string(id) + ".jpg";
-        //fname = "data/output/" + name + "_" + std::to_string(id) + ".hdr";
+        //fname = "data/output/" + name + "_" + std::to_string(id) + ".jpg";
+        fname = "data/output/" + name + "_" + std::to_string(id) + ".hdr";
     }
     else
     {
@@ -108,16 +108,18 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, Halide::Buffer<ui
         if(save_images)
         {
             assert(output.defined());
-            //NOTE(Emily): if filename isn't passed in, create default filename
+            //NOTE(Emily): need to create default filename for all images
             //we want to decide file extension based on data type
 
             if(fname == "") default_output_name(f.name(), id);
             
             if(!SaveImage(fname.c_str(), output))
                 fprintf(stderr, "Error saving image\n");
+            
+            fname = ""; //NOTE(Emily): done saving so want to reset fname
         }
         id_expr_debugging = id;
-        selected_type = node->original.type();
+        if (node->original.defined()) selected_type = node->original.type();
         selected_name = label;
     }
 
@@ -377,26 +379,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             ToggleButton("Save all images", &save_images);
             ImGui::SameLine();
             ImGui::Text("Save all displayed images");
-            if(!save_images)
-            {
-                //allow user to select individual images to save
-                ImGui::Checkbox("Save current image:" , &save_current);
-            }
-            if(save_current)
-            {
-                //file_system_popup();
-
-                //times = select_and_visualize(selected, id_expr_debugging, input_full, output, idMyTexture, target_features);
-                //save_current = false; //NOTE(Emily): want to "uncheck" the box after saving
-                
-                if(fname == "") default_output_name(selected.name(), id_expr_debugging);
-    
-                if(!SaveImage(fname.c_str(), output))
-                    fprintf(stderr, "Error saving image\n");
-                
-                save_current = false;
-                
-            }
+            
             ImGui::End();
         }
         
@@ -530,6 +513,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             
         }
 
+        
         if (show_image)
         {
             bool * no_close = NULL;
@@ -543,7 +527,31 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             
             //ImGui::SetNextWindowPos(ImVec2(650, 200), ImGuiCond_FirstUseEver);
             //ImGui::SetNextWindowSize(ImVec2(500,500));
+            
             ImGui::Begin(info.c_str() , no_close, ImGuiWindowFlags_HorizontalScrollbar);
+            
+            /*if(!save_images)
+            {
+                //allow user to select individual images to save
+                ImGui::Checkbox("Save current image:" , &save_current);
+            }*/
+            
+            if(ImGui::Button("Save Image"))
+            {
+                //file_system_popup();
+                
+                //times = select_and_visualize(selected, id_expr_debugging, input_full, output, idMyTexture, target_features);
+                
+                if(fname == "") default_output_name(selected.name(), id_expr_debugging);
+                
+                if(!SaveImage(fname.c_str(), output))
+                    fprintf(stderr, "Error saving image\n");
+                
+                //save_current = false; //NOTE(Emily): want to "uncheck" the box after saving
+                fname = ""; //NOTE(Emily): done saving so want to reset fname
+                
+            }
+            ImGui::SameLine();
             
             static float zoom = 1.0f;
             ImGui::SliderFloat("Image Zoom", &zoom, 0, 10, "%.001f");
