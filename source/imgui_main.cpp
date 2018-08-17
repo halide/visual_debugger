@@ -1,30 +1,22 @@
-// ImGui - standalone example application for GLFW + OpenGL2, using legacy fixed pipeline
-// If you are new to ImGui, see examples/README.txt and documentation at the top of imgui.cpp.
-// (GLFW is a cross-platform general purpose library for handling windows, inputs, OpenGL/Vulkan graphics context creation, etc.)
-
-// **DO NOT USE THIS CODE IF YOUR CODE/ENGINE IS USING MODERN OPENGL (SHADERS, VBO, VAO, etc.)**
-// **Prefer using the code in the example_glfw_opengl2/ folder**
-// See imgui_impl_glfw.cpp for details.
-
 // include our own local copy of imconfig.h, should we need to customize it
 #include "imconfig.h"
 // we also need to define this to prevent imgui.h form including the stock
 // version of imconfig.h
 #define IMGUI_DISABLE_INCLUDE_IMCONFIG_H
-
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl2.h>
+
 #include <stdio.h>
 #include <GLFW/glfw3.h>
 #include <Halide.h>
 
 #include "system.hpp"
 #include "utils.h"
+#include "HalideImageIO.h"
 
 bool stdout_echo_toggle (false);
 bool save_images(false);
-
 
 //NOTE(Emily): vars related to saving images
 Halide::Buffer<> output;
@@ -33,16 +25,6 @@ std::string fname = "";
 static void glfw_error_callback(int error, const char* description)
 {
     fprintf(stderr, "Glfw Error %d: %s\n", error, description);
-}
-
-struct rgba {
-    float r, g, b, a;
-};
-
-void update_buffer(GLuint idMyTexture, std::vector<rgba> pixels, int width, int height){
-    glBindTexture(GL_TEXTURE_2D, idMyTexture);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_FLOAT, pixels.data());
-    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 void ToggleButton(const char* str_id, bool* v)
@@ -68,6 +50,7 @@ void ToggleButton(const char* str_id, bool* v)
 
 void default_output_name(std::string name, int id)
 {
+    assert(output.defined());
     if(output.type().is_float())
     {
         //fname = "data/output/" + name + "_" + std::to_string(id) + ".jpg";
@@ -85,15 +68,14 @@ Halide::Type selected_type;
 // from 'treedump.cpp':
 expr_tree get_tree(Func f);
 Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, GLuint idMyTexture, std::string target_features);
-// from 'main.cpp':
-const bool SaveImage(const char* filename, Halide::Buffer<>& image, const float scale=1.0f);
 
 void display_node(expr_node * parent, GLuint idMyTexture, int width, int height, Func f, Halide::Buffer<uint8_t>& input_full, std::string& selected_name, Profiling& times, const std::string& target_features)
 {
     if (id_expr_debugging == parent->node_id)
     {
-        ImGui::PushStyleColor(ImGuiCol_Text,   0xFF00CF40);
-        ImGui::PushStyleColor(ImGuiCol_Button, 0xFF00CF40);
+        const ImU32 LimeGreen = 0xFF00CF40;
+        ImGui::PushStyleColor(ImGuiCol_Text,   LimeGreen);
+        ImGui::PushStyleColor(ImGuiCol_Button, LimeGreen);
     }
 
     bool clicked = false;
@@ -108,7 +90,7 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
     bool open = false;
     if (parent->children.empty())
     {
-        ImGui::TreeNodeEx(parent->name.c_str(), ImGuiTreeNodeFlags_Leaf);
+        open = ImGui::TreeNodeEx(parent->name.c_str(), ImGuiTreeNodeFlags_Leaf);
     }
     else
     {
@@ -182,20 +164,17 @@ std::string type_to_string(Halide::Type type)
     ss << type.lanes();
     ss << "]";
     return ss.str();
+    return ss.str();
 }
 
 void render_gui(GLFWwindow* window)
 {
+    assert(glfwGetCurrentContext() == window);
+
     ImGui::Render();
-    //int display_w, display_h;
-    //glfwGetFramebufferSize(window, &display_w, &display_h);
-    //glViewport(0, 0, display_w, display_h);
-    //glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
+
     glClear(GL_COLOR_BUFFER_BIT);
-
     ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
-
-    //glfwMakeContextCurrent(window);
     glfwSwapBuffers(window);
 }
 
@@ -316,7 +295,6 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     //ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
     //IM_ASSERT(font != NULL);
 
-    //bool show_another_window = true;
     bool show_image = true;
     bool show_expr_tree = true;
     bool show_func_select = true;
@@ -350,17 +328,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     // corresponding expr_tree; this will spare us of a visitor step.
     //expr_tree tree = get_tree(funcs[0]);
     expr_tree tree;
-    std::string target_features = "";
-        //"fma"     // FMA is actually orthogonal to AVX (and is even orthogonal to AVX2!)
-        //"fma4"    // FMA4 is AMD-only; Intel adopted FMA3 (which Halide does not yet support)
-        //"avx-sse41"
-        //"avx-avx2-sse41"
-        //"sse41"
-        //"cuda"
-        //"metal"
-        //"opencl"
-        //"d3d12"
-    ;
+    std::string target_features;
 
     //NOTE(Emily): call to update buffer to display output of function
     //Profiling times = select_and_visualize(f, 0, input_full, idMyTexture, target_features);
@@ -416,26 +384,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             ToggleButton("Save all images", &save_images);
             ImGui::SameLine();
             ImGui::Text("Save all displayed images");
-            if(!save_images)
-            {
-                //allow user to select individual images to save
-                ImGui::Checkbox("Save current image:" , &save_current);
-            }
-            if(save_current)
-            {
-                //file_system_popup();
-
-                //times = select_and_visualize(selected, id_expr_debugging, input_full, output, idMyTexture, target_features);
-                
-                if(fname == "") default_output_name(selected.name(), id_expr_debugging);
-    
-                if(!SaveImage(fname.c_str(), output))
-                    fprintf(stderr, "Error saving image\n");
-                
-                save_current = false; //NOTE(Emily): want to "uncheck" the box after saving
-                fname = ""; //NOTE(Emily): done saving so want to reset fname
-                
-            }
+            
             ImGui::End();
         }
         
@@ -465,8 +414,10 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                 ImGui::SameLine();
                 OptionalCheckbox("avx512", &avx512, sys.Supports(Target::AVX512));
 
+                // FMA is actually orthogonal to AVX (and is even orthogonal to AVX2!)
                 OptionalCheckbox("fma", &fma, sys.Supports(Target::FMA));
                 ImGui::SameLine();
+                // FMA4 is AMD-only; Intel adopted FMA3 (which Halide does not yet support)
                 OptionalCheckbox("fma4", &fma4, sys.Supports(Target::FMA4));
 
                 OptionalCheckbox("f16c", &f16c, sys.Supports(Target::F16C));
@@ -537,7 +488,6 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                 if(func_value == id && changed)
                 {
                     tree = get_tree(func);
-                    Halide::Buffer<> output;
                     times = select_and_visualize(func, 0, input_full, output, idMyTexture, target_features);
                     selected = func;
                     selected_type = func.output_types()[0]; //NOTE(Emily): need to handle case with multiple outputs or update definitions
@@ -550,7 +500,6 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
         }
 
         bool func_selected = selected.defined();
-        
 
         // NOTE(Emily): main expression tree window
         if(show_expr_tree)
@@ -568,21 +517,46 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             ImGui::End();
             
         }
-        
+
         
         if (show_image)
         {
             bool * no_close = NULL;
             
-            std::string info = std::to_string(width) + "x" + std::to_string(height)
-                            + "x" + std::to_string(channels) + " | " + type_to_string(selected_type)
-                            + " | " + std::to_string(times.run_time) + "s | (jit: "
-                            + std::to_string(times.jit_time) + "s)"
-                            + "###ImageDisplay";   // <- ImGui ID control (###): we want this window to be the same, regardless of its title
+            std::string info = std::to_string(width) + "x" + std::to_string(height) + "x" + std::to_string(channels)
+                             + " | " + type_to_string(selected_type)
+                             + " | " + std::to_string(times.run_time) + "s"
+                             + " | (up: " + std::to_string(times.upl_time) + "s)"
+                             + " | (jit: " + std::to_string(times.jit_time) + "s)"
+                             + "###ImageDisplay";   // <- ImGui ID control (###): we want this window to be the same, regardless of its title
             
             //ImGui::SetNextWindowPos(ImVec2(650, 200), ImGuiCond_FirstUseEver);
             //ImGui::SetNextWindowSize(ImVec2(500,500));
+            
             ImGui::Begin(info.c_str() , no_close, ImGuiWindowFlags_HorizontalScrollbar);
+            
+            /*if(!save_images)
+            {
+                //allow user to select individual images to save
+                ImGui::Checkbox("Save current image:" , &save_current);
+            }*/
+            
+            if(ImGui::Button("Save Image"))
+            {
+                //file_system_popup();
+                
+                //times = select_and_visualize(selected, id_expr_debugging, input_full, output, idMyTexture, target_features);
+                
+                if(fname == "") default_output_name(selected.name(), id_expr_debugging);
+                
+                if(!SaveImage(fname.c_str(), output))
+                    fprintf(stderr, "Error saving image\n");
+                
+                //save_current = false; //NOTE(Emily): want to "uncheck" the box after saving
+                fname = ""; //NOTE(Emily): done saving so want to reset fname
+                
+            }
+            ImGui::SameLine();
             
             static float zoom = 1.0f;
             ImGui::SliderFloat("Image Zoom", &zoom, 0, 10, "%.001f");

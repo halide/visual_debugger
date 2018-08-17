@@ -7,24 +7,10 @@
 #include <Halide.h>
 #include "HalideIdentity.h"
 
-// //// stb image I/O /////////////////////////////////////////////////////////
-#define STB_IMAGE_STATIC
 #define STB_IMAGE_IMPLEMENTATION
-#include "../third-party/stb/stb_image.h"
-
-#define STB_IMAGE_WRITE_STATIC
 #define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "../third-party/stb/stb_image_write.h"
-
-#define STB_IMAGE_RESIZE_STATIC
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
-#include "../third-party/stb/stb_image_resize.h"
-///////////////////////////////////////////////////////// stb image I/O //// //
-
 #include "HalideImageIO.h"
-
-// auxiliary function to manipulate strings directly in stack memory
-#define xsprintf(var, size, ...) char var [size]; sprintf(var, __VA_ARGS__)
 
 #include "io-broadcast.hpp"
 
@@ -115,6 +101,27 @@ Func example_scoped(Buffer<> image)
     return h;
 }
 
+Func example_tuple()
+{
+    // TODO(marcos): if we were to write 'multi_valued_2(x, y) = ...' the tool
+    // would crash in 'select_and_visualize()' because the output realization
+    // buffer is formatted according to 'input_full' dimensions, which may be
+    // a color image... ideally, the output realization buffers must be passed
+    // in order to get the correct layout and format for the visualization.
+    Var x, y, c;
+    Func multi_valued_2 ("example_tuple");
+    multi_valued_2(x, y, c) = { x + y, sin(x*y) };
+    return multi_valued_2;
+}
+
+Func example_another_tuple(Func broken, Func fixed)
+{
+    Var x, y, c;
+    Func test_tuple ("test");
+    test_tuple(x, y, c) = Tuple(broken(x, y, c), fixed(x, y, c));
+    return test_tuple;
+}
+
 // from 'imgui_main.cpp':
 extern bool stdout_echo_toggle;
 void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full); 
@@ -137,24 +144,17 @@ int main()
         return -1;
 
     Func broken = example_broken(input_full);
-    
+
     Func fixed = example_fixed(input_full);
-    
-    Var x, y, c;
-    Func test_tuple("test");
-    test_tuple(x, y, c) = Tuple(broken(x,y,c), fixed(x,y,c));
+
     std::vector<Func> funcs;
     funcs.push_back(broken);
     funcs.push_back(fixed);
     funcs.push_back(example_scoped(input_full));
+    funcs.push_back(example_tuple());
+    funcs.push_back(example_another_tuple(broken, fixed));
 
-    //funcs.push_back(test_tuple);
-    //run_gui(funcs, input_full, iobc);
     run_gui(funcs, input_full);
-    
-    //run_gui(output, input_full);
-
-    //run_gui(example_broken(), input_full);
 
     iobc.Terminate();
     fprintf(stdout, "<< Done with 'stdout' redirection\n");

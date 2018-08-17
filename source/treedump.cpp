@@ -14,27 +14,13 @@
     #include <sys/stat.h>
 #endif//_MSC_VER
 
-
-
-// //// Utilities /////////////////////////////////////////////////////////////
-#ifndef XSTR
-#define XSTR(x) #x
-#endif//XSTR
-
-#ifndef STR
-#define STR(x) XSTR(x)
-#endif//XSTR
-///////////////////////////////////////////////////////////// Utilities //// //
-
 #include <GLFW/glfw3.h>
-
-#include "utils.h"
-
-
-
 #define GL_RGBA32F 0x8814
 
+#include "utils.h"
 using namespace Halide;
+
+
 
 template<typename T>
 Runtime::Buffer<T> Crop(Buffer<T>& image, int hBorder, int vBorder)
@@ -66,26 +52,6 @@ Buffer<T>& Uncrop(Buffer<T>& image)
 }
 
 
-
-Type type__of(Func f)
-{
-    // assuming 'f' is not a tuple and only resolves to a single value:
-    Expr expr = f.value();
-    Type type = expr.type();
-    return(type);
-}
-
-Type promote(Type type)
-{
-    if (type.is_float())
-    {
-        return(type);
-    }
-
-    auto more_bits = type.bits() * 2;
-    auto promoted = Int(more_bits);
-    return(promoted);
-}
 
 Expr eval(Func f, int def_idx = 0)
 {
@@ -143,108 +109,7 @@ Func wrap(Func f)
     return g;
 }
 
-Func promote(Func f)
-{
-    auto ftype = type__of(f);
-    auto gtype = promote(ftype);
-    Func g = def(f) = eval(f);
-    return g;
-}
 
-Func as_weights(Func f)
-{
-    auto ftype = type__of(f);
-    if (ftype.is_float())
-        return(f);
-
-    Expr w = cast(Float(32), eval(f));
-    w /= cast(Float(32), ftype.max());
-    Func g { "w_" + f.name() };
-    def::dom(g, f) = w;
-    return(g);
-}
-
-Var x { "x" };
-Var y { "y" };
-Var c { "c" };
-
-Func Sobel(Func input)
-{
-    Var x, y, c;
-
-    Type base_type = type__of(input);
-    Type high_type = promote(base_type);
-
-    Func I { "input" };
-    I(x, y, c) = cast(high_type, input(x, y, c));
-
-    /*
-        *     -1    0   +1         1    0   +1
-        *   +--------------+    +--------------+
-        * -1| -1 |  0 |  1 |  -1| -1 | -2 | -1 |
-        *   +--------------+    +--------------+
-        *  0| -2 |  0 |  2 |   0|  0 |  0 |  0 |
-        *   +--------------+    +--------------+
-        * +1| -1 |  0 |  1 |  +1|  1 |  2 |  1 |
-        *   +--------------+    +--------------+
-        *        sobel_x             sobel_y
-        */
-    Func sobel_x ("sobel_x");
-    sobel_x(x, y, c) = I(x+1, y-1, c)
-                     - I(x-1, y-1, c)
-                     + 2 * (I(x+1, y, c) - I(x-1, y, c))
-                     + I(x+1, y+1, c)
-                     - I(x-1, y+1, c);
-
-    Func sobel_y ("sobel_y");
-    sobel_y(x, y, c) = I(x-1, y+1, c)
-                     - I(x-1, y-1, c)
-                     + 2 * (I(x, y+1, c) - I(x, y-1, c))
-                     + I(x+1, y+1, c)
-                     - I(x+1, y-1, c);
-
-    Expr sobel_xy = sobel_x(x, y, c) * sobel_x(x, y, c)
-                  + sobel_y(x, y, c) * sobel_y(x, y, c);
-
-    sobel_xy = sqrt(sobel_xy);
-    sobel_xy = cast(high_type, sobel_xy);
-    sobel_xy = clamp(sobel_xy, 0, base_type.max());
-
-    Func output { "Sobel" };
-    output(x, y, c) = cast(base_type, sobel_xy);;
-    return output;
-}
-
-Func Blur(Func input)
-{
-    Var x, y, c;
-
-    Type base_type = type__of(input);
-    Type high_type = promote(base_type);
-
-    Func I { "input" };
-    I(x, y, c) = cast(high_type, input(x, y, c));
-
-    /*
-     * +--------------+
-     * |  0 |  1 |  0 |
-     * +--------------+
-     * |  1 |  4 |  1 |
-     * +--------------+
-     * |  0 |  1 |  0 |
-     * +--------------+
-     */
-    Expr blur = I(x, y - 1, c)
-              + I(x - 1, y, c)
-              + 4 * I(x, y, c)
-              + I(x + 1, y, c)
-              + I(x, y + 1, c);
-    blur /= 8;
-
-    Func output { "Blur" };
-    output(x, y, c) = cast(base_type, blur);
-    return(output);
-}
 
 using namespace Halide::Internal;
 
@@ -641,10 +506,14 @@ struct IRNodePrinter
         ss << "Func : " << f.name();
         return ss.str();
     }
-    
+
+    // NOTE(marcos): we'll need an auxiliary class that inherits from IRVisitor
+    // to implement this...
     //static std::string print(Expr e)
     //{
-    //    e.accept(this);
+    //    IRNodePrinterVisitor vis;
+    //    e.accept(vis);
+    //    return vis.str;
     //}
 };
 
@@ -779,20 +648,69 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         tree.leave(node_op);
         return expr;
     }
-    
-    expr_node* add_spacer_node(std::string label)
+
+    #define default_expr_visitor(IRNodeType) \
+        virtual Expr visit(const IRNodeType* op) override { return mutate_and_select(op); }
+
+    default_expr_visitor(Add)
+    default_expr_visitor(Mul)
+    default_expr_visitor(Div)
+    default_expr_visitor(Mod)
+    default_expr_visitor(Sub)
+    default_expr_visitor(Min)
+    default_expr_visitor(Max)
+    default_expr_visitor(EQ)
+    default_expr_visitor(NE)
+    default_expr_visitor(LT)
+    default_expr_visitor(LE)
+    default_expr_visitor(GT)
+    default_expr_visitor(GE)
+    default_expr_visitor(And)
+    default_expr_visitor(Or)
+    default_expr_visitor(Not)
+    default_expr_visitor(UIntImm)
+    default_expr_visitor(IntImm)
+    default_expr_visitor(FloatImm)
+    default_expr_visitor(StringImm)
+    default_expr_visitor(Variable)
+    default_expr_visitor(Cast)
+    default_expr_visitor(Select)
+    default_expr_visitor(Load)
+    default_expr_visitor(Ramp)
+    default_expr_visitor(Broadcast)
+    default_expr_visitor(Shuffle)
+
+    #undef default_expr_visitor
+
+    //NOTE(Emily): Disabling Stmt nodes for now - it doesn't make sense to visualize them, so we are not assigning IDs to them
+    template<typename T>
+    Stmt mutate_and_select_stmt(const T* op)
     {
-        expr_node* node_op = tree.new_expr_node();
-        node_op->name = label;
-        tree.enter(node_op);
-        //tree.leave(node_op);
-        return node_op;
+        //const int id = ++traversal_id;    // generate unique id
+        dump_head(op);
+        add_indent();
+            Stmt stmt = IRMutator2::visit(op);  // visit/mutate children
+        remove_indent();
+        return stmt;
     }
-    
-    void leave_spacer_node(expr_node* spacer)
-    {
-        tree.leave(spacer);
-    }
+
+    #define default_stmt_visitor(IRNodeType) \
+        virtual Stmt visit(const IRNodeType* op) override { return mutate_and_select_stmt(op); }
+
+    default_stmt_visitor(LetStmt)
+    default_stmt_visitor(AssertStmt)
+    default_stmt_visitor(ProducerConsumer)
+    default_stmt_visitor(For)
+    default_stmt_visitor(Store)
+    default_stmt_visitor(Provide)
+    default_stmt_visitor(Allocate)
+    default_stmt_visitor(Free)
+    default_stmt_visitor(Prefetch)
+    default_stmt_visitor(Block)
+    default_stmt_visitor(IfThenElse)
+    default_stmt_visitor(Evaluate)
+
+    #undef default_stmt_visitor
 
     // convenience method (not really a part of IRMutator2)
     template<typename PatchFn>
@@ -808,221 +726,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         return patched_expr;
     }
 
-    virtual Expr visit(const Add* op) override
-    {
-        return mutate_and_select(op);
-        //Expr keep = mutate_and_select(op);
-        //op = keep.as<Add>();
-        //Expr replaced = Div::make(op->a, op->b);
-        //return replaced;
-    }
-
-    virtual Expr visit(const Mul* op) override
-    {
-        return mutate_and_select(op);
-        //Expr keep = mutate_and_select(op);
-        //op = keep.as<Mul>();
-        //Expr replaced = Div::make(op->b, op->a);
-        //return replaced;
-    }
-    
-    virtual Expr visit(const Div* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Mod* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Sub* op) override
-    {
-        return mutate_and_select(op);
-    }
-
-    virtual Expr visit(const Min* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Max* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const EQ* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const NE* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const LT* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const LE* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const GT* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const GE* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const And* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Or* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Not* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const UIntImm* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const IntImm* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const FloatImm* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const StringImm* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Variable* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Cast* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Select* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Load* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Ramp* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Broadcast* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Shuffle* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    //NOTE(Emily): Disabling Stmt nodes for now - it doesn't make sense to visualize them, so we are not assigning IDs to them
-    template<typename T>
-    Stmt mutate_and_select_stmt(const T* op)
-    {
-        //const int id = ++traversal_id;    // generate unique id
-        dump_head(op);
-        add_indent();
-            Stmt stmt = IRMutator2::visit(op);  // visit/mutate children
-        remove_indent();
-        return stmt;
-    }
-    
-    virtual Stmt visit(const LetStmt* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const AssertStmt* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const ProducerConsumer* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const For* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const Store* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const Provide* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const Allocate* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const Free* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const Prefetch* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const Block* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const IfThenElse* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const Evaluate* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
     virtual Expr visit(const Let* op) override
     {
         if (selected.defined())
@@ -1050,6 +753,20 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
             return new_let_expr;
         });
         return patched_expr;
+    }
+
+    expr_node* add_spacer_node(std::string label)
+    {
+        expr_node* node_op = tree.new_expr_node();
+        node_op->name = label;
+        tree.enter(node_op);
+        //tree.leave(node_op);
+        return node_op;
+    }
+    
+    void leave_spacer_node(expr_node* spacer)
+    {
+        tree.leave(spacer);
     }
 
     bool arg_selected = false;
@@ -1195,11 +912,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         return expr;
     }
 
-    void visit(const Expr expr)
-    {
-        IRMutator2::mutate(expr);
-    }
-
     // The following are convenience functions (not really a part of IRVisitor)
     void visit(Function f)
     {
@@ -1261,6 +973,9 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         // NOTE(emily): need to add the root Func as root of expr_node tree
         expr_node* node_op = tree.new_expr_node();
         node_op->name = IRNodePrinter::print(f);
+        // NOTE(marcos): skipping the original expression in the expr_tree
+        // because 'f' might emcapsulate a Tuple of values, and a Tuple is
+        // not an Expr in Halide.
         //Expr expr = f(f.args());
         //node_op->original = expr;
         tree.enter(node_op);
@@ -1289,6 +1004,11 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         //g(domain) = selected;
         Func g = def(f) = selected;
         return g;
+    }
+
+    void visit(const Expr expr)
+    {
+        IRMutator2::mutate(expr);
     }
 
     #undef indented_printf
@@ -1697,30 +1417,29 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
             m.compile_jit(target);
         );
 
+    times.upl_time =
+        PROFILE(
+            if (!gpu)
+                return 0.0;
+            for (auto buffer : input_buffers)
+            {
+                buffer.copy_to_device(target);
+            }
+        );
+
     times.run_time =
         PROFILE(
             m.realize(modified_output_buffer, target);
         );
 
     modified_output_buffer.copy_to_host();
-    
 
+    // TODO(marcos): move texture upload to 'imgui_main.cpp'
     glBindTexture(GL_TEXTURE_2D, idMyTexture);
         glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, modified_output_buffer.data());
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    //if (!SaveImage("data/output/input_full.png", input_full))
-    //    printf("Error saving image\n");
-
     output = std::move(modified_output_buffer);
 
     return times;
-
-    /*
-    
-    mkdir("data/output", S_IRWXU | S_IRWXG | S_IRWXO);
-    xsprintf(output_filename, 128, "data/output/output-%s-%d.png", target.to_string().c_str(), id);
-    if (!SaveImage(output_filename, output_buffer))
-        printf("Error saving image\n");
-    */
 }
