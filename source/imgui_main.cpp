@@ -68,7 +68,6 @@ int id_expr_debugging = -1;
 Halide::Type selected_type;
 
 // from 'treedump.cpp':
-expr_tree get_tree(Func f);
 Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, std::string target_features);
 
 void refresh_texture(GLuint idMyTexture, Halide::Buffer<>& output)
@@ -358,10 +357,6 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
 
     std::string selected_name = "No node selected, displaying output";
 
-    int width = input_full.width();
-    int height = input_full.height();
-    int channels = input_full.channels();
-
     glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
 
     GLuint idMyTexture = 0;
@@ -370,7 +365,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
 
     bool linear_filter = true;
     glBindTexture(GL_TEXTURE_2D, idMyTexture);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_RGBA, GL_FLOAT, NULL);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
@@ -574,6 +569,10 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
         {
             bool * no_close = NULL;
             
+            int width    = output.width();
+            int height   = output.height();
+            int channels = output.channels();
+
             std::string info = std::to_string(width) + "x" + std::to_string(height) + "x" + std::to_string(channels)
                              + " | " + type_to_string(selected_type)
                              + " | " + std::to_string(times.run_time) + "s"

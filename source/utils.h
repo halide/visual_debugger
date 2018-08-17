@@ -49,6 +49,11 @@ struct expr_tree
     }
 };
 
+// NOTE(marcos): implementation in 'treedump.cpp'
+expr_tree get_tree(Halide::Func f);
+
+
+
 struct Profiling
 {
     double jit_time;
