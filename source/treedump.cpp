@@ -648,20 +648,69 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         tree.leave(node_op);
         return expr;
     }
-    
-    expr_node* add_spacer_node(std::string label)
+
+    #define default_expr_visitor(IRNodeType) \
+        virtual Expr visit(const IRNodeType* op) override { return mutate_and_select(op); }
+
+    default_expr_visitor(Add)
+    default_expr_visitor(Mul)
+    default_expr_visitor(Div)
+    default_expr_visitor(Mod)
+    default_expr_visitor(Sub)
+    default_expr_visitor(Min)
+    default_expr_visitor(Max)
+    default_expr_visitor(EQ)
+    default_expr_visitor(NE)
+    default_expr_visitor(LT)
+    default_expr_visitor(LE)
+    default_expr_visitor(GT)
+    default_expr_visitor(GE)
+    default_expr_visitor(And)
+    default_expr_visitor(Or)
+    default_expr_visitor(Not)
+    default_expr_visitor(UIntImm)
+    default_expr_visitor(IntImm)
+    default_expr_visitor(FloatImm)
+    default_expr_visitor(StringImm)
+    default_expr_visitor(Variable)
+    default_expr_visitor(Cast)
+    default_expr_visitor(Select)
+    default_expr_visitor(Load)
+    default_expr_visitor(Ramp)
+    default_expr_visitor(Broadcast)
+    default_expr_visitor(Shuffle)
+
+    #undef default_expr_visitor
+
+    //NOTE(Emily): Disabling Stmt nodes for now - it doesn't make sense to visualize them, so we are not assigning IDs to them
+    template<typename T>
+    Stmt mutate_and_select_stmt(const T* op)
     {
-        expr_node* node_op = tree.new_expr_node();
-        node_op->name = label;
-        tree.enter(node_op);
-        //tree.leave(node_op);
-        return node_op;
+        //const int id = ++traversal_id;    // generate unique id
+        dump_head(op);
+        add_indent();
+            Stmt stmt = IRMutator2::visit(op);  // visit/mutate children
+        remove_indent();
+        return stmt;
     }
-    
-    void leave_spacer_node(expr_node* spacer)
-    {
-        tree.leave(spacer);
-    }
+
+    #define default_stmt_visitor(IRNodeType) \
+        virtual Stmt visit(const IRNodeType* op) override { return mutate_and_select_stmt(op); }
+
+    default_stmt_visitor(LetStmt)
+    default_stmt_visitor(AssertStmt)
+    default_stmt_visitor(ProducerConsumer)
+    default_stmt_visitor(For)
+    default_stmt_visitor(Store)
+    default_stmt_visitor(Provide)
+    default_stmt_visitor(Allocate)
+    default_stmt_visitor(Free)
+    default_stmt_visitor(Prefetch)
+    default_stmt_visitor(Block)
+    default_stmt_visitor(IfThenElse)
+    default_stmt_visitor(Evaluate)
+
+    #undef default_stmt_visitor
 
     // convenience method (not really a part of IRMutator2)
     template<typename PatchFn>
@@ -677,213 +726,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         return patched_expr;
     }
 
-    virtual Expr visit(const Add* op) override
-    {
-        return mutate_and_select(op);
-    }
-
-    virtual Expr visit(const Mul* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Div* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Mod* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Sub* op) override
-    {
-        return mutate_and_select(op);
-    }
-
-    virtual Expr visit(const Min* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Max* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const EQ* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const NE* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const LT* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const LE* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const GT* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const GE* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const And* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Or* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Not* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const UIntImm* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const IntImm* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const FloatImm* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const StringImm* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Variable* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Cast* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Select* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Load* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Ramp* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Broadcast* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Shuffle* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    //NOTE(Emily): Disabling Stmt nodes for now - it doesn't make sense to visualize them, so we are not assigning IDs to them
-    template<typename T>
-    Stmt mutate_and_select_stmt(const T* op)
-    {
-        //const int id = ++traversal_id;    // generate unique id
-        dump_head(op);
-        add_indent();
-            Stmt stmt = IRMutator2::visit(op);  // visit/mutate children
-        remove_indent();
-        return stmt;
-    }
-    
-    virtual Stmt visit(const LetStmt* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const AssertStmt* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const ProducerConsumer* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const For* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const Store* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const Provide* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const Allocate* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const Free* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const Prefetch* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const Block* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const IfThenElse* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const Evaluate* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
     virtual Expr visit(const Let* op) override
     {
         if (selected.defined())
@@ -911,6 +753,20 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
             return new_let_expr;
         });
         return patched_expr;
+    }
+
+    expr_node* add_spacer_node(std::string label)
+    {
+        expr_node* node_op = tree.new_expr_node();
+        node_op->name = label;
+        tree.enter(node_op);
+        //tree.leave(node_op);
+        return node_op;
+    }
+    
+    void leave_spacer_node(expr_node* spacer)
+    {
+        tree.leave(spacer);
     }
 
     bool arg_selected = false;
@@ -1056,11 +912,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         return expr;
     }
 
-    void visit(const Expr expr)
-    {
-        IRMutator2::mutate(expr);
-    }
-
     // The following are convenience functions (not really a part of IRVisitor)
     void visit(Function f)
     {
@@ -1155,6 +1006,11 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         //g(domain) = selected;
         Func g = def(f) = selected;
         return g;
+    }
+
+    void visit(const Expr expr)
+    {
+        IRMutator2::mutate(expr);
     }
 
     #undef indented_printf
