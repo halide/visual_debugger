@@ -15,6 +15,8 @@
 #include "utils.h"
 #include "HalideImageIO.h"
 
+using namespace Halide;
+
 bool stdout_echo_toggle (false);
 bool save_images(false);
 
