@@ -143,8 +143,9 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
 {
     if (id_expr_debugging == parent->node_id)
     {
-        ImGui::PushStyleColor(ImGuiCol_Text,   0xFF00CF40);
-        ImGui::PushStyleColor(ImGuiCol_Button, 0xFF00CF40);
+        const ImU32 LimeGreen = 0xFF00CF40;
+        ImGui::PushStyleColor(ImGuiCol_Text,   LimeGreen);
+        ImGui::PushStyleColor(ImGuiCol_Button, LimeGreen);
     }
 
     bool clicked = false;
@@ -587,7 +588,6 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                 if(func_value == id && changed)
                 {
                     tree = get_tree(func);
-                    Halide::Buffer<> output;
                     times = select_and_visualize(func, 0, input_full, output, idMyTexture, target_features);
                     selected = func;
                     selected_type = func.output_types()[0]; //NOTE(Emily): need to handle case with multiple outputs or update definitions
