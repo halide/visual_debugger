@@ -122,6 +122,9 @@ void refresh_texture(GLuint idMyTexture, Halide::Buffer<>& output)
 
     glBindTexture(GL_TEXTURE_2D, idMyTexture);
         glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, output.data());
+        // TODO(marcos): generate mip-maps to improve visualization on zoom-out
+        // auto glGenerateMipMap = (void(*)(GLenum))glfwGetProcAddress("glGenerateMipMap");
+        //glGenerateMipMap(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
