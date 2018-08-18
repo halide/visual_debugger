@@ -623,6 +623,16 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                 
             }
 
+            // screen coordinate of the current draw "tip" (cursor) location
+            // (which is where the child image control will start rendering)
+            ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
+
+            ImVec2  mouse_pos = ImGui::GetMousePos();
+            ImVec2  hover_pos = mouse_pos;
+            hover_pos.x -= cursor_pos.x;
+            hover_pos.y -= cursor_pos.y;
+            ImGui::Text("hovered pixel: (x=%.0f, y=%.0f) = [r=%f, g=%f, b=%f]", hover_pos.x, hover_pos.y, 0.0f, 0.0f, 0.0f);
+
             ImGui::BeginChild(" ", ImVec2(0,0), false, ImGuiWindowFlags_HorizontalScrollbar); //NOTE(Emily): in order to get horizontal scrolling needed to add other parameters (from example online)
                 ImGui::Image((void *) (uintptr_t) idMyTexture , ImVec2(width*zoom, height*zoom));
             ImGui::EndChild();
