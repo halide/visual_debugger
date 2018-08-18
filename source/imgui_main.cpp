@@ -125,6 +125,97 @@ void refresh_texture(GLuint idMyTexture, Halide::Buffer<>& output)
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
+template<typename T, int K>
+void query_pixel(Halide::Runtime::Buffer<T, K>& image, int x, int y, float& r, float& g, float& b)
+{
+    r = (float)image(x, y, 0);
+    g = (float)image(x, y, 1);
+    b = (float)image(x, y, 2);
+}
+
+void query_pixel(Halide::Buffer<>& buffer, int x, int y, float& r, float& g, float& b)
+{
+    r = g = b = 0.0f;
+
+    if ((x < 0) || (x >= buffer.width()))
+        return;
+    if ((y < 0) || (y >= buffer.height()))
+        return;
+
+    switch (output.type().code())
+    {
+        case halide_type_int :
+            switch (output.type().bits())
+            {
+                case 8 :
+                {
+                    Halide::Runtime::Buffer<int8_t> image = *buffer.get();
+                    query_pixel(image, x, y, r, g, b);
+                    break;
+                }
+                case 16 :
+                {
+                    Halide::Runtime::Buffer<int16_t> image = *buffer.get();
+                    query_pixel(image, x, y, r, g, b);
+                    break;
+                }
+                case 32 :
+                {
+                    Halide::Runtime::Buffer<int32_t> image = *buffer.get();
+                    query_pixel(image, x, y, r, g, b);
+                    break;
+                }
+                default:
+                    assert(false);
+                    break;
+            }
+            break;
+        case halide_type_uint :
+            switch (output.type().bits())
+            {
+                case 8 :
+                {
+                    Halide::Runtime::Buffer<uint8_t> image = *buffer.get();
+                    query_pixel(image, x, y, r, g, b);
+                    break;
+                }
+                case 16 :
+                {
+                    Halide::Runtime::Buffer<uint16_t> image = *buffer.get();
+                    query_pixel(image, x, y, r, g, b);
+                    break;
+                }
+                case 32 :
+                {
+                    Halide::Runtime::Buffer<uint32_t> image = *buffer.get();
+                    query_pixel(image, x, y, r, g, b);
+                    break;
+                }
+                default:
+                    assert(false);
+                    break;
+            }
+            break;
+        case halide_type_float :
+            switch (output.type().bits())
+            {
+                case 32 :
+                {
+                    Halide::Runtime::Buffer<float> image = *buffer.get();
+                    query_pixel(image, x, y, r, g, b);
+                    break;
+                }
+                default:
+                    assert(false);
+                    break;
+            }
+            break;
+        default :
+            assert(false);
+            break;
+    }
+}
+
 void display_node(expr_node* node, GLuint idMyTexture, Func f, Halide::Buffer<uint8_t>& input_full, std::string& selected_name, Profiling& times, const std::string& target_features)
 {
     const int id = node->node_id;
@@ -623,19 +714,27 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                 
             }
 
-            // screen coordinate of the current draw "tip" (cursor) location
-            // (which is where the child image control will start rendering)
-            ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
+            // save some space to draw the hovered pixel value below the image:
+            ImVec2 size = ImGui::GetContentRegionAvail();
+            size.x = 0;
+            size.y -= ImGui::GetFontSize() + 4;
+
+            ImGui::BeginChild(" ", size, false, ImGuiWindowFlags_HorizontalScrollbar); //NOTE(Emily): in order to get horizontal scrolling needed to add other parameters (from example online)
+                // screen coords of the current drawing "tip" (cursor) location
+                // (which is where the child image control will start rendering)
+                ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
+                ImGui::Image((void *) (uintptr_t) idMyTexture , ImVec2(width*zoom, height*zoom));
+            ImGui::EndChild();
 
             ImVec2  mouse_pos = ImGui::GetMousePos();
             ImVec2  hover_pos = mouse_pos;
             hover_pos.x -= cursor_pos.x;
             hover_pos.y -= cursor_pos.y;
-            ImGui::Text("hovered pixel: (x=%.0f, y=%.0f) = [r=%f, g=%f, b=%f]", hover_pos.x, hover_pos.y, 0.0f, 0.0f, 0.0f);
-
-            ImGui::BeginChild(" ", ImVec2(0,0), false, ImGuiWindowFlags_HorizontalScrollbar); //NOTE(Emily): in order to get horizontal scrolling needed to add other parameters (from example online)
-                ImGui::Image((void *) (uintptr_t) idMyTexture , ImVec2(width*zoom, height*zoom));
-            ImGui::EndChild();
+            int x = (int)(hover_pos.x / zoom);
+            int y = (int)(hover_pos.y / zoom);
+            float r, g, b;
+            query_pixel(output, x, y, r, g, b);
+            ImGui::Text("hovered pixel: (x=%d, y=%d) = [r=%f, g=%f, b=%f]", x, y, r, g, b);
 
             ImGui::End();
         }
