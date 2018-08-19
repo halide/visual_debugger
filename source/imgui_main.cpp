@@ -15,6 +15,8 @@
 #include "utils.h"
 #include "HalideImageIO.h"
 
+using namespace Halide;
+
 bool stdout_echo_toggle (false);
 bool save_images(false);
 
@@ -66,12 +68,166 @@ int id_expr_debugging = -1;
 Halide::Type selected_type;
 
 // from 'treedump.cpp':
-expr_tree get_tree(Func f);
-Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, GLuint idMyTexture, std::string target_features);
+Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, std::string target_features);
 
-void display_node(expr_node * parent, GLuint idMyTexture, int width, int height, Func f, Halide::Buffer<uint8_t>& input_full, std::string& selected_name, Profiling& times, const std::string& target_features)
+void refresh_texture(GLuint idMyTexture, Halide::Buffer<>& output)
 {
-    if (id_expr_debugging == parent->node_id)
+    auto dims = output.dimensions();
+    // only 2D or 3D images for now (no 1D LUTs or nD entities)
+    assert(dims >= 2);
+    assert(dims <= 3);
+
+    int width    = output.width();      // same as output.dim(0).extent()
+    int height   = output.height();     // same as output.dim(1).extent()
+    int channels = output.channels();   // same as output.dim(2).extent() when 'dims >= 2', or 1 otherwise
+
+    // only monochrome or rgb for now
+    assert(channels == 1 || channels == 3);
+
+    bool is_monochrome = (channels == 1);
+
+    GLenum internal_format (GL_INVALID_ENUM),
+           external_format (GL_INVALID_ENUM),
+           external_type   (GL_INVALID_ENUM);
+
+    external_format = (is_monochrome) ? GL_RED
+                                      : GL_RGB;
+
+    #ifndef GL_RGBA32F
+    #define GL_RGBA32F 0x8814
+    #endif//GL_RGBA32F
+
+    Type type = output.type();
+    bool is_float = type.is_float();
+    auto bits = type.bits();
+    switch(bits)
+    {
+        case 8:
+            external_type   = GL_UNSIGNED_BYTE;
+            internal_format = GL_RGBA8;
+            break;
+        case 16:
+            external_type   = GL_UNSIGNED_SHORT;
+            internal_format = GL_RGBA16;                                    // maybe force GL_RGBA8 fow now?
+            break;
+        case 32:
+            external_type   = (is_float) ? GL_FLOAT   : GL_UNSIGNED_INT;
+            internal_format = (is_float) ? GL_RGBA32F : GL_RGBA16;          // maybe force GL_RGBA8 for now?
+            break;
+        default:
+            assert(false);
+            break;
+            
+    }
+
+    glBindTexture(GL_TEXTURE_2D, idMyTexture);
+        glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, output.data());
+        // TODO(marcos): generate mip-maps to improve visualization on zoom-out
+        // auto glGenerateMipMap = (void(*)(GLenum))glfwGetProcAddress("glGenerateMipMap");
+        //glGenerateMipMap(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+template<typename T, int K>
+void query_pixel(Halide::Runtime::Buffer<T, K>& image, int x, int y, float& r, float& g, float& b)
+{
+    r = (float)image(x, y, 0);
+    g = (float)image(x, y, 1);
+    b = (float)image(x, y, 2);
+}
+
+void query_pixel(Halide::Buffer<>& buffer, int x, int y, float& r, float& g, float& b)
+{
+    r = g = b = 0.0f;
+
+    if ((x < 0) || (x >= buffer.width()))
+        return;
+    if ((y < 0) || (y >= buffer.height()))
+        return;
+
+    switch (output.type().code())
+    {
+        case halide_type_int :
+            switch (output.type().bits())
+            {
+                case 8 :
+                {
+                    Halide::Runtime::Buffer<int8_t> image = *buffer.get();
+                    query_pixel(image, x, y, r, g, b);
+                    break;
+                }
+                case 16 :
+                {
+                    Halide::Runtime::Buffer<int16_t> image = *buffer.get();
+                    query_pixel(image, x, y, r, g, b);
+                    break;
+                }
+                case 32 :
+                {
+                    Halide::Runtime::Buffer<int32_t> image = *buffer.get();
+                    query_pixel(image, x, y, r, g, b);
+                    break;
+                }
+                default:
+                    assert(false);
+                    break;
+            }
+            break;
+        case halide_type_uint :
+            switch (output.type().bits())
+            {
+                case 8 :
+                {
+                    Halide::Runtime::Buffer<uint8_t> image = *buffer.get();
+                    query_pixel(image, x, y, r, g, b);
+                    break;
+                }
+                case 16 :
+                {
+                    Halide::Runtime::Buffer<uint16_t> image = *buffer.get();
+                    query_pixel(image, x, y, r, g, b);
+                    break;
+                }
+                case 32 :
+                {
+                    Halide::Runtime::Buffer<uint32_t> image = *buffer.get();
+                    query_pixel(image, x, y, r, g, b);
+                    break;
+                }
+                default:
+                    assert(false);
+                    break;
+            }
+            break;
+        case halide_type_float :
+            switch (output.type().bits())
+            {
+                case 32 :
+                {
+                    Halide::Runtime::Buffer<float> image = *buffer.get();
+                    query_pixel(image, x, y, r, g, b);
+                    break;
+                }
+                default:
+                    assert(false);
+                    break;
+            }
+            break;
+        default :
+            assert(false);
+            break;
+    }
+}
+
+void display_node(expr_node* node, GLuint idMyTexture, Func f, Halide::Buffer<uint8_t>& input_full, std::string& selected_name, Profiling& times, const std::string& target_features)
+{
+    const int id = node->node_id;
+    const char* label = node->name.c_str();
+    const bool selected = (id_expr_debugging == id);
+    const bool terminal = node->children.empty();
+    const bool viewable = (id != 0);   // <- whether or not this expr_node can be visualized
+
+    if (selected)
     {
         const ImU32 LimeGreen = 0xFF00CF40;
         ImGui::PushStyleColor(ImGuiCol_Text,   LimeGreen);
@@ -79,25 +235,18 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
     }
 
     bool clicked = false;
-    if (parent->node_id != 0)
+    if (viewable)
     {
-        ImGui::PushID(parent->node_id);
+        ImGui::PushID(id);
         clicked = ImGui::SmallButton(" ");
         ImGui::PopID();
         ImGui::SameLine();
     }
 
-    bool open = false;
-    if (parent->children.empty())
-    {
-        open = ImGui::TreeNodeEx(parent->name.c_str(), ImGuiTreeNodeFlags_Leaf);
-    }
-    else
-    {
-        open = ImGui::TreeNode(parent->name.c_str());
-    }
+    bool open = (terminal) ? ImGui::TreeNodeEx(label, ImGuiTreeNodeFlags_Leaf)
+                           : ImGui::TreeNode(label);
 
-    if (id_expr_debugging == parent->node_id)
+    if (selected)
     {
         ImGui::PopStyleColor();
         ImGui::PopStyleColor();
@@ -105,16 +254,14 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
 
     if (clicked)
     {
-        selected_name = parent->name;
-        
-        times = select_and_visualize(f, parent->node_id, input_full, output, idMyTexture, target_features);
+        times = select_and_visualize(f, id, input_full, output, target_features);
+        refresh_texture(idMyTexture, output);
         if(save_images)
         {
             assert(output.defined());
             //NOTE(Emily): need to create default filename for all images
             //we want to decide file extension based on data type
-            int id = parent->node_id;
-            
+
             if(fname == "") default_output_name(f.name(), id);
             
             if(!SaveImage(fname.c_str(), output))
@@ -122,8 +269,9 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
             
             fname = ""; //NOTE(Emily): done saving so want to reset fname
         }
-        id_expr_debugging = parent->node_id;
-        if(parent->original.defined()) selected_type = parent->original.type();
+        id_expr_debugging = id;
+        if (node->original.defined()) selected_type = node->original.type();
+        selected_name = label;
     }
 
     if (!open)
@@ -131,14 +279,12 @@ void display_node(expr_node * parent, GLuint idMyTexture, int width, int height,
         return;
     }
 
-    if(!parent->children.empty())
+    for(auto& child : node->children)
     {
-        for(int i = 0; i < parent->children.size(); i++)
-        {
-            display_node(parent->children[i], idMyTexture, width, height, f, input_full, selected_name, times, target_features);
-        }
+        display_node(child, idMyTexture, f, input_full, selected_name, times, target_features);
     }
 
+    // NOTE(marcos): TreePop() must be called only when TreeNode*() returns true
     ImGui::TreePop();
 }
 
@@ -317,28 +463,24 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     bool show_stdout_box = true;
     bool show_save_image = true;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-    
+
     std::string selected_name = "No node selected, displaying output";
-    
-    
-    int width = input_full.width();
-    int height = input_full.height();
-    int channels = input_full.channels();
 
     glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
-    
+
     GLuint idMyTexture = 0;
     glGenTextures(1, &idMyTexture);
     assert(idMyTexture != 0);
-    
+
+    bool linear_filter = true;
     glBindTexture(GL_TEXTURE_2D, idMyTexture);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_RGBA, GL_FLOAT, NULL);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
     glBindTexture(GL_TEXTURE_2D, 0);
-    
+
     // TODO(marcos): maybe we should make 'select_and_visualize' return the
     // corresponding expr_tree; this will spare us of a visitor step.
     //expr_tree tree = get_tree(funcs[0]);
@@ -346,11 +488,8 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     std::string target_features;
 
     //NOTE(Emily): call to update buffer to display output of function
-    //Profiling times = select_and_visualize(f, 0, input_full, idMyTexture, target_features);
     Profiling times = { };
     int cpu_value(0), gpu_value(0), func_value(0);
-    
-
 
     //target flag bools (need to be outside of loop to maintain state)
     bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false), f16c(false);
@@ -360,7 +499,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     bool save_current(false);
 
     SystemInfo sys;
-    
+
     //NOTE(Emily): temporary to explore demo window
     bool open_demo(false);
 
@@ -503,7 +642,8 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                 if(func_value == id && changed)
                 {
                     tree = get_tree(func);
-                    times = select_and_visualize(func, 0, input_full, output, idMyTexture, target_features);
+                    times = select_and_visualize(func, 0, input_full, output, target_features);
+                    refresh_texture(idMyTexture, output);
                     selected = func;
                     selected_type = func.output_types()[0]; //NOTE(Emily): need to handle case with multiple outputs or update definitions
                     id_expr_debugging = -1;
@@ -527,7 +667,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             //Note(Emily): call recursive method to display tree
             if(func_selected && target_selected)
             {
-                display_node(tree.root, idMyTexture, width, height, selected, input_full, selected_name, times, target_features);
+                display_node(tree.root, idMyTexture, selected, input_full, selected_name, times, target_features);
             }
             ImGui::End();
             
@@ -538,6 +678,10 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
         {
             bool * no_close = NULL;
             
+            int width    = output.width();
+            int height   = output.height();
+            int channels = output.channels();
+
             std::string info = std::to_string(width) + "x" + std::to_string(height) + "x" + std::to_string(channels)
                              + " | " + type_to_string(selected_type)
                              + " | " + std::to_string(times.run_time) + "s"
@@ -555,7 +699,23 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                 //allow user to select individual images to save
                 ImGui::Checkbox("Save current image:" , &save_current);
             }*/
-            
+
+            static float zoom = 1.0f;
+            ImGui::SliderFloat("Image Zoom", &zoom, 0, 10, "%.001f");
+
+            ImGui::SameLine();
+
+            if (ImGui::Checkbox("filter", &linear_filter))
+            {
+                GLenum filter = (linear_filter) ? GL_LINEAR : GL_NEAREST;
+                glBindTexture(GL_TEXTURE_2D, idMyTexture);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+                glBindTexture(GL_TEXTURE_2D, 0);
+            }
+
+            ImGui::SameLine();
+
             if(ImGui::Button("Save Image"))
             {
                 //file_system_popup();
@@ -571,14 +731,29 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                 fname = ""; //NOTE(Emily): done saving so want to reset fname
                 
             }
-            ImGui::SameLine();
-            
-            static float zoom = 1.0f;
-            ImGui::SliderFloat("Image Zoom", &zoom, 0, 10, "%.001f");
-            
-            ImGui::BeginChild(" ", ImVec2(0,0), false, ImGuiWindowFlags_HorizontalScrollbar); //NOTE(Emily): in order to get horizontal scrolling needed to add other parameters (from example online)
+
+            // save some space to draw the hovered pixel value below the image:
+            ImVec2 size = ImGui::GetContentRegionAvail();
+            size.x = 0;
+            size.y -= ImGui::GetFontSize() + 4;
+
+            ImGui::BeginChild(" ", size, false, ImGuiWindowFlags_HorizontalScrollbar); //NOTE(Emily): in order to get horizontal scrolling needed to add other parameters (from example online)
+                // screen coords of the current drawing "tip" (cursor) location
+                // (which is where the child image control will start rendering)
+                ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
                 ImGui::Image((void *) (uintptr_t) idMyTexture , ImVec2(width*zoom, height*zoom));
             ImGui::EndChild();
+
+            ImVec2  mouse_pos = ImGui::GetMousePos();
+            ImVec2  hover_pos = mouse_pos;
+            hover_pos.x -= cursor_pos.x;
+            hover_pos.y -= cursor_pos.y;
+            int x = (int)(hover_pos.x / zoom);
+            int y = (int)(hover_pos.y / zoom);
+            float r, g, b;
+            query_pixel(output, x, y, r, g, b);
+            ImGui::Text("hovered pixel: (x=%d, y=%d) = [r=%f, g=%f, b=%f]", x, y, r, g, b);
+
             ImGui::End();
         }
 

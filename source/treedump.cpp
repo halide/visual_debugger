@@ -14,9 +14,6 @@
     #include <sys/stat.h>
 #endif//_MSC_VER
 
-#include <GLFW/glfw3.h>
-#define GL_RGBA32F 0x8814
-
 #include "utils.h"
 using namespace Halide;
 
@@ -1085,9 +1082,7 @@ struct FindInputBuffers : public Halide::Internal::IRVisitor
     }
 };
 
-//Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, GLuint idMyTexture, std::string target_features, bool save_to_disk, std::string fname = "")
-
-Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, GLuint idMyTexture, std::string target_features)
+Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, std::string target_features)
 {
     Func m = transform(f, id);
     auto input_buffers = FindInputBuffers().visit(m);
@@ -1125,51 +1120,18 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
     assert(dims >= 2);
     assert(dims <= 3);
 
-    int channels = 0;
-    if(dims == 2)
-    {
-        channels = 1;
-    }
-    else if(dims == 3)
-    {
-        channels = output_buffer.dim(2).extent();
-    }
+    auto bits = t.bits(); //size of type
+
+    int width    = output_buffer.width();       // same as output.dim(0).extent()
+    int height   = output_buffer.height();      // same as output.dim(1).extent()
+    int channels = output_buffer.channels();    // same as output.dim(2).extent() when 'dims >= 2', or 1 otherwise
+
     // only monochrome or rgb for now
     assert(channels == 1 || channels == 3);
 
     bool is_monochrome = (channels == 1);
-    
-    GLenum internal_format(GL_INVALID_ENUM), external_format(GL_INVALID_ENUM), external_type(GL_INVALID_ENUM);
-    external_format = (is_monochrome) ? GL_RED
-                                      : GL_RGB;
 
-    auto bits = t.bits(); //size of type
-    switch(bits)
-    {
-        case 8:
-            external_type   = GL_UNSIGNED_BYTE;
-            internal_format = GL_RGBA8;
-            break;
-        case 16:
-            external_type   = GL_UNSIGNED_SHORT;
-            internal_format = GL_RGBA16;                                    // maybe force GL_RGBA8 fow now?
-            break;
-        case 32:
-            external_type   = (is_float) ? GL_FLOAT   : GL_UNSIGNED_INT;
-            internal_format = (is_float) ? GL_RGBA32F : GL_RGBA16;          // maybe force GL_RGBA8 for now?
-            break;
-        default:
-            assert(false);
-            break;
-            
-    }
-    
-    int width  = output_buffer.dim(0).extent();
-    int height = output_buffer.dim(1).extent();
-    
-    
     Halide::Runtime::Buffer<> modified_output_buffer;
-    std::string out_type;
 
     switch(t.code())
     {
@@ -1180,7 +1142,6 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
             {
                 case 8:
                 {
-                    out_type = "int8_t";
                     if (is_monochrome)
                         modified_output_buffer = Halide::Runtime::Buffer<int8_t, 2>::make_interleaved(width, height, 1);
                     else
@@ -1189,7 +1150,6 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
                 }
                 case 16:
                 {
-                    out_type = "int16_t";
                     if (is_monochrome)
                         modified_output_buffer = Halide::Runtime::Buffer<int16_t, 2>::make_interleaved(width, height, 1);
                     else
@@ -1198,7 +1158,6 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
                 }
                 case 32:
                 {
-                    out_type = "int32_t";
                     if (is_monochrome)
                         modified_output_buffer = Halide::Runtime::Buffer<int32_t, 2>::make_interleaved(width, height, 1);
                     else
@@ -1218,7 +1177,6 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
             {
                 case 8:
                 {
-                    out_type = "uint8_t";
                     if (is_monochrome)
                         modified_output_buffer = Halide::Runtime::Buffer<uint8_t, 2>::make_interleaved(width, height, 1);
                     else
@@ -1227,7 +1185,6 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
                 }
                 case 16:
                 {
-                    out_type = "uint16_t";
                     if (is_monochrome)
                         modified_output_buffer = Halide::Runtime::Buffer<uint16_t, 2>::make_interleaved(width, height, 1);
                     else
@@ -1236,7 +1193,6 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
                 }
                 case 32:
                 {
-                    out_type = "uint32_t";
                     if (is_monochrome)
                         modified_output_buffer = Halide::Runtime::Buffer<uint32_t, 2>::make_interleaved(width, height, 1);
                     else
@@ -1256,7 +1212,6 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
             {
                 case 32:
                 {
-                    out_type = "float";
                     if (is_monochrome)
                         modified_output_buffer = Halide::Runtime::Buffer<float, 2>::make_interleaved(width, height, 1);
                     else
@@ -1275,91 +1230,19 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
     }
 
     Target host_target = get_host_target();
-    Target::OS os     = host_target.os;
-    Target::Arch arch = Target::ArchUnknown;
-    int arch_bits     = 0;
-    
-
-    {
-        auto dash = target_features.find('-');
-        std::string arch_string = target_features.substr(0, dash);
-        target_features.erase(0, dash);
-
-        if (arch_string == "host")
-        {
-            arch = host_target.arch;
-            arch_bits = host_target.bits;
-        }
-        else if (arch_string == "x86")
-        {
-            arch = Target::X86;
-            arch_bits = 32;
-        }
-        else if (arch_string == "x86_64")
-        {
-            arch = Target::X86;
-            arch_bits = 64;
-        }
-
-        if (arch != host_target.arch)
-        {
-            fprintf(stderr, "WARNING: must JIT compile to the same arch as the host...\n");
-            arch = host_target.arch;
-        }
-
-        if (arch_bits != host_target.bits)
-        {
-            fprintf(stderr, "WARNING: must JIT compile to the same arch-bits as the host...\n");
-            arch_bits = host_target.bits;
-        }
-    }
-
-    {
-        const char feature [] = "-avx512";
-        auto pos = target_features.find(feature);
-        if (pos != target_features.npos)
-        {
-            fprintf(stderr, "WARNING: host CPU does not have AVX512 support...\n");
-            target_features.erase(pos, sizeof(feature)-1);
-        }
-    }
-    {
-        const char feature [] = "-fma4";
-        auto pos = target_features.find(feature);
-        if (pos != target_features.npos)
-        {
-            fprintf(stderr, "WARNING: host CPU does not have FMA4 support...\n");
-            target_features.erase(pos, sizeof(feature)-1);
-        }
-    }
-    {
-        const char feature [] = "-d3d12compute";
-        auto pos = target_features.find(feature);
-        if (pos != target_features.npos)
-        {
-            fprintf(stderr, "WARNING: Direct3D 12 (compute) support not available in the current Halide build...\n");
-            target_features.erase(pos, sizeof(feature)-1);
-        }
-    }
-    {
-        const char feature [] = "-metal";
-        auto pos = target_features.find(feature);
-        bool apple = (os == Target::OS::OSX) || (os == Target::OS::IOS);
-        if (pos != target_features.npos && !apple)
-        {
-            fprintf(stderr, "WARNING: Metal is not support by the operating system of the host...\n");
-            target_features.erase(pos, sizeof(feature)-1);
-        }
-    }
-
-    bool gpu = target_features.find("-metal")  != target_features.npos
-            || target_features.find("-cuda")   != target_features.npos
-            || target_features.find("-opencl") != target_features.npos
-            || target_features.find("-d3d12compute") != target_features.npos;
+    Target::OS os      = host_target.os;
+    Target::Arch arch  = host_target.arch;
+    int arch_bits      = host_target.bits;
 
     Target base_target (os, arch, arch_bits);
     std::string target_string = base_target.to_string();
-    target_string.append(target_features);
+    target_features.erase(0, target_features.find("-"));    // erase the cpu feature, since base_target already has the correct one
+    if (!target_features.empty())
+    {
+        target_features.erase(0, target_features.find("-")+1);
+        target_string.append("-");
+        target_string.append(target_features);
+    }
 
     Target target;
     if (Target::validate_target_string(target_string))
@@ -1375,6 +1258,8 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
     target_string = target.to_string();
     printf("Halide Target : %s\n", target_string.c_str());
     fflush(stdout);
+
+    bool gpu = target.has_gpu_feature();
 
     if (gpu)
     {
@@ -1433,11 +1318,6 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
         );
 
     modified_output_buffer.copy_to_host();
-
-    // TODO(marcos): move texture upload to 'imgui_main.cpp'
-    glBindTexture(GL_TEXTURE_2D, idMyTexture);
-        glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, modified_output_buffer.data());
-    glBindTexture(GL_TEXTURE_2D, 0);
 
     output = std::move(modified_output_buffer);
 

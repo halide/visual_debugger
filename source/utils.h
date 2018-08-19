@@ -3,19 +3,14 @@
 #include <vector>
 #include <deque>
 
-// //// Halide ////////////////////////////////////////////////////////////////
 #include <Halide.h>
-
-//////////////////////////////////////////////////////////////// Halide //// //
-
-using namespace Halide;
 
 struct expr_node {
     std::string name;
     std::vector<expr_node *> children;
     int node_id = 0;
-    Expr original;
-    Expr modify;
+    Halide::Expr original;
+    Halide::Expr modify;
 };
 
 struct expr_tree
@@ -53,6 +48,11 @@ struct expr_tree
         parents.pop_back();
     }
 };
+
+// NOTE(marcos): implementation in 'treedump.cpp'
+expr_tree get_tree(Halide::Func f);
+
+
 
 struct Profiling
 {
