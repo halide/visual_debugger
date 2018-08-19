@@ -209,6 +209,21 @@ void glfw_on_window_resized(GLFWwindow* window, int width, int height)
  }
  */
 
+/*NOC File System example save code:
+ *************************************
+ #define NOC_FILE_DIALOG_IMPLEMENTATION
+ #define NOC_FILE_DIALOG_GTK
+ 
+ #include "noc_file_dialog.h"
+ 
+ printf("Open dialog for an image file\n");
+ ret = noc_file_dialog_open(NOC_FILE_DIALOG_OPEN, "png\0*.png\0jpg\0*.jpg;*.jpeg\0", NULL, NULL);
+ 
+ printf("Save dialog for the same file\n");
+ ret = noc_file_dialog_open(NOC_FILE_DIALOG_SAVE, "png\0*.png\0", ret, NULL);
+ *************************************
+ */
+
 
 
 void file_system_popup()
