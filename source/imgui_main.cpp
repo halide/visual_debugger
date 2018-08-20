@@ -34,6 +34,9 @@ using namespace Halide;
 bool stdout_echo_toggle (false);
 bool save_images(false);
 
+bool range_normalize(false);
+int min_val(0), max_val(0);
+
 //NOTE(Emily): vars related to saving images
 Halide::Buffer<> output;
 std::string fname = "";
@@ -82,7 +85,7 @@ int id_expr_debugging = -1;
 Halide::Type selected_type;
 
 // from 'treedump.cpp':
-Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, std::string target_features);
+Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, std::string target_features, bool range_normalize = false, int min = 0, int max = 0);
 
 void refresh_texture(GLuint idMyTexture, Halide::Buffer<>& output)
 {
@@ -268,7 +271,7 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, Halide::Buffer<ui
 
     if (clicked)
     {
-        times = select_and_visualize(f, id, input_full, output, target_features);
+        times = select_and_visualize(f, id, input_full, output, target_features, range_normalize, min_val, max_val);
         refresh_texture(idMyTexture, output);
         if(save_images)
         {
@@ -424,6 +427,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     bool show_target_select = true;
     bool show_stdout_box = true;
     bool show_save_image = true;
+    bool show_range_normalize = true;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     std::string selected_name = "No node selected, displaying output";
@@ -499,6 +503,16 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             ImGui::SameLine();
             ImGui::Text("Save all displayed images");
             
+            ImGui::End();
+        }
+        
+        if(show_range_normalize)
+        {
+            bool * no_close = NULL;
+            ImGui::Begin("Range Normalize", no_close);
+            ImGui::InputInt("Min Value", &min_val);
+            ImGui::InputInt("Max Value", &max_val);
+            if(min_val != 0 || max_val != 0) range_normalize = true;
             ImGui::End();
         }
         

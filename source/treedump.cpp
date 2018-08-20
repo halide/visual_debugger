@@ -1082,7 +1082,7 @@ struct FindInputBuffers : public Halide::Internal::IRVisitor
     }
 };
 
-Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, std::string target_features)
+Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, std::string target_features, bool range_normalize = false, int min = 0, int max = 0)
 {
     Func m = transform(f, id);
     auto input_buffers = FindInputBuffers().visit(m);
@@ -1097,17 +1097,21 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
     // 2. force-cast uint8_t by injecting a cast<uint8_t> before the Func is realized:
     //    (basically, an "overflow" visualization for high-bit depth integer formats)
     Type t = eval(m).type();
-    if (!t.is_float() && t.bits() > 8)
+    if(!range_normalize)
     {
-        m = def(m) = cast<uint8_t>(eval(m));
+        if (!t.is_float() && t.bits() > 8)
+        {
+            m = def(m) = cast<uint8_t>(eval(m));
+        }
     }
     //
     // 3. range-normalize, by controlling the min and max values of the normalization, like in RenderDoc
     // TODO
     // m = ...
-    int min = 0;
-    int max = 255;
-    m = def(m) = (cast<float>(eval(m)) - cast<float>(min))/(cast<float>(max) - cast<float>(min));
+    if(range_normalize)
+    {
+        m = def(m) = (cast<float>(eval(m)) - cast<float>(min))/(cast<float>(max) - cast<float>(min));
+    }
     //
     // 4. for automatic mon-max range normalization, there's the Halide inline reductions:
     // http://halide-lang.org/docs/namespace_halide.html#a9d7999c3871839488df9d591b3f55adf
