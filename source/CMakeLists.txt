@@ -24,6 +24,7 @@ target_include_directories(
 	${OPENGL_INCLUDE_DIR}
 	${HALIDE_INCLUDE_DIR}
 	${LLVM_INCLUDE_DIRS}
+	${NOC_INCLUDE_DIR}
 )
 
 target_sources(

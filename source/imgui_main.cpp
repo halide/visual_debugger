@@ -15,6 +15,8 @@
 #include "utils.h"
 #include "HalideImageIO.h"
 
+#include <noc_file_dialog.h>
+
 using namespace Halide;
 
 bool stdout_echo_toggle (false);

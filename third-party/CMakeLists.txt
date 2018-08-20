@@ -25,7 +25,9 @@ if (APPLE)
 	)
 endif()
 
-
+# dependency: noc
+set(NOC_INCLUDE_DIR
+	${CMAKE_CURRENT_LIST_DIR}/noc)
 
 # dependency: imgui
 set(IMGUI_INCLUDE_DIR
