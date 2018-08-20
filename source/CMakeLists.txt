@@ -1,12 +1,15 @@
 add_executable(
 	visdbg
 	
+ 	./imguifilesystem.cpp
 	./imgui_main.cpp
 	./main.cpp
 	./system.cpp
 	./treedump.cpp
 	../data/force_working_directory.cpp
-	
+
+	./dirent_portable.h
+	./imguifilesystem.h	
 	./imconfig.h
 	./HalideImageIO.h
 	./utils.h
@@ -24,7 +27,6 @@ target_include_directories(
 	${OPENGL_INCLUDE_DIR}
 	${HALIDE_INCLUDE_DIR}
 	${LLVM_INCLUDE_DIRS}
-	${NOC_INCLUDE_DIR}
 )
 
 target_sources(
@@ -70,6 +72,7 @@ if (LINUX)
 		dl
 	)
 endif()
+
 
 if (NOT MSVC)
 	target_compile_options(visdbg PUBLIC -fno-rtti)

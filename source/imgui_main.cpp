@@ -14,8 +14,20 @@
 #include "system.hpp"
 #include "utils.h"
 #include "HalideImageIO.h"
+/*
+#define NOC_FILE_DIALOG_IMPLEMENTATION
+#ifdef _WIN32
+#define NOC_FILE_DIALOG_WIN32
+#elif defined(__APPLE__) && defined(__MACH__)
+#define NOC_FILE_DIALOG_OSX
+#else
+#define NOC_FILE_DIALOG_GTK
+#endif
 
 #include <noc_file_dialog.h>
+ */
+
+#include "imguifilesystem.h"
 
 using namespace Halide;
 
@@ -374,13 +386,28 @@ void glfw_on_window_resized(GLFWwindow* window, int width, int height)
 
 
 
-void file_system_popup()
+void file_system_popup(bool open_fs)
 {
     ImGui::OpenPopup("Save Image");
     const bool popup_ok = ImGui::BeginPopupModal("Save Image");
     if(!popup_ok) return;
     
     ImGui::Text("Here is the popup");
+    
+    static ImGuiFs::Dialog dlg;                                                     // one per dialog (and must be static)
+    const char* chosenPath = dlg.chooseFileDialog(open_fs);             // see other dialog types and the full list of arguments for advanced usage
+    if (strlen(chosenPath)>0) {
+        // A path (chosenPath) has been chosen RIGHT NOW. However we can retrieve it later more comfortably using: dlg.getChosenPath()
+    }
+    if (strlen(dlg.getChosenPath())>0) {
+        ImGui::Text("Chosen file: \"%s\"",dlg.getChosenPath());
+    }
+    // If you want to copy the (valid) returned path somewhere, you can use something like:
+    static char myPath[ImGuiFs::MAX_PATH_BYTES];
+    if (strlen(dlg.getChosenPath())>0) {
+        strcpy(myPath,dlg.getChosenPath());
+    }
+    
     
     //std::string filename = "data/output/test.png";
     //ImGui::CloseCurrentPopup();
@@ -717,10 +744,29 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             }
 
             ImGui::SameLine();
-
-            if(ImGui::Button("Save Image"))
+            
+            bool show_fs_dialogue = ImGui::Button("Save Image");
+            static ImGuiFs::Dialog dlg;                                                     // one per dialog (and must be static)
+            const char* chosenPath = dlg.chooseFileDialog(show_fs_dialogue);             // see other dialog types and the full list of arguments for advanced usage
+            if (strlen(chosenPath)>0) {
+                // A path (chosenPath) has been chosen RIGHT NOW. However we can retrieve it later more comfortably using: dlg.getChosenPath()
+            }
+            if (strlen(dlg.getChosenPath())>0) {
+                ImGui::Text("Chosen file: \"%s\"",dlg.getChosenPath());
+            }
+            // If you want to copy the (valid) returned path somewhere, you can use something like:
+            static char myPath[ImGuiFs::MAX_PATH_BYTES];
+            if (strlen(dlg.getChosenPath())>0) {
+                strcpy(myPath,dlg.getChosenPath());
+            }
+            
+            
+            /*
+            if(show_fs_dialogue)
             {
-                //file_system_popup();
+        
+                
+                //file_system_popup(show_fs_dialogue);
                 
                 //times = select_and_visualize(selected, id_expr_debugging, input_full, output, idMyTexture, target_features);
                 
@@ -731,8 +777,9 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                 
                 //save_current = false; //NOTE(Emily): want to "uncheck" the box after saving
                 fname = ""; //NOTE(Emily): done saving so want to reset fname
+                show_fs_dialogue = false;
                 
-            }
+            }*/
 
             // save some space to draw the hovered pixel value below the image:
             ImVec2 size = ImGui::GetContentRegionAvail();
