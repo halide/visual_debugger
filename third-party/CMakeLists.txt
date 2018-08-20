@@ -33,7 +33,6 @@ if (APPLE)
 endif()
 
 
-
 # dependency: imgui
 set(IMGUI_INCLUDE_DIR
 	${CMAKE_CURRENT_LIST_DIR}/imgui
@@ -125,3 +124,4 @@ find_package(OpenGL REQUIRED)
 if (LINUX)
 	find_package(X11 REQUIRED)
 endif()
+
