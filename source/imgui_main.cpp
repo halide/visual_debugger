@@ -348,72 +348,6 @@ void glfw_on_window_resized(GLFWwindow* window, int width, int height)
     render_gui(window);
 }
 
-
-// FILE SYSTEM USAGE EXAMPLE:
-/*
- #include "imguifilesystem.h"                                                    // imguifilesystem.cpp must be compiled
- // Inside a ImGui window:
- const bool browseButtonPressed = ImGui::Button("...");                          // we need a trigger boolean variable
- static ImGuiFs::Dialog dlg;                                                     // one per dialog (and must be static)
- const char* chosenPath = dlg.chooseFileDialog(browseButtonPressed);             // see other dialog types and the full list of arguments for advanced usage
- if (strlen(chosenPath)>0) {
- // A path (chosenPath) has been chosen RIGHT NOW. However we can retrieve it later more comfortably using: dlg.getChosenPath()
- }
- if (strlen(dlg.getChosenPath())>0) {
- ImGui::Text("Chosen file: \"%s\"",dlg.getChosenPath());
- }
- // If you want to copy the (valid) returned path somewhere, you can use something like:
- static char myPath[ImGuiFs::MAX_PATH_BYTES];
- if (strlen(dlg.getChosenPath())>0) {
- strcpy(myPath,dlg.getChosenPath());
- }
- */
-
-/*NOC File System example save code:
- *************************************
- #define NOC_FILE_DIALOG_IMPLEMENTATION
- #define NOC_FILE_DIALOG_GTK
- 
- #include "noc_file_dialog.h"
- 
- printf("Open dialog for an image file\n");
- ret = noc_file_dialog_open(NOC_FILE_DIALOG_OPEN, "png\0*.png\0jpg\0*.jpg;*.jpeg\0", NULL, NULL);
- 
- printf("Save dialog for the same file\n");
- ret = noc_file_dialog_open(NOC_FILE_DIALOG_SAVE, "png\0*.png\0", ret, NULL);
- *************************************
- */
-
-
-
-void file_system_popup(bool open_fs)
-{
-    ImGui::OpenPopup("Save Image");
-    const bool popup_ok = ImGui::BeginPopupModal("Save Image");
-    if(!popup_ok) return;
-    
-    ImGui::Text("Here is the popup");
-    
-    static ImGuiFs::Dialog dlg;                                                     // one per dialog (and must be static)
-    const char* chosenPath = dlg.chooseFileDialog(open_fs);             // see other dialog types and the full list of arguments for advanced usage
-    if (strlen(chosenPath)>0) {
-        // A path (chosenPath) has been chosen RIGHT NOW. However we can retrieve it later more comfortably using: dlg.getChosenPath()
-    }
-    if (strlen(dlg.getChosenPath())>0) {
-        ImGui::Text("Chosen file: \"%s\"",dlg.getChosenPath());
-    }
-    // If you want to copy the (valid) returned path somewhere, you can use something like:
-    //static char myPath[ImGuiFs::MAX_PATH_BYTES];
-    //if (strlen(dlg.getChosenPath())>0) {
-    //    strcpy(myPath,dlg.getChosenPath());
-    //}
-    
-    //std::string filename = "data/output/test.png";
-    //ImGui::CloseCurrentPopup();
-    
-    ImGui::EndPopup();
-}
-
 bool OptionalCheckbox(const char* label, bool* v, bool enabled=true)
 {
     if (enabled)
@@ -523,8 +457,6 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false), f16c(false);
     bool neon(false);
     bool debug_runtime(false), no_asserts(false), no_bounds_query(false);
-    
-    bool save_current(false);
 
     SystemInfo sys;
 
