@@ -748,9 +748,6 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             bool show_fs_dialogue = ImGui::Button("Save Image");
             static ImGuiFs::Dialog dlg;                                                     // one per dialog (and must be static)
             const char* chosenPath = dlg.saveFileDialog(show_fs_dialogue);             // see other dialog types and the full list of arguments for advanced usage
-            if (strlen(chosenPath)>0) {
-                // A path (chosenPath) has been chosen RIGHT NOW. However we can retrieve it later more comfortably using: dlg.getChosenPath()
-            }
             if (strlen(dlg.getChosenPath())>0) {
                 ImGui::Text("Chosen file: \"%s\"",dlg.getChosenPath());
                 if(!SaveImage(dlg.getChosenPath(), output))
