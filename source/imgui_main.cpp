@@ -706,15 +706,16 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                 chosenPath = NULL;
             }
             
-            
-            ImGui::Text("Set min/max values for range normalization: ");
-            ImGui::PushItemWidth(90);
-            ImGui::SameLine(); ImGui::InputInt("Min Value", &min_val);
-            ImGui::PopItemWidth();
-            ImGui::PushItemWidth(90);
-            ImGui::SameLine(); ImGui::InputInt("Max Value", &max_val);
-            ImGui::PopItemWidth();
-            
+            if(!show_range_normalize)
+            {
+                ImGui::Text("Set min/max values for range normalization: ");
+                ImGui::PushItemWidth(90);
+                ImGui::SameLine(); ImGui::InputInt("Min Value", &min_val);
+                ImGui::PopItemWidth();
+                ImGui::PushItemWidth(90);
+                ImGui::SameLine(); ImGui::InputInt("Max Value", &max_val);
+                ImGui::PopItemWidth();
+            }
             
             // save some space to draw the hovered pixel value below the image:
             ImVec2 size = ImGui::GetContentRegionAvail();
