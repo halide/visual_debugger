@@ -427,7 +427,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     bool show_target_select = true;
     bool show_stdout_box = true;
     bool show_save_image = true;
-    bool show_range_normalize = true;
+    bool show_range_normalize = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     std::string selected_name = "No node selected, displaying output";
@@ -510,8 +510,12 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
         {
             bool * no_close = NULL;
             ImGui::Begin("Range Normalize", no_close);
+            ImGui::PushItemWidth(90);
             ImGui::InputInt("Min Value", &min_val);
+            ImGui::PopItemWidth();
+            ImGui::PushItemWidth(90);
             ImGui::InputInt("Max Value", &max_val);
+            ImGui::PopItemWidth();
             if(min_val != 0 || max_val != 0) range_normalize = true;
             ImGui::End();
         }
@@ -688,6 +692,8 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                 glBindTexture(GL_TEXTURE_2D, 0);
             }
 
+            
+            
             ImGui::SameLine();
             
             bool show_fs_dialogue = ImGui::Button("Save Image");
@@ -700,7 +706,16 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                 chosenPath = NULL;
             }
             
-
+            
+            ImGui::Text("Set min/max values for range normalization: ");
+            ImGui::PushItemWidth(90);
+            ImGui::SameLine(); ImGui::InputInt("Min Value", &min_val);
+            ImGui::PopItemWidth();
+            ImGui::PushItemWidth(90);
+            ImGui::SameLine(); ImGui::InputInt("Max Value", &max_val);
+            ImGui::PopItemWidth();
+            
+            
             // save some space to draw the hovered pixel value below the image:
             ImVec2 size = ImGui::GetContentRegionAvail();
             size.x = 0;
