@@ -34,6 +34,9 @@ using namespace Halide;
 bool stdout_echo_toggle (false);
 bool save_images(false);
 
+bool range_normalize(false);
+int min_val(0), max_val(0);
+
 //NOTE(Emily): vars related to saving images
 Halide::Buffer<> output;
 std::string fname = "";
@@ -82,7 +85,7 @@ int id_expr_debugging = -1;
 Halide::Type selected_type;
 
 // from 'treedump.cpp':
-Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, std::string target_features);
+Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, std::string target_features, bool range_normalize = false, int min = 0, int max = 0);
 
 void refresh_texture(GLuint idMyTexture, Halide::Buffer<>& output)
 {
@@ -268,7 +271,7 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, Halide::Buffer<ui
 
     if (clicked)
     {
-        times = select_and_visualize(f, id, input_full, output, target_features);
+        times = select_and_visualize(f, id, input_full, output, target_features, range_normalize, min_val, max_val);
         refresh_texture(idMyTexture, output);
         if(save_images)
         {
@@ -348,72 +351,6 @@ void glfw_on_window_resized(GLFWwindow* window, int width, int height)
     render_gui(window);
 }
 
-
-// FILE SYSTEM USAGE EXAMPLE:
-/*
- #include "imguifilesystem.h"                                                    // imguifilesystem.cpp must be compiled
- // Inside a ImGui window:
- const bool browseButtonPressed = ImGui::Button("...");                          // we need a trigger boolean variable
- static ImGuiFs::Dialog dlg;                                                     // one per dialog (and must be static)
- const char* chosenPath = dlg.chooseFileDialog(browseButtonPressed);             // see other dialog types and the full list of arguments for advanced usage
- if (strlen(chosenPath)>0) {
- // A path (chosenPath) has been chosen RIGHT NOW. However we can retrieve it later more comfortably using: dlg.getChosenPath()
- }
- if (strlen(dlg.getChosenPath())>0) {
- ImGui::Text("Chosen file: \"%s\"",dlg.getChosenPath());
- }
- // If you want to copy the (valid) returned path somewhere, you can use something like:
- static char myPath[ImGuiFs::MAX_PATH_BYTES];
- if (strlen(dlg.getChosenPath())>0) {
- strcpy(myPath,dlg.getChosenPath());
- }
- */
-
-/*NOC File System example save code:
- *************************************
- #define NOC_FILE_DIALOG_IMPLEMENTATION
- #define NOC_FILE_DIALOG_GTK
- 
- #include "noc_file_dialog.h"
- 
- printf("Open dialog for an image file\n");
- ret = noc_file_dialog_open(NOC_FILE_DIALOG_OPEN, "png\0*.png\0jpg\0*.jpg;*.jpeg\0", NULL, NULL);
- 
- printf("Save dialog for the same file\n");
- ret = noc_file_dialog_open(NOC_FILE_DIALOG_SAVE, "png\0*.png\0", ret, NULL);
- *************************************
- */
-
-
-
-void file_system_popup(bool open_fs)
-{
-    ImGui::OpenPopup("Save Image");
-    const bool popup_ok = ImGui::BeginPopupModal("Save Image");
-    if(!popup_ok) return;
-    
-    ImGui::Text("Here is the popup");
-    
-    static ImGuiFs::Dialog dlg;                                                     // one per dialog (and must be static)
-    const char* chosenPath = dlg.chooseFileDialog(open_fs);             // see other dialog types and the full list of arguments for advanced usage
-    if (strlen(chosenPath)>0) {
-        // A path (chosenPath) has been chosen RIGHT NOW. However we can retrieve it later more comfortably using: dlg.getChosenPath()
-    }
-    if (strlen(dlg.getChosenPath())>0) {
-        ImGui::Text("Chosen file: \"%s\"",dlg.getChosenPath());
-    }
-    // If you want to copy the (valid) returned path somewhere, you can use something like:
-    //static char myPath[ImGuiFs::MAX_PATH_BYTES];
-    //if (strlen(dlg.getChosenPath())>0) {
-    //    strcpy(myPath,dlg.getChosenPath());
-    //}
-    
-    //std::string filename = "data/output/test.png";
-    //ImGui::CloseCurrentPopup();
-    
-    ImGui::EndPopup();
-}
-
 bool OptionalCheckbox(const char* label, bool* v, bool enabled=true)
 {
     if (enabled)
@@ -490,6 +427,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     bool show_target_select = true;
     bool show_stdout_box = true;
     bool show_save_image = true;
+    bool show_range_normalize = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     std::string selected_name = "No node selected, displaying output";
@@ -523,8 +461,6 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false), f16c(false);
     bool neon(false);
     bool debug_runtime(false), no_asserts(false), no_bounds_query(false);
-    
-    bool save_current(false);
 
     SystemInfo sys;
 
@@ -567,6 +503,20 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             ImGui::SameLine();
             ImGui::Text("Save all displayed images");
             
+            ImGui::End();
+        }
+        
+        if(show_range_normalize)
+        {
+            bool * no_close = NULL;
+            ImGui::Begin("Range Normalize", no_close);
+            ImGui::PushItemWidth(90);
+            ImGui::InputInt("Min Value", &min_val);
+            ImGui::PopItemWidth();
+            ImGui::PushItemWidth(90);
+            ImGui::InputInt("Max Value", &max_val);
+            ImGui::PopItemWidth();
+            if(min_val != 0 || max_val != 0) range_normalize = true;
             ImGui::End();
         }
         
@@ -742,6 +692,8 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                 glBindTexture(GL_TEXTURE_2D, 0);
             }
 
+            
+            
             ImGui::SameLine();
             
             bool show_fs_dialogue = ImGui::Button("Save Image");
@@ -754,7 +706,16 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                 chosenPath = NULL;
             }
             
-
+            
+            ImGui::Text("Set min/max values for range normalization: ");
+            ImGui::PushItemWidth(90);
+            ImGui::SameLine(); ImGui::InputInt("Min Value", &min_val);
+            ImGui::PopItemWidth();
+            ImGui::PushItemWidth(90);
+            ImGui::SameLine(); ImGui::InputInt("Max Value", &max_val);
+            ImGui::PopItemWidth();
+            
+            
             // save some space to draw the hovered pixel value below the image:
             ImVec2 size = ImGui::GetContentRegionAvail();
             size.x = 0;
