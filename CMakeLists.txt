@@ -57,7 +57,7 @@ set(CMAKE_CXX_STANDARD 11)
 set (CMAKING_WHOLE_SOLUTION true)
 project(halide-visdbg)
 # locate and configure third-party dependencies:
-include(../third-party/CMakeLists.txt)
+include(third-party/CMakeLists.txt)
 
 # Projects:
 add_subdirectory(./test-gui)
