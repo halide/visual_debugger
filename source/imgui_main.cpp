@@ -747,39 +747,16 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             
             bool show_fs_dialogue = ImGui::Button("Save Image");
             static ImGuiFs::Dialog dlg;                                                     // one per dialog (and must be static)
-            const char* chosenPath = dlg.chooseFileDialog(show_fs_dialogue);             // see other dialog types and the full list of arguments for advanced usage
+            const char* chosenPath = dlg.saveFileDialog(show_fs_dialogue);             // see other dialog types and the full list of arguments for advanced usage
             if (strlen(chosenPath)>0) {
                 // A path (chosenPath) has been chosen RIGHT NOW. However we can retrieve it later more comfortably using: dlg.getChosenPath()
             }
             if (strlen(dlg.getChosenPath())>0) {
                 ImGui::Text("Chosen file: \"%s\"",dlg.getChosenPath());
-            }
-            // If you want to copy the (valid) returned path somewhere, you can use something like:
-            static char myPath[ImGuiFs::MAX_PATH_BYTES];
-            if (strlen(dlg.getChosenPath())>0) {
-                strcpy(myPath,dlg.getChosenPath());
-            }
-            
-            
-            /*
-            if(show_fs_dialogue)
-            {
-        
-                
-                //file_system_popup(show_fs_dialogue);
-                
-                //times = select_and_visualize(selected, id_expr_debugging, input_full, output, idMyTexture, target_features);
-                
-                if(fname == "") default_output_name(selected.name(), id_expr_debugging);
-                
-                if(!SaveImage(fname.c_str(), output))
+                if(!SaveImage(dlg.getChosenPath(), output))
                     fprintf(stderr, "Error saving image\n");
-                
-                //save_current = false; //NOTE(Emily): want to "uncheck" the box after saving
-                fname = ""; //NOTE(Emily): done saving so want to reset fname
-                show_fs_dialogue = false;
-                
-            }*/
+            }
+            
 
             // save some space to draw the hovered pixel value below the image:
             ImVec2 size = ImGui::GetContentRegionAvail();
