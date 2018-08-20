@@ -1,3 +1,10 @@
+# Linux detection:
+if(UNIX AND NOT APPLE)
+	set(LINUX TRUE)
+endif()
+
+
+
 # dependency: glfw
 # -- GLFW_INCLUDE_DIR
 # -- GLFW_SOURCE_AMALGAMATION

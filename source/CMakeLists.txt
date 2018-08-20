@@ -1,3 +1,12 @@
+if (NOT CMAKING_WHOLE_SOLUTION)
+	cmake_minimum_required(VERSION 3.0)
+	set(CMAKE_CXX_STANDARD 11)
+	# locate and configure third-party dependencies:
+	include(../third-party/CMakeLists.txt)
+endif()
+
+
+
 add_executable(
 	visdbg
 	
@@ -14,8 +23,7 @@ add_executable(
 
 
 
-# locate and configure third-party dependencies:
-include(../third-party/CMakeLists.txt)
+# configure third-party dependencies:
 
 target_include_directories(
 	visdbg PUBLIC
