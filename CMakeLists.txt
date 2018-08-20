@@ -17,11 +17,6 @@ cmake_minimum_required(VERSION 3.0)
 ####################################[ setup ]###################################
 
 #-----------------------------[ utility functions ]----------------------------#
-#
-if(UNIX AND NOT APPLE)
-	set(LINUX TRUE)
-endif()
-#
 # A utility function to append all the C++ header and source files within a
 # directory to a list.  The first two parameters passed to this function are the
 # list to append to and the path of the directory respectively.  
@@ -59,7 +54,10 @@ set(CMAKE_CXX_STANDARD 11)
 ##########################[ libraries and executables ]#########################
 
 # Solution / Workspace:
+set (CMAKING_WHOLE_SOLUTION true)
 project(halide-visdbg)
+# locate and configure third-party dependencies:
+include(third-party/CMakeLists.txt)
 
 # Projects:
 add_subdirectory(./test-gui)

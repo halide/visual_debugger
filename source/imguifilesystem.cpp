@@ -12,6 +12,17 @@
 //    misrepresented as being the original software.
 // 3. This notice may not be removed or altered from any source distribution.
 
+// PATCH(marcos): [08/20/2018] https://stackoverflow.com/a/4845893
+#ifdef _MSC_VER
+    #ifndef _CRT_SECURE_NO_WARNINGS
+    #define _CRT_SECURE_NO_WARNINGS
+    #endif//_CRT_SECURE_NO_WARNINGS
+    #pragma warning( once : 4267 )  // warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
+    #pragma warning( once : 4244 )  // 'initializing': conversion from 'float' to 'int', possible loss of data
+    #pragma warning( once : 4305 )  // 'argument': truncation from 'double' to 'float'
+#endif//_MSC_VER
+// end of PATCH
+
 #ifdef _WIN32
 #	include <windows.h>
 #endif //_WIN32

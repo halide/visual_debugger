@@ -403,11 +403,10 @@ void file_system_popup(bool open_fs)
         ImGui::Text("Chosen file: \"%s\"",dlg.getChosenPath());
     }
     // If you want to copy the (valid) returned path somewhere, you can use something like:
-    static char myPath[ImGuiFs::MAX_PATH_BYTES];
-    if (strlen(dlg.getChosenPath())>0) {
-        strcpy(myPath,dlg.getChosenPath());
-    }
-    
+    //static char myPath[ImGuiFs::MAX_PATH_BYTES];
+    //if (strlen(dlg.getChosenPath())>0) {
+    //    strcpy(myPath,dlg.getChosenPath());
+    //}
     
     //std::string filename = "data/output/test.png";
     //ImGui::CloseCurrentPopup();
