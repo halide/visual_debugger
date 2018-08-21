@@ -668,7 +668,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             //ImGui::SetNextWindowPos(ImVec2(650, 200), ImGuiCond_FirstUseEver);
             //ImGui::SetNextWindowSize(ImVec2(500,500));
             
-            ImGui::Begin(info.c_str() , no_close, ImGuiWindowFlags_HorizontalScrollbar);
+            ImGui::Begin(info.c_str() , no_close);
             
             /*if(!save_images)
             {
@@ -727,11 +727,19 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             size.x = 0;
             size.y -= ImGui::GetFontSize() + 4;
 
-            ImGui::BeginChild(" ", size, false, ImGuiWindowFlags_HorizontalScrollbar); //NOTE(Emily): in order to get horizontal scrolling needed to add other parameters (from example online)
+            //NOTE(Emily): in order to get horizontal scrolling needed to add other parameters (from example online)
+            ImGuiWindowFlags ScrollFlags =  ImGuiWindowFlags_HorizontalScrollbar;
+            ScrollFlags |= (io.KeyCtrl) ? ImGuiWindowFlags_NoScrollWithMouse : 0;
+            ImGui::BeginChild(" ", size, false, ScrollFlags);
                 // screen coords of the current drawing "tip" (cursor) location
                 // (which is where the child image control will start rendering)
                 ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
                 ImGui::Image((void *) (uintptr_t) idMyTexture , ImVec2(width*zoom, height*zoom));
+
+                if (ImGui::IsItemHovered() && io.KeyCtrl && (io.MouseWheel != 0.0f))
+                {
+                    zoom *= (1.0 + io.MouseWheel * 0.0618f);
+                }
             ImGui::EndChild();
 
             ImVec2  mouse_pos = ImGui::GetMousePos();
