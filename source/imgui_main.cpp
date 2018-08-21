@@ -669,27 +669,21 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             
             if(!show_range_normalize)
             {
-                ToggleButton("Range Normalize Image", &range_normalize);
+                ImGui::Text("Set min/max values for range normalization: ");
+                ImGui::PushItemWidth(90);
                 ImGui::SameLine();
-                ImGui::Text("Range Normalize Image:" );
-                if(range_normalize)
-                {
-                    ImGui::Text("Set min/max values for range normalization: ");
-                    ImGui::PushItemWidth(90);
-                    ImGui::SameLine();
-                    bool changed = false;
-                    changed |= ImGui::InputInt("Min Value", &min_val);
-                    ImGui::PopItemWidth();
-                    ImGui::PushItemWidth(90);
-                    ImGui::SameLine();
-                    changed |= ImGui::InputInt("Max Value", &max_val);
-                    ImGui::PopItemWidth();
-                     
-                    // must be set to it back false when 'min_val' and 'max_val' are both zero
-                    //range_normalize = (min_val != 0 || max_val != 0);
-                    if (changed)
-                        selected = Func();  // will force a refresh
-                }
+                bool changed = false;
+                changed |= ImGui::InputInt("Min Value", &min_val);
+                ImGui::PopItemWidth();
+                ImGui::PushItemWidth(90);
+                ImGui::SameLine();
+                changed |= ImGui::InputInt("Max Value", &max_val);
+                ImGui::PopItemWidth();
+                 
+                // must be set to it back false when 'min_val' and 'max_val' are both zero
+                range_normalize = (min_val != 0 || max_val != 0);
+                if (changed)
+                    selected = Func();  // will force a refresh
             }
             
             // save some space to draw the hovered pixel value below the image:
