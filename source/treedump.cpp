@@ -1082,10 +1082,13 @@ struct FindInputBuffers : public Halide::Internal::IRVisitor
     }
 };
 
-Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, std::string target_features, bool range_normalize = false, int min = 0, int max = 0)
+Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, bool range_normalize = false, int min = 0, int max = 0)
 {
     Func m = transform(f, id);
     auto input_buffers = FindInputBuffers().visit(m);
+
+    // preserve type prior to any data type view transforms:
+    type = eval(m).type();
 
     // Apply data type view transforms here (type casts, range normalization, etc)
     // https://git.corp.adobe.com/slomp/halide_visualdbg/issues/30
@@ -1106,15 +1109,15 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
     }
     //
     // 3. range-normalize, by controlling the min and max values of the normalization, like in RenderDoc
-    // TODO
-    // m = ...
     if(range_normalize)
     {
         m = def(m) = (cast<float>(eval(m)) - cast<float>(min))/(cast<float>(max) - cast<float>(min));
     }
     //
-    // 4. for automatic mon-max range normalization, there's the Halide inline reductions:
+    // 4. for automatic min-max range normalization, there's the Halide inline reductions:
     // http://halide-lang.org/docs/namespace_halide.html#a9d7999c3871839488df9d591b3f55adf
+    // TODO
+    // m = ...
 
     t = eval(m).type();
     bool is_float = t.is_float();

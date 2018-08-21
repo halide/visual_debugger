@@ -85,7 +85,7 @@ int id_expr_debugging = -1;
 Halide::Type selected_type;
 
 // from 'treedump.cpp':
-Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<>& output, std::string target_features, bool range_normalize = false, int min = 0, int max = 0);
+Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, bool range_normalize = false, int min = 0, int max = 0);
 
 void refresh_texture(GLuint idMyTexture, Halide::Buffer<>& output)
 {
@@ -271,7 +271,7 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, Halide::Buffer<ui
 
     if (clicked)
     {
-        times = select_and_visualize(f, id, input_full, output, target_features, range_normalize, min_val, max_val);
+        times = select_and_visualize(f, id, input_full, selected_type, output, target_features, range_normalize, min_val, max_val);
         refresh_texture(idMyTexture, output);
         if(save_images)
         {
@@ -287,7 +287,6 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, Halide::Buffer<ui
             fname = ""; //NOTE(Emily): done saving so want to reset fname
         }
         id_expr_debugging = id;
-        if (node->original.defined()) selected_type = node->original.type();
         selected_name = label;
     }
 
@@ -612,7 +611,6 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                         tree.root = nullptr;
                         id_expr_debugging = -1;
                         show_id = 0;
-                        selected_type = func.output_types()[0]; //NOTE(Emily): need to handle case with multiple outputs or update definitions
                         selected = Func();
                     }
                     if (!selected.defined())
@@ -623,7 +621,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                     {
                         tree = get_tree(func);
                     }
-                    times = select_and_visualize(func, id_expr_debugging, input_full, output, target_features, range_normalize, min_val, max_val);
+                    times = select_and_visualize(func, id_expr_debugging, input_full, selected_type, output, target_features, range_normalize, min_val, max_val);
                     refresh_texture(idMyTexture, output);
                     break;
                 }
