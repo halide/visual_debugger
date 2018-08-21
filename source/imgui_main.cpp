@@ -682,6 +682,12 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                 
                 // must be set to it back false when 'min_val' and 'max_val' are both zero
                 range_normalize = (min_val != 0 || max_val != 0);
+                if (range_normalize)
+                {
+                    // prevent division by zero:
+                    max_val = (min_val == max_val) ? max_val + 1
+                                                   : max_val;
+                }
                 if (changed)
                     selected = Func();  // will force a refresh
             }
