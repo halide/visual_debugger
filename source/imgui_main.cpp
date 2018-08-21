@@ -14,18 +14,6 @@
 #include "system.hpp"
 #include "utils.h"
 #include "HalideImageIO.h"
-/*
-#define NOC_FILE_DIALOG_IMPLEMENTATION
-#ifdef _WIN32
-#define NOC_FILE_DIALOG_WIN32
-#elif defined(__APPLE__) && defined(__MACH__)
-#define NOC_FILE_DIALOG_OSX
-#else
-#define NOC_FILE_DIALOG_GTK
-#endif
-
-#include <noc_file_dialog.h>
- */
 
 #include "imguifilesystem.h"
 
@@ -72,12 +60,16 @@ void default_output_name(std::string name, int id)
     assert(output.defined());
     if(output.type().is_float())
     {
-        //fname = "data/output/" + name + "_" + std::to_string(id) + ".jpg";
-        fname = "data/output/" + name + "_" + std::to_string(id) + ".hdr";
+        fname = "data/output/" + name + "_" + std::to_string(id) + ".pfm";
+    }
+    else if(output.type().is_uint() && output.type().bits() == 8)
+    {
+        fname = "data/output/" + name + "_" + std::to_string(id) + ".png";
     }
     else
     {
-        fname = "data/output/" + name + "_" + std::to_string(id) + ".png";
+        fname = "data/output/" + name + "_" +std::to_string(id) + ".pfm";
+        //TODO(Emily): need to also cast to float in this case
     }
 }
 
@@ -393,32 +385,13 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= 0; // this no-op is here just to suppress unused variable warnings
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;   // Enable Gamepad Controls
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL2_Init();
-    //glfwSetWindowSizeCallback(window, glfw_on_window_resized);
     glfwSetFramebufferSizeCallback(window, glfw_on_window_resized);
 
     // Setup style
-    //ImGui::StyleColorsDark();
     ImGui::StyleColorsClassic();
-
-    // Load Fonts
-    // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them. 
-    // - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple. 
-    // - If the file cannot be loaded, the function will return NULL. Please handle those errors in your application (e.g. use an assertion, or display an error and quit).
-    // - The fonts will be rasterized at a given size (w/ oversampling) and stored into a texture when calling ImFontAtlas::Build()/GetTexDataAsXXXX(), which ImGui_ImplXXXX_NewFrame below will call.
-    // - Read 'misc/fonts/README.txt' for more instructions and details.
-    // - Remember that in C/C++ if you want to include a backslash \ in a string literal you need to write a double backslash \\ !
-    //io.Fonts->AddFontDefault();
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf", 16.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf", 15.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf", 16.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/ProggyTiny.ttf", 10.0f);
-    //ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
-    //IM_ASSERT(font != NULL);
 
     bool show_image = true;
     bool show_expr_tree = true;
@@ -637,8 +610,6 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
         {
             
             bool * no_close = NULL;
-            //ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_FirstUseEver);
-            //ImGui::SetNextWindowSize(ImVec2(500,600));
             ImGui::Begin("Expression Tree", no_close, ImGuiWindowFlags_HorizontalScrollbar);
             //Note(Emily): call recursive method to display tree
             if(func_selected && target_selected)
@@ -665,16 +636,8 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                              + " | (jit: " + std::to_string(times.jit_time) + "s)"
                              + "###ImageDisplay";   // <- ImGui ID control (###): we want this window to be the same, regardless of its title
             
-            //ImGui::SetNextWindowPos(ImVec2(650, 200), ImGuiCond_FirstUseEver);
-            //ImGui::SetNextWindowSize(ImVec2(500,500));
             
             ImGui::Begin(info.c_str() , no_close, ImGuiWindowFlags_HorizontalScrollbar);
-            
-            /*if(!save_images)
-            {
-                //allow user to select individual images to save
-                ImGui::Checkbox("Save current image:" , &save_current);
-            }*/
 
             static float zoom = 1.0f;
             ImGui::SliderFloat("Image Zoom", &zoom, 0, 10, "%.001f");
@@ -721,6 +684,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                     ImGui::SameLine();
                     changed |= ImGui::InputInt("Max Value", &max_val);
                     ImGui::PopItemWidth();
+                     
                     // must be set to it back false when 'min_val' and 'max_val' are both zero
                     //range_normalize = (min_val != 0 || max_val != 0);
                     if (changed)
@@ -762,11 +726,6 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
         // (alternatively, we can use 'glfwPostEmptyEvent()' to force an event
         //  artificially into the event queue)
 
-        // Poll and handle events (inputs, window resize, etc.)
-        // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
-        // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application.
-        // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application.
-        // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
         //glfwPollEvents();     // <- this is power hungry!
         glfwWaitEvents();       // <- this is a more CPU/power/battery friendly choice
     }

@@ -137,7 +137,7 @@ int main()
     iobc.AddEcho(&stdout_echo_toggle);
     iobc.AddFile(log);
 
-    //NOTE(Emily): define func here instead of in treedump for now
+    //NOTE(Emily): define func here
     xsprintf(input_filename, 128, "data/pencils.jpg");
     Halide::Buffer<uint8_t> input_full = LoadImage(input_filename);
     if (!input_full.defined())

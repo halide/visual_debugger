@@ -98,10 +98,7 @@ Func wrap(Func f)
     {
         return Func();
     }
-
-    //Func g { f.name() };
-    //auto domain = f.args();
-    //g(domain) = f(domain);
+    
     Func g = def(f) = eval(f);
     return g;
 }
@@ -627,19 +624,12 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     
         node_op->modify = expr;
 
-        //const int id = assign_id();         // generate unique id
-        //Expr expr = IRMutator2::visit(op);  // visit/mutate children
         if (id == target_id)
         {
             assert(id > 0);
             assert(!selected.defined());
             selected = expr;
         }
-        // propagate selection upwards in the traversal
-        //if (selected.defined())
-        //{
-        //    expr = selected;
-        //}
         
         //NOTE(Emily): we need to pop back the parents after visiting children
         tree.leave(node_op);
@@ -683,7 +673,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     template<typename T>
     Stmt mutate_and_select_stmt(const T* op)
     {
-        //const int id = ++traversal_id;    // generate unique id
         dump_head(op);
         add_indent();
             Stmt stmt = IRMutator2::visit(op);  // visit/mutate children
@@ -757,7 +746,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         expr_node* node_op = tree.new_expr_node();
         node_op->name = label;
         tree.enter(node_op);
-        //tree.leave(node_op);
         return node_op;
     }
     
@@ -788,8 +776,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         bool has_selection = selected.defined();
         
         leave_spacer_node(arg_spacer);
-        //NOTE(Emily): adding separation node here
-        
 
         add_indent();
             indented_printf("<callable>\n");
@@ -798,6 +784,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
                 {
                     case Call::CallType::Halide :
                     {
+                        //NOTE(Emily): adding separation node here
                         expr_node* spacer = add_spacer_node("<callable>");
                         assert(op->func.defined());     // paranoid check...
                         auto inner_func = Function(op->func);
@@ -831,7 +818,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         // it's possible that something up the expression tree has been selected
         // already, but we still want to visit the entire tree for visualization
         // purposes
-        //assert(!selected.defined());
         if (selected.defined())
         {
             return mutate_and_select(op);
@@ -881,28 +867,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
             g.definition() = def;
             Expr new_call_expr = Call::make(g, op->args, op->value_index);
 
-            /*
-            Function g (op->name);
-            auto& domain = Function(op->func).args();
-            g.define(domain, { selected });
-            Expr new_call_expr = Call::make(g, op->args, op->value_index);
-            */
-
-            /*
-            Func g;
-            add_indent();
-            indented_printf("g -- %s\n", g.name().c_str());
-            std::vector<Var> domain;
-            for (auto& var_name : Function(op->func).args())
-            {
-                indented_printf("p -- %s\n", var_name.c_str());
-                domain.emplace_back(var_name);
-            }
-            remove_indent();
-            g(domain) = selected;
-            Expr new_call_expr = Call::make(g.function(), op->args, op->value_index);
-            */
-
             return new_call_expr;
         });
 
@@ -931,7 +895,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         expr_node * arg_spacer = add_spacer_node("<arguments>");
 
         add_indent();
-            //f.accept(this);
             // NOTE(marcos): the default Function visitor is bit wacky, visitng
             // [predicate, body, args, schedule, specializaitons] in this order
             // which is confusing since we are mostly interested in [args, body]
@@ -973,8 +936,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         // NOTE(marcos): skipping the original expression in the expr_tree
         // because 'f' might emcapsulate a Tuple of values, and a Tuple is
         // not an Expr in Halide.
-        //Expr expr = f(f.args());
-        //node_op->original = expr;
         tree.enter(node_op);
         
         int updates = f.num_update_definitions();
@@ -993,12 +954,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         if(!selected.defined()){
             return f;
         }
-        //printf("SELECTION RESULT BELOW:");
-        //DebuggerSelector().visit(selected);
-        //printf("SELECTION RESULT ABOVE:");
-        //Func g;
-        //auto domain = f.args();
-        //g(domain) = selected;
         Func g = def(f) = selected;
         return g;
     }
@@ -1039,13 +994,9 @@ void display_node(expr_node * parent)
 
 expr_tree get_tree(Func f)
 {
-    //testing that expr_node tree was correctly built
     IRDump dump;
     dump.mutate(f);
-    //printf("displaying nodes in tree: \n");
-    //display_node(tree);
     return std::move(dump.tree);
-    
 }
 
 struct FindInputBuffers : public Halide::Internal::IRVisitor
