@@ -22,7 +22,7 @@ using namespace Halide;
 bool stdout_echo_toggle (false);
 bool save_images(false);
 
-int view_transform_value(0);
+int view_transform_value(1);
 int min_val(0), max_val(0);
 
 //NOTE(Emily): vars related to saving images
@@ -684,7 +684,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                     min_val = 0;
                     max_val = 0;
                     changed = true;
-                    view_transform_value = 0;
+                    view_transform_value = 1;
                 }
                 
                 int previous = range_value; //NOTE(Emily): if we switch between range normalize/clamp we want to force refresh
