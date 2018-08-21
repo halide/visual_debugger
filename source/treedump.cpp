@@ -942,15 +942,19 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         int tuples = f.outputs();
         
         add_indent();
-        if(updates > 0)
+        if (updates > 0)
         {
             expr_node * update_def_spacer = add_spacer_node("<Update Definitions>");
+            auto domain = f.args();
             for(int i = 0; i < updates; i++)
             {
-                visit(f.update_value(i));
+                std::string temp_name = "update def " + std::to_string(i);
+                Func update_i{temp_name.c_str()};
+                printf("i: %d", i);
+                update_i(domain) = f.update_values(i);
+                visit(update_i.function());
             }
             leave_spacer_node(update_def_spacer);
-            
         }
         else
         {
