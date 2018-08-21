@@ -669,17 +669,17 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             
             if(!show_range_normalize)
             {
-                ImGui::Text("Set min/max values for range normalization: ");
-                ImGui::PushItemWidth(90);
-                ImGui::SameLine();
                 bool changed = false;
-                changed |= ImGui::InputInt("Min Value", &min_val);
-                ImGui::PopItemWidth();
-                ImGui::PushItemWidth(90);
+                
+                changed = ImGui::DragIntRange2("Pixel Range", &min_val, &max_val, 3, 0, 0, "Min: %d", "Max: %d");
                 ImGui::SameLine();
-                changed |= ImGui::InputInt("Max Value", &max_val);
-                ImGui::PopItemWidth();
-                 
+                if(ImGui::Button("Reset"))
+                {
+                    min_val = 0;
+                    max_val = 0;
+                    changed = true;
+                }
+                
                 // must be set to it back false when 'min_val' and 'max_val' are both zero
                 range_normalize = (min_val != 0 || max_val != 0);
                 if (changed)
