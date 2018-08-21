@@ -400,7 +400,10 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     bool show_stdout_box = true;
     bool show_save_image = true;
     bool show_range_normalize = false;
-    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+    //ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+    ImVec4 clear_color = ImVec4(0x00 / float(0xFF),
+                                0x1f / float(0xFF),
+                                0x3f / float(0xFF), 1.00f);
 
     std::string selected_name = "No node selected, displaying output";
 
