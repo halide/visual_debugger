@@ -940,8 +940,19 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         
         int updates = f.num_update_definitions();
         int tuples = f.outputs();
+        
         add_indent();
+        if(updates > 0)
+        {
+            for(int i = 0; i < updates; i++)
+            {
+                visit(f.update_value(i));
+            }
+        }
+        else
+        {
             visit(f.function());
+        }
         remove_indent();
         
         tree.leave(node_op);
