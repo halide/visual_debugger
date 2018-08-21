@@ -127,6 +127,7 @@ Func update_example()
     Var x, y, c;
     Func updated ("update def example");
     updated(x,y,c) = x + y;
+    updated(x,0,0) = x + 100;
     updated(x,y,c) = updated(x,y,c) + 20;
     return updated;
 }

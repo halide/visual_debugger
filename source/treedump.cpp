@@ -944,10 +944,13 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         add_indent();
         if(updates > 0)
         {
+            expr_node * update_def_spacer = add_spacer_node("<Update Definitions>");
             for(int i = 0; i < updates; i++)
             {
                 visit(f.update_value(i));
             }
+            leave_spacer_node(update_def_spacer);
+            
         }
         else
         {
