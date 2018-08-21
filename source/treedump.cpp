@@ -50,25 +50,28 @@ Buffer<T>& Uncrop(Buffer<T>& image)
 
 
 
-Expr eval(Func f, int def_idx = 0)
+Expr eval(Func f, int tuple_idx=0, int updef_idx=-1)
 {
     if (!f.defined())
     {
         return Expr();
     }
 
-    Expr value;
-    
-    auto domain = f.args();
-    if(f.outputs() > 1)
+    Tuple values { Expr() };
+    if (updef_idx == -1)
     {
-        value = f(domain)[def_idx];
+        // pure definition
+        values = f.values();
     }
     else
     {
-        assert(def_idx == 0);
-        value = f(domain);
+        assert(updef_idx >= 0);
+        assert(updef_idx < f.num_update_definitions());
+        values = f.update_values(updef_idx);
     }
+
+    assert(tuple_idx < values.size());
+    Expr value = values[tuple_idx];
     return value;
 }
 
@@ -966,9 +969,15 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     Func mutate(Func f)
     {
         visit(f);
-        if(!selected.defined()){
-            return f;
+        if(!selected.defined())
+        {
+            // note that Func f could be encapsulating a Tuple of values, or even
+            // consist of update definitions (which themselves could be Tuples)
+            // ideally, if no sub-expression has been selected, it should default
+            // to selecting the first tuple value of its pure definition
+            selected = eval(f);
         }
+        assert(selected.defined());
         Func g = def(f) = selected;
         return g;
     }
