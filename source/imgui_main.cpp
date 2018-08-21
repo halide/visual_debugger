@@ -22,7 +22,7 @@ using namespace Halide;
 bool stdout_echo_toggle (false);
 bool save_images(false);
 
-bool range_normalize(false);
+int view_transform_value(1);
 int min_val(0), max_val(0);
 
 //NOTE(Emily): vars related to saving images
@@ -77,7 +77,7 @@ int id_expr_debugging = -1;
 Halide::Type selected_type;
 
 // from 'treedump.cpp':
-Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, bool range_normalize = false, int min = 0, int max = 0);
+Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value = 0, int min = 0, int max = 0);
 
 void refresh_texture(GLuint idMyTexture, Halide::Buffer<>& output)
 {
@@ -265,7 +265,7 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, Halide::Buffer<ui
 
     if (clicked)
     {
-        times = select_and_visualize(f, id, input_full, selected_type, output, target_features, range_normalize, min_val, max_val);
+        times = select_and_visualize(f, id, input_full, selected_type, output, target_features, view_transform_value, min_val, max_val);
         refresh_texture(idMyTexture, output);
         if(save_images)
         {
@@ -430,11 +430,15 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     //NOTE(Emily): call to update buffer to display output of function
     Profiling times = { };
     int cpu_value(0), gpu_value(0), func_value(0);
+    
+    int range_value(2);
 
     //target flag bools (need to be outside of loop to maintain state)
     bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false), f16c(false);
     bool neon(false);
     bool debug_runtime(false), no_asserts(false), no_bounds_query(false);
+    
+    bool range_select = false;
 
     SystemInfo sys;
 
@@ -596,7 +600,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                     {
                         tree = get_tree(func);
                     }
-                    times = select_and_visualize(func, id_expr_debugging, input_full, selected_type, output, target_features, range_normalize, min_val, max_val);
+                    times = select_and_visualize(func, id_expr_debugging, input_full, selected_type, output, target_features, view_transform_value, min_val, max_val);
                     refresh_texture(idMyTexture, output);
                     break;
                 }
@@ -680,17 +684,28 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                     min_val = 0;
                     max_val = 0;
                     changed = true;
+                    view_transform_value = 1;
                 }
                 
+                int previous = range_value; //NOTE(Emily): if we switch between range normalize/clamp we want to force refresh
+                
+                ImGui::SameLine();
+                ImGui::RadioButton("range normalize", &range_value, 2);
+                ImGui::SameLine();
+                ImGui::RadioButton("range clamp", &range_value, 3);
+                
+                
+                
                 // must be set to it back false when 'min_val' and 'max_val' are both zero
-                range_normalize = (min_val != 0 || max_val != 0);
-                if (range_normalize)
+                range_select = (min_val != 0 || max_val != 0);
+                if (range_select)
                 {
                     // prevent division by zero:
                     max_val = (min_val == max_val) ? max_val + 1
                                                    : max_val;
+                    view_transform_value = range_value; //NOTE(Emily): set transform view to type of range transform
                 }
-                if (changed)
+                if (changed || (previous != range_value))
                     selected = Func();  // will force a refresh
             }
             
