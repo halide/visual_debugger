@@ -505,21 +505,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             
             ImGui::End();
         }
-        
-        if(show_range_normalize)
-        {
-            bool * no_close = NULL;
-            ImGui::Begin("Range Normalize", no_close);
-            ImGui::PushItemWidth(90);
-            ImGui::InputInt("Min Value", &min_val);
-            ImGui::PopItemWidth();
-            ImGui::PushItemWidth(90);
-            ImGui::InputInt("Max Value", &max_val);
-            ImGui::PopItemWidth();
-            if(min_val != 0 || max_val != 0) range_normalize = true;
-            ImGui::End();
-        }
-        
+
         std::string target_features_before = target_features;
 
         if(show_target_select)
@@ -616,15 +602,29 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             {
                 int func_value_before = func_value;
                 ImGui::RadioButton(func.name().c_str(), &func_value, id);
-                bool changed = (func_value_before != func_value) || !selected.defined() || target_changed;
+                bool func_changed = (func_value_before != func_value);
+                bool changed = func_changed || !selected.defined() || target_changed;
                 if(func_value == id && changed)
                 {
-                    tree = get_tree(func);
-                    times = select_and_visualize(func, 0, input_full, output, target_features);
+                    int show_id = id_expr_debugging;
+                    if (func_changed)
+                    {
+                        tree.root = nullptr;
+                        id_expr_debugging = -1;
+                        show_id = 0;
+                        selected_type = func.output_types()[0]; //NOTE(Emily): need to handle case with multiple outputs or update definitions
+                        selected = Func();
+                    }
+                    if (!selected.defined())
+                    {
+                        selected = func;
+                    }
+                    if (tree.root == nullptr)
+                    {
+                        tree = get_tree(func);
+                    }
+                    times = select_and_visualize(func, id_expr_debugging, input_full, output, target_features, range_normalize, min_val, max_val);
                     refresh_texture(idMyTexture, output);
-                    selected = func;
-                    selected_type = func.output_types()[0]; //NOTE(Emily): need to handle case with multiple outputs or update definitions
-                    id_expr_debugging = -1;
                     break;
                 }
                 id++;
@@ -710,11 +710,18 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             {
                 ImGui::Text("Set min/max values for range normalization: ");
                 ImGui::PushItemWidth(90);
-                ImGui::SameLine(); ImGui::InputInt("Min Value", &min_val);
+                ImGui::SameLine();
+                bool changed = false;
+                changed |= ImGui::InputInt("Min Value", &min_val);
                 ImGui::PopItemWidth();
                 ImGui::PushItemWidth(90);
-                ImGui::SameLine(); ImGui::InputInt("Max Value", &max_val);
+                ImGui::SameLine();
+                changed |= ImGui::InputInt("Max Value", &max_val);
                 ImGui::PopItemWidth();
+                // must be set to it back false when 'min_val' and 'max_val' are both zero
+                range_normalize = (min_val != 0 || max_val != 0);
+                if (changed)
+                    selected = Func();  // will force a refresh
             }
             
             // save some space to draw the hovered pixel value below the image:
