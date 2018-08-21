@@ -942,6 +942,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         int tuples = f.outputs();
         
         add_indent();
+        visit(f.function());
         if (updates > 0)
         {
             expr_node * update_def_spacer = add_spacer_node("<Update Definitions>");
@@ -955,10 +956,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
                 visit(update_i.function());
             }
             leave_spacer_node(update_def_spacer);
-        }
-        else
-        {
-            visit(f.function());
         }
         remove_indent();
         

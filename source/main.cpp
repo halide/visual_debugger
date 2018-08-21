@@ -138,9 +138,6 @@ Func update_tuple_example()
     Func updated ("update def tuple example");
     updated(x,y,c) = {x + y, sin(x*y)};
     updated(x,y,0) = {x + 100, x + 0.0f};
-    
-    //updated(0,y,0) = {y*10, y*20.0f};
-    //updated(x,y,c) = updated(x,y,c) + 20;
     return updated;
 }
 
