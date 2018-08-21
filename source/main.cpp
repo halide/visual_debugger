@@ -122,6 +122,15 @@ Func example_another_tuple(Func broken, Func fixed)
     return test_tuple;
 }
 
+Func update_example()
+{
+    Var x, y, c;
+    Func updated ("update def example");
+    updated(x,y,c) = x + y;
+    updated(x,y,c) = updated(x,y,c) + 20;
+    return updated;
+}
+
 // from 'imgui_main.cpp':
 extern bool stdout_echo_toggle;
 void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full); 
@@ -153,7 +162,8 @@ int main()
     funcs.push_back(example_scoped(input_full));
     funcs.push_back(example_tuple());
     funcs.push_back(example_another_tuple(broken, fixed));
-
+    funcs.push_back(update_example());
+    
     run_gui(funcs, input_full);
 
     iobc.Terminate();
