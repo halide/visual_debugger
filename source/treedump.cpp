@@ -912,17 +912,41 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         
         leave_spacer_node(arg_spacer);
         //NOTE(Emily): adding separation node here
+        
         expr_node * spacer = add_spacer_node("<value>");
-    
         int value_idx = 0;
         for (auto& expr : definition.values())
         {
             indented_printf("<value %d>\n", value_idx++);
             add_indent();
-                IRMutator2::mutate(expr);
+            IRMutator2::mutate(expr);
             remove_indent();
         }
         leave_spacer_node(spacer);
+        
+        if(f.has_update_definition())
+        {
+            expr_node * update_spacer = add_spacer_node("<update definitions>");
+            int num_updates = f.updates().size();
+            for(int i = 0; i < num_updates; i++)
+            {
+                auto update_def = f.update(i);
+                value_idx = 0;
+                expr_node * spacer = add_spacer_node("<value>");
+                for(auto& expr : update_def.values())
+                {
+                    indented_printf("<value %d>\n", value_idx++);
+                    add_indent();
+                        IRMutator2::mutate(expr);
+                    remove_indent();
+                }
+                leave_spacer_node(spacer);
+            }
+            leave_spacer_node(update_spacer);
+        }
+        
+        
+        //leave_spacer_node(spacer);
         remove_indent();
 
         tree.leave(node_op);
@@ -941,25 +965,11 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         // not an Expr in Halide.
         tree.enter(node_op);
         
-        int updates = f.num_update_definitions();
-        int tuples = f.outputs();
+        
         
         add_indent();
         visit(f.function());
-        if (updates > 0)
-        {
-            expr_node * update_def_spacer = add_spacer_node("<Update Definitions>");
-            auto domain = f.args();
-            for(int i = 0; i < updates; i++)
-            {
-                std::string temp_name = "update def " + std::to_string(i);
-                Func update_i{temp_name.c_str()};
-                printf("i: %d", i);
-                update_i(domain) = f.update_values(i);
-                visit(update_i.function());
-            }
-            leave_spacer_node(update_def_spacer);
-        }
+        
         remove_indent();
         
         tree.leave(node_op);
