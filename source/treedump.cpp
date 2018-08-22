@@ -485,7 +485,7 @@ struct IRNodePrinter
     static std::string print(const Call* op)
     {
         std::stringstream ss;
-        ss << "Call : " << op->name << " | " << print(op->call_type);
+        ss << "Call : " << op->name << " | " << print(op->call_type) << " | " << "[" << op->value_index << "]";
         return ss.str();
     }
 
@@ -493,7 +493,18 @@ struct IRNodePrinter
     static std::string print(Function f)
     {
         std::stringstream ss;
-        ss << "Function : " << f.name();
+        ss << "Function : " << f.name() << " | ";
+        if (f.is_pure())
+        {
+            ss << "pure";
+        }
+        else
+        {
+            ss << f.updates().size() << " updates";
+        }
+        ss << " | ";
+        ss << f.outputs();  // num_outputs; Tuple cardinality
+        ss << " values";
         return ss.str();
     }
 
@@ -791,7 +802,11 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
                         expr_node* spacer = add_spacer_node("<callable>");
                         assert(op->func.defined());     // paranoid check...
                         auto inner_func = Function(op->func);
-                        visit(inner_func);
+                        //visit(inner_func);
+                        // TODO(marcos): OK, I know the 'value_index', but how
+                        // am I supposed to know if it is referring to the pure
+                        // definition or to some update definition?!
+                        visit(inner_func, op->value_index);
                         leave_spacer_node(spacer);
                         break;
                     }
@@ -863,6 +878,8 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
             {
                 args.emplace_back( Var(var_name) );
             }
+            // NOTE(marcos): the 'g.definition() = def' below is a major hack,
+            // but it's there because all other options failed...
             ReductionDomain rdom;
             Definition def (args, { selected }, rdom, true);
             Function g (op->name);
@@ -877,7 +894,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     }
 
     // The following are convenience functions (not really a part of IRVisitor)
-    void visit(Function f)
+    void visit(Function f, int value_idx=-1)
     {
         dump_head(f);
         
@@ -893,9 +910,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
             remove_indent();
             return;
         }
-        
-        //NOTE(Emily): adding separation node here
-        expr_node * arg_spacer = add_spacer_node("<arguments>");
 
         add_indent();
             // NOTE(marcos): the default Function visitor is bit wacky, visitng
@@ -903,37 +917,52 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
             // which is confusing since we are mostly interested in [args, body]
             // for the time being, so we can roll our own visiting pattern:
             indented_printf("<arguments>\n");
+            expr_node * arg_spacer = add_spacer_node("<arguments>");
             add_indent();
                 for (auto& arg : definition.args())
                 {
                     IRMutator2::mutate(arg);
                 }
             remove_indent();
-        
-        leave_spacer_node(arg_spacer);
-        //NOTE(Emily): adding separation node here
-        
-        expr_node * spacer = add_spacer_node("<value>");
-        int value_idx = 0;
-        for (auto& expr : definition.values())
-        {
-            indented_printf("<value %d>\n", value_idx++);
-            add_indent();
-            IRMutator2::mutate(expr);
-            remove_indent();
-        }
-        leave_spacer_node(spacer);
-        
-        if(f.has_update_definition())
-        {
-            expr_node * update_spacer = add_spacer_node("<update definitions>");
-            int num_updates = f.updates().size();
-            for(int i = 0; i < num_updates; i++)
+            leave_spacer_node(arg_spacer);
+
+            if (value_idx != -1)
             {
-                auto update_def = f.update(i);
-                value_idx = 0;
+                assert(value_idx < f.values().size());
+                Expr pure_value = f.values()[value_idx];
+                indented_printf("<value %d>\n", value_idx);
                 expr_node * spacer = add_spacer_node("<value>");
-                for(auto& expr : update_def.values())
+                add_indent();
+                    IRMutator2::mutate(pure_value);
+                remove_indent();
+                leave_spacer_node(spacer);
+                // TODO(marcos): the code below may loop in infinite recursion;
+                // still not sure as to which definition (pure or updates) the
+                // value index from a Call node refers to...
+                /*
+                if (f.has_update_definition())
+                {
+                    expr_node * update_spacer = add_spacer_node("<update definitions>");
+                    for (auto& update_def : f.updates())
+                    {
+                        assert(value_idx < update_def.values().size());
+                        Expr update_value = update_def.values()[value_idx];
+                        indented_printf("<value %d>\n", value_idx);
+                        expr_node * spacer = add_spacer_node("<value>");
+                        add_indent();
+                            IRMutator2::mutate(update_value);
+                        remove_indent();
+                    }
+                    leave_spacer_node(update_spacer);
+                }
+                */
+            }
+            else
+            {
+                // show everything:
+                expr_node * spacer = add_spacer_node("<value>");
+                int value_idx = 0;
+                for (auto& expr : definition.values())
                 {
                     indented_printf("<value %d>\n", value_idx++);
                     add_indent();
@@ -941,10 +970,28 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
                     remove_indent();
                 }
                 leave_spacer_node(spacer);
-            }
-            leave_spacer_node(update_spacer);
-        }
         
+                if(f.has_update_definition())
+                {
+                    expr_node * update_spacer = add_spacer_node("<update definitions>");
+                    int num_updates = f.updates().size();
+                    for(int i = 0; i < num_updates; i++)
+                    {
+                        auto update_def = f.update(i);
+                        value_idx = 0;
+                        expr_node * spacer = add_spacer_node("<value>");
+                        for(auto& expr : update_def.values())
+                        {
+                            indented_printf("<value %d>\n", value_idx++);
+                            add_indent();
+                                IRMutator2::mutate(expr);
+                            remove_indent();
+                        }
+                        leave_spacer_node(spacer);
+                    }
+                    leave_spacer_node(update_spacer);
+                }
+            }
         
         //leave_spacer_node(spacer);
         remove_indent();
