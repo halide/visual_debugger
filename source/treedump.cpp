@@ -931,7 +931,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
                 assert(value_idx < f.values().size());
                 Expr pure_value = f.values()[value_idx];
                 indented_printf("<value %d>\n", value_idx);
-                expr_node * spacer = add_spacer_node("<value>");
+                expr_node * spacer = add_spacer_node("<value " + std::to_string(value_idx) + ">");
                 add_indent();
                     IRMutator2::mutate(pure_value);
                 remove_indent();
@@ -960,7 +960,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
             else
             {
                 // show everything:
-                expr_node * spacer = add_spacer_node("<value>");
+                expr_node * spacer = add_spacer_node("<values>");
                 int value_idx = 0;
                 for (auto& expr : definition.values())
                 {
@@ -979,7 +979,8 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
                     {
                         auto update_def = f.update(i);
                         value_idx = 0;
-                        expr_node * spacer = add_spacer_node("<value>");
+                        expr_node * spacer  = add_spacer_node("<update " + std::to_string(i) + ">");
+                        expr_node * spacer2 = add_spacer_node("<values>");
                         for(auto& expr : update_def.values())
                         {
                             indented_printf("<value %d>\n", value_idx++);
@@ -987,6 +988,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
                                 IRMutator2::mutate(expr);
                             remove_indent();
                         }
+                        leave_spacer_node(spacer2);
                         leave_spacer_node(spacer);
                     }
                     leave_spacer_node(update_spacer);

@@ -252,11 +252,9 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, Halide::Buffer<ui
         ImGui::SameLine();
     }
 
-    ImGui::PushID(id);
     bool open = (terminal) ? ImGui::TreeNodeEx(label, ImGuiTreeNodeFlags_Leaf)
                            : ImGui::TreeNode(label);
-    ImGui::PopID();
-    
+
     if (selected)
     {
         ImGui::PopStyleColor();
