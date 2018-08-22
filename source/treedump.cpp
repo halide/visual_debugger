@@ -636,14 +636,13 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         // building the tree recursively (need to add node before visiting children)
         expr_node* node_op = tree.new_expr_node();
         node_op->name = IRNodePrinter::print(op);
-        node_op->original = op;
         node_op->node_id = id;
+        //node_op->original = op;
         tree.enter(node_op);
         
         dump_head(op, id);
         Expr expr = dump_guts(op);
-    
-        node_op->modify = expr;
+        //node_op->modified = expr;
 
         if (id == target_id)
         {
