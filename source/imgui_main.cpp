@@ -15,7 +15,7 @@
 #include "utils.h"
 #include "HalideImageIO.h"
 
-#include "imguifilesystem.h"
+#include "../third-party/imguifilesystem/imguifilesystem.h"
 
 using namespace Halide;
 
