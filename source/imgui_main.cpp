@@ -68,8 +68,26 @@ void default_output_name(std::string name, int id)
     }
     else
     {
+        output = output.as<float>();
         fname = "data/output/" + name + "_" +std::to_string(id) + ".pfm";
-        //TODO(Emily): need to also cast to float in this case
+    }
+}
+
+void default_output_name_no_dirs(std::string name, int id)
+{
+    assert(output.defined());
+    if(output.type().is_float())
+    {
+        fname = name + "_" + std::to_string(id) + ".pfm";
+    }
+    else if(output.type().is_uint() && output.type().bits() == 8)
+    {
+        fname = name + "_" + std::to_string(id) + ".png";
+    }
+    else
+    {
+        output = output.as<float>();
+        fname = name + "_" +std::to_string(id) + ".pfm";
     }
 }
 
@@ -662,8 +680,10 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             ImGui::SameLine();
             
             bool show_fs_dialogue = ImGui::Button("Save Image");
-            static ImGuiFs::Dialog dlg;                                                     // one per dialog (and must be static)
-            const char* chosenPath = dlg.saveFileDialog(show_fs_dialogue);             // see other dialog types and the full list of arguments for advanced usage
+            default_output_name_no_dirs(selected_name, id_expr_debugging);             //update fname to be default string
+            const char * default_dir = "./data/output";                                //default directory to open
+            static ImGuiFs::Dialog dlg;                                                // one per dialog (and must be static)
+            const char* chosenPath = dlg.saveFileDialog(show_fs_dialogue, default_dir, fname.c_str());  // see other dialog types and the full list of arguments for advanced usage
             if (strlen(chosenPath)>0) {
                 ImGui::Text("Chosen file: \"%s\"",dlg.getChosenPath());
                 if(!SaveImage(dlg.getChosenPath(), output))
