@@ -1126,57 +1126,42 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
 
     // Apply data type view transforms here (type casts, range normalization, etc)
     // https://git.corp.adobe.com/slomp/halide_visualdbg/issues/30
-    // (switch-case to handle the selected behavior)
-    //
-    // 1. fully normalize (that's the current behavior)
-    // do nothing
-    //
-    // 2. force-cast uint8_t by injecting a cast<uint8_t> before the Func is realized:
-    //    (basically, an "overflow" visualization for high-bit depth integer formats)
-    
-    
-    
-    //
-    // 3. range-normalize, by controlling the min and max values of the normalization, like in RenderDoc
-    
-    //
-    // 4. for automatic min-max range normalization, there's the Halide inline reductions:
-    // http://halide-lang.org/docs/namespace_halide.html#a9d7999c3871839488df9d591b3f55adf
-    // TODO
-    // m = ...
-    Type t = eval(m).type();
-    
-    switch (view_transform_value) {
-        case 0:
-            //1. fully normalize
-            //do nothing
+    switch (view_transform_value)
+    {
+        case 0 : // do nothing (full bit-range normalization)
             break;
-        case 1:
+        case 1 : // overflow (force-cast to 8bit)
         {
-            //2. force-cast
-            if (!t.is_float() && t.bits() > 8)
+            if (!type.is_float() && type.bits() > 8)
             {
                 m = def(m) = cast<uint8_t>(eval(m));
             }
             break;
         }
-        case 2:
+        case 2 : // range-normalize
         {
-            //3. range-normalize
-            m = def(m) = (cast<float>(eval(m)) - cast<float>(min))/(cast<float>(max) - cast<float>(min));
+            m = def(m) = ( cast<float>(eval(m)) - cast<float>(min) )
+                       / ( cast<float>(max)     - cast<float>(min) );
             break;
         }
-        case 3:
+        case 3 : // range-clamp
         {
-            //3a. range clamp
-            m = def(m) = clamp(cast<uint8_t>(eval(m)), cast<uint8_t>(min), cast<uint8_t>(max));
+            Expr lower = Halide::max(Expr(0),   Expr(min));
+            Expr upper = Halide::min(Expr(255), Expr(max));
+            Expr constrained = clamp( eval(m), cast(type, lower), cast(type, upper) );
+            m = def(m) = cast<uint8_t>(constrained);
             break;
         }
+        case 4 : // automatic min-max range detection (based on buffer content)
+                 // Halide inline reductions might be useful here:
+                 // http://halide-lang.org/docs/namespace_halide.html#a9d7999c3871839488df9d591b3f55adf
+            assert(false);
+            break;
         default:
             break;
     }
     
-    t = eval(m).type();
+    Type t = eval(m).type();
     bool is_float = t.is_float();
 
     Halide::Buffer<uint8_t> output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(input_full.width(), input_full.height(), input_full.channels());
