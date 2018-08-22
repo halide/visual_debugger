@@ -68,8 +68,8 @@ void default_output_name(std::string name, int id)
     }
     else
     {
+        output = output.as<float>();
         fname = "data/output/" + name + "_" +std::to_string(id) + ".pfm";
-        //TODO(Emily): need to also cast to float in this case
     }
 }
 
