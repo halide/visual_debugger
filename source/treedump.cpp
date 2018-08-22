@@ -57,14 +57,21 @@ Expr eval(Func f, int tuple_idx=0, int updef_idx=-1)
         return Expr();
     }
 
-    Tuple values { Expr() };
     if (updef_idx == -1)
+    {
+        // by default, choose the very last update definition (if any)
+        updef_idx = f.num_update_definitions();
+    }
+
+    Tuple values { Expr() };
+    if (updef_idx == 0)
     {
         // pure definition
         values = f.values();
     }
     else
     {
+        --updef_idx;
         assert(updef_idx >= 0);
         assert(updef_idx < f.num_update_definitions());
         values = f.update_values(updef_idx);
@@ -974,7 +981,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
                 if(f.has_update_definition())
                 {
                     expr_node * update_spacer = add_spacer_node("<update definitions>");
-                    int num_updates = f.updates().size();
+                    int num_updates = (int)f.updates().size();
                     for(int i = 0; i < num_updates; i++)
                     {
                         auto update_def = f.update(i);
@@ -1033,7 +1040,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
             // note that Func f could be encapsulating a Tuple of values, or even
             // consist of update definitions (which themselves could be Tuples)
             // ideally, if no sub-expression has been selected, it should default
-            // to selecting the first tuple value of its pure definition
+            // to selecting the first tuple value of the last update definition
             selected = eval(f);
         }
         assert(selected.defined());
@@ -1051,11 +1058,11 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
 
 struct IRDump : public DebuggerSelector { };
 
-Func transform(Func f, int id=0, int def_id = 0)
+Func transform(Func f, int id=0, int value_idx=0)
 {
     Func g = DebuggerSelector(id).mutate(f);
 
-    Expr transformed_expr = eval(g, def_id);
+    Expr transformed_expr = eval(g, value_idx);
     if (!transformed_expr.defined())
     {
         transformed_expr = 0;
@@ -1109,9 +1116,15 @@ struct FindInputBuffers : public Halide::Internal::IRVisitor
         }
     }
 
+    std::vector< Buffer<> > visit(Expr expr)
+    {
+        expr.accept(this);
+        return std::move(buffers);
+    }
+
     std::vector< Buffer<> > visit(Func f)
     {
-        eval(f).accept(this);
+        visit(eval(f));
         return std::move(buffers);
     }
 };
