@@ -122,6 +122,26 @@ Func example_another_tuple(Func broken, Func fixed)
     return test_tuple;
 }
 
+Func update_example()
+{
+    Var x, y, c;
+    Func updated ("update def example");
+    updated(x,y,c) = x + y;
+    updated(x,y,0) = x + 100;
+    updated(x,y,c) = updated(x,y,c) + 20;
+    return updated;
+}
+
+Func update_tuple_example()
+{
+    Var x, y, c;
+    Func updated ("update def tuple example");
+    updated(x,y,c) = {x + y, sin(x*y)};
+    updated(x,y,0) = {x + 100, x + 0.0f};
+    return updated;
+}
+
+
 // from 'imgui_main.cpp':
 extern bool stdout_echo_toggle;
 void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full); 
@@ -137,7 +157,7 @@ int main()
     iobc.AddEcho(&stdout_echo_toggle);
     iobc.AddFile(log);
 
-    //NOTE(Emily): define func here instead of in treedump for now
+    //NOTE(Emily): define func here
     xsprintf(input_filename, 128, "data/pencils.jpg");
     Halide::Buffer<uint8_t> input_full = LoadImage(input_filename);
     if (!input_full.defined())
@@ -153,7 +173,9 @@ int main()
     funcs.push_back(example_scoped(input_full));
     funcs.push_back(example_tuple());
     funcs.push_back(example_another_tuple(broken, fixed));
-
+    funcs.push_back(update_example());
+    funcs.push_back(update_tuple_example());
+    
     run_gui(funcs, input_full);
 
     iobc.Terminate();

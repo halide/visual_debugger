@@ -14,27 +14,15 @@
 #include "system.hpp"
 #include "utils.h"
 #include "HalideImageIO.h"
-/*
-#define NOC_FILE_DIALOG_IMPLEMENTATION
-#ifdef _WIN32
-#define NOC_FILE_DIALOG_WIN32
-#elif defined(__APPLE__) && defined(__MACH__)
-#define NOC_FILE_DIALOG_OSX
-#else
-#define NOC_FILE_DIALOG_GTK
-#endif
 
-#include <noc_file_dialog.h>
- */
-
-#include "imguifilesystem.h"
+#include "../third-party/imguifilesystem/imguifilesystem.h"
 
 using namespace Halide;
 
 bool stdout_echo_toggle (false);
 bool save_images(false);
 
-bool range_normalize(false);
+int view_transform_value(1);
 int min_val(0), max_val(0);
 
 //NOTE(Emily): vars related to saving images
@@ -72,12 +60,34 @@ void default_output_name(std::string name, int id)
     assert(output.defined());
     if(output.type().is_float())
     {
-        //fname = "data/output/" + name + "_" + std::to_string(id) + ".jpg";
-        fname = "data/output/" + name + "_" + std::to_string(id) + ".hdr";
+        fname = "data/output/" + name + "_" + std::to_string(id) + ".pfm";
+    }
+    else if(output.type().is_uint() && output.type().bits() == 8)
+    {
+        fname = "data/output/" + name + "_" + std::to_string(id) + ".png";
     }
     else
     {
-        fname = "data/output/" + name + "_" + std::to_string(id) + ".png";
+        output = output.as<float>();
+        fname = "data/output/" + name + "_" +std::to_string(id) + ".pfm";
+    }
+}
+
+void default_output_name_no_dirs(std::string name, int id)
+{
+    assert(output.defined());
+    if(output.type().is_float())
+    {
+        fname = name + "_" + std::to_string(id) + ".pfm";
+    }
+    else if(output.type().is_uint() && output.type().bits() == 8)
+    {
+        fname = name + "_" + std::to_string(id) + ".png";
+    }
+    else
+    {
+        output = output.as<float>();
+        fname = name + "_" +std::to_string(id) + ".pfm";
     }
 }
 
@@ -85,7 +95,7 @@ int id_expr_debugging = -1;
 Halide::Type selected_type;
 
 // from 'treedump.cpp':
-Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, bool range_normalize = false, int min = 0, int max = 0);
+Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value = 0, int min = 0, int max = 0);
 
 void refresh_texture(GLuint idMyTexture, Halide::Buffer<>& output)
 {
@@ -271,7 +281,7 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, Halide::Buffer<ui
 
     if (clicked)
     {
-        times = select_and_visualize(f, id, input_full, selected_type, output, target_features, range_normalize, min_val, max_val);
+        times = select_and_visualize(f, id, input_full, selected_type, output, target_features, view_transform_value, min_val, max_val);
         refresh_texture(idMyTexture, output);
         if(save_images)
         {
@@ -393,32 +403,13 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= 0; // this no-op is here just to suppress unused variable warnings
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;   // Enable Gamepad Controls
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL2_Init();
-    //glfwSetWindowSizeCallback(window, glfw_on_window_resized);
     glfwSetFramebufferSizeCallback(window, glfw_on_window_resized);
 
     // Setup style
-    //ImGui::StyleColorsDark();
     ImGui::StyleColorsClassic();
-
-    // Load Fonts
-    // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them. 
-    // - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple. 
-    // - If the file cannot be loaded, the function will return NULL. Please handle those errors in your application (e.g. use an assertion, or display an error and quit).
-    // - The fonts will be rasterized at a given size (w/ oversampling) and stored into a texture when calling ImFontAtlas::Build()/GetTexDataAsXXXX(), which ImGui_ImplXXXX_NewFrame below will call.
-    // - Read 'misc/fonts/README.txt' for more instructions and details.
-    // - Remember that in C/C++ if you want to include a backslash \ in a string literal you need to write a double backslash \\ !
-    //io.Fonts->AddFontDefault();
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf", 16.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf", 15.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf", 16.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/ProggyTiny.ttf", 10.0f);
-    //ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
-    //IM_ASSERT(font != NULL);
 
     bool show_image = true;
     bool show_expr_tree = true;
@@ -455,11 +446,15 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     //NOTE(Emily): call to update buffer to display output of function
     Profiling times = { };
     int cpu_value(0), gpu_value(0), func_value(0);
+    
+    int range_value(2);
 
     //target flag bools (need to be outside of loop to maintain state)
     bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false), f16c(false);
     bool neon(false);
     bool debug_runtime(false), no_asserts(false), no_bounds_query(false);
+    
+    bool range_select = false;
 
     SystemInfo sys;
 
@@ -621,7 +616,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                     {
                         tree = get_tree(func);
                     }
-                    times = select_and_visualize(func, id_expr_debugging, input_full, selected_type, output, target_features, range_normalize, min_val, max_val);
+                    times = select_and_visualize(func, id_expr_debugging, input_full, selected_type, output, target_features, view_transform_value, min_val, max_val);
                     refresh_texture(idMyTexture, output);
                     break;
                 }
@@ -637,8 +632,6 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
         {
             
             bool * no_close = NULL;
-            //ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_FirstUseEver);
-            //ImGui::SetNextWindowSize(ImVec2(500,600));
             ImGui::Begin("Expression Tree", no_close, ImGuiWindowFlags_HorizontalScrollbar);
             //Note(Emily): call recursive method to display tree
             if(func_selected && target_selected)
@@ -665,16 +658,8 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                              + " | (jit: " + std::to_string(times.jit_time) + "s)"
                              + "###ImageDisplay";   // <- ImGui ID control (###): we want this window to be the same, regardless of its title
             
-            //ImGui::SetNextWindowPos(ImVec2(650, 200), ImGuiCond_FirstUseEver);
-            //ImGui::SetNextWindowSize(ImVec2(500,500));
             
             ImGui::Begin(info.c_str() , no_close);
-            
-            /*if(!save_images)
-            {
-                //allow user to select individual images to save
-                ImGui::Checkbox("Save current image:" , &save_current);
-            }*/
 
             static float zoom = 1.0f;
             ImGui::SliderFloat("Image Zoom", &zoom, 0, 10, "%.001f");
@@ -695,8 +680,10 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             ImGui::SameLine();
             
             bool show_fs_dialogue = ImGui::Button("Save Image");
-            static ImGuiFs::Dialog dlg;                                                     // one per dialog (and must be static)
-            const char* chosenPath = dlg.saveFileDialog(show_fs_dialogue);             // see other dialog types and the full list of arguments for advanced usage
+            default_output_name_no_dirs(selected_name, id_expr_debugging);             //update fname to be default string
+            const char * default_dir = "./data/output";                                //default directory to open
+            static ImGuiFs::Dialog dlg;                                                // one per dialog (and must be static)
+            const char* chosenPath = dlg.saveFileDialog(show_fs_dialogue, default_dir, fname.c_str());  // see other dialog types and the full list of arguments for advanced usage
             if (strlen(chosenPath)>0) {
                 ImGui::Text("Chosen file: \"%s\"",dlg.getChosenPath());
                 if(!SaveImage(dlg.getChosenPath(), output))
@@ -706,19 +693,37 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             
             if(!show_range_normalize)
             {
-                ImGui::Text("Set min/max values for range normalization: ");
-                ImGui::PushItemWidth(90);
-                ImGui::SameLine();
                 bool changed = false;
-                changed |= ImGui::InputInt("Min Value", &min_val);
-                ImGui::PopItemWidth();
-                ImGui::PushItemWidth(90);
+                
+                changed = ImGui::DragIntRange2("Pixel Range", &min_val, &max_val, 3, 0, 0, "Min: %d", "Max: %d");
                 ImGui::SameLine();
-                changed |= ImGui::InputInt("Max Value", &max_val);
-                ImGui::PopItemWidth();
+                if(ImGui::Button("Reset"))
+                {
+                    min_val = 0;
+                    max_val = 0;
+                    changed = true;
+                    view_transform_value = 1;
+                }
+                
+                int previous = range_value; //NOTE(Emily): if we switch between range normalize/clamp we want to force refresh
+                
+                ImGui::SameLine();
+                ImGui::RadioButton("range normalize", &range_value, 2);
+                ImGui::SameLine();
+                ImGui::RadioButton("range clamp", &range_value, 3);
+                
+                
+                
                 // must be set to it back false when 'min_val' and 'max_val' are both zero
-                range_normalize = (min_val != 0 || max_val != 0);
-                if (changed)
+                range_select = (min_val != 0 || max_val != 0);
+                if (range_select)
+                {
+                    // prevent division by zero:
+                    max_val = (min_val == max_val) ? max_val + 1
+                                                   : max_val;
+                    view_transform_value = range_value; //NOTE(Emily): set transform view to type of range transform
+                }
+                if (changed || (previous != range_value))
                     selected = Func();  // will force a refresh
             }
             
@@ -764,11 +769,6 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
         // (alternatively, we can use 'glfwPostEmptyEvent()' to force an event
         //  artificially into the event queue)
 
-        // Poll and handle events (inputs, window resize, etc.)
-        // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
-        // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application.
-        // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application.
-        // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
         //glfwPollEvents();     // <- this is power hungry!
         glfwWaitEvents();       // <- this is a more CPU/power/battery friendly choice
     }

@@ -10,19 +10,24 @@ endif()
 
 add_executable(
 	visdbg
+
+	../data/force_working_directory.cpp
 	
- 	./imguifilesystem.cpp
 	./imgui_main.cpp
 	./main.cpp
 	./system.cpp
 	./treedump.cpp
-	../data/force_working_directory.cpp
 
-	./dirent_portable.h
-	./imguifilesystem.h	
-	./imconfig.h
+	./HalideIdentity.h
 	./HalideImageIO.h
+	./imconfig.h
+	./io-broadcast.hpp
+	./system.hpp
 	./utils.h
+
+	../third-party/imguifilesystem/dirent_portable.h
+	../third-party/imguifilesystem/imguifilesystem.h		
+	../third-party/imguifilesystem/imguifilesystem.cpp
 )
 
 
