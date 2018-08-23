@@ -630,10 +630,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     {
         const int num_updates = static_cast<int>(f.updates().size());
 
-        if (call_stack.empty())
-        {
-            return num_updates;
-        }
+        assert(!call_stack.empty());
 
         if (!call_stack.back().same_as(f))
         {
@@ -646,8 +643,8 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
             return num_updates;
         }
 
-        // "recursive" call detected : calling previous update
-        int recursion_level = 0;
+        // count how many times f has been called in the stack:
+        int recursion_level = -1;   // <- first call doesn't count as recursion
         for (auto& g : call_stack)
         {
             if (g.same_as(f))
@@ -655,9 +652,17 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
                 ++recursion_level;
             }
         }
-        assert(recursion_level > 0);
+        assert(recursion_level >= 0);
+        // sanity check: all these calls must be "consecutive":
+        auto it = call_stack.end()-1;
+        for (int i = recursion_level; i > 0; --i, --it)
+        {
+            auto& g = *it;
+            assert(g.same_as(f));
+        }
 
-        // 0 -> pure definition
+        // (update_level == 0) -> pure definition
+        // (update_level >  0) -> update definition (update_level-1)th
         int update_level = num_updates - recursion_level;
         assert(update_level >= 0);
         return update_level;
@@ -921,7 +926,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
             // but it's there because all other options failed...
             ReductionDomain rdom;
             Definition def (args, { selected }, rdom, true);
-            int level = query_update_level(Function(op->func)) - 1;
+            int level = query_update_level(Function(op->func));
             Function g (op->name + "@" + std::to_string(level));
             g.define(domain, { cast(selected.type(), 0) });
             g.definition() = def;
@@ -936,11 +941,17 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     // The following are convenience functions (not really a part of IRVisitor)
     void visit(Function f, int value_idx=-1)
     {
+        // NOTE(marcos): the default Function visitor is bit wacky, visitng
+        // [predicate, body, args, schedule, specializaitons] in this order
+        // which is confusing since we are mostly interested in [args, body]
+        // for the time being, so we can roll our own visiting pattern:
+
+        call_stack.emplace_back(f);
+
         // query the call stack and find the appropriate definition:
         // level == 0 -> pure definition
         // level >  0 -> update definition (level-1)th
         int level = query_update_level(f);
-        call_stack.emplace_back(f);
 
         Definition def;
         if (level == 0)
@@ -961,10 +972,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
 
         tree.enter(node_op);
         add_indent();
-            // NOTE(marcos): the default Function visitor is bit wacky, visitng
-            // [predicate, body, args, schedule, specializaitons] in this order
-            // which is confusing since we are mostly interested in [args, body]
-            // for the time being, so we can roll our own visiting pattern:
             indented_printf("<arguments>\n");
             expr_node * arg_spacer = add_spacer_node("<arguments>");
             add_indent();
@@ -1003,112 +1010,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         tree.leave(node_op);
 
         call_stack.pop_back();
-
-#if 0
-        dump_head(f);
-        
-        expr_node* node_op = tree.new_expr_node();
-        node_op->name = IRNodePrinter::print(f);
-        tree.enter(node_op);
-
-        if (!f.has_pure_definition())
-        {
-            add_indent();
-                indented_printf("<UNDEFINED>\n");
-            remove_indent();
-            return;
-        }
-
-        auto definition = f.definition();
-        add_indent();
-            // NOTE(marcos): the default Function visitor is bit wacky, visitng
-            // [predicate, body, args, schedule, specializaitons] in this order
-            // which is confusing since we are mostly interested in [args, body]
-            // for the time being, so we can roll our own visiting pattern:
-            indented_printf("<arguments>\n");
-            expr_node * arg_spacer = add_spacer_node("<arguments>");
-            add_indent();
-                for (auto& arg : definition.args())
-                {
-                    IRMutator2::mutate(arg);
-                }
-            remove_indent();
-            leave_spacer_node(arg_spacer);
-
-            if (value_idx != -1)
-            {
-                assert(value_idx < f.values().size());
-                Expr pure_value = f.values()[value_idx];
-                indented_printf("<value %d>\n", value_idx);
-                expr_node * spacer = add_spacer_node("<value " + std::to_string(value_idx) + ">");
-                add_indent();
-                    IRMutator2::mutate(pure_value);
-                remove_indent();
-                leave_spacer_node(spacer);
-                // TODO(marcos): the code below may loop in infinite recursion;
-                // still not sure as to which definition (pure or updates) the
-                // value index from a Call node refers to...
-                /*
-                if (f.has_update_definition())
-                {
-                    expr_node * update_spacer = add_spacer_node("<update definitions>");
-                    for (auto& update_def : f.updates())
-                    {
-                        assert(value_idx < update_def.values().size());
-                        Expr update_value = update_def.values()[value_idx];
-                        indented_printf("<value %d>\n", value_idx);
-                        expr_node * spacer = add_spacer_node("<value>");
-                        add_indent();
-                            IRMutator2::mutate(update_value);
-                        remove_indent();
-                    }
-                    leave_spacer_node(update_spacer);
-                }
-                */
-            }
-            else
-            {
-                // show everything:
-                expr_node * spacer = add_spacer_node("<values>");
-                int value_idx = 0;
-                for (auto& expr : definition.values())
-                {
-                    indented_printf("<value %d>\n", value_idx++);
-                    add_indent();
-                        IRMutator2::mutate(expr);
-                    remove_indent();
-                }
-                leave_spacer_node(spacer);
-        
-                if(f.has_update_definition())
-                {
-                    expr_node * update_spacer = add_spacer_node("<update definitions>");
-                    int num_updates = (int)f.updates().size();
-                    for(int i = 0; i < num_updates; i++)
-                    {
-                        auto update_def = f.update(i);
-                        value_idx = 0;
-                        expr_node * spacer  = add_spacer_node("<update " + std::to_string(i) + ">");
-                        expr_node * spacer2 = add_spacer_node("<values>");
-                        for(auto& expr : update_def.values())
-                        {
-                            indented_printf("<value %d>\n", value_idx++);
-                            add_indent();
-                                IRMutator2::mutate(expr);
-                            remove_indent();
-                        }
-                        leave_spacer_node(spacer2);
-                        leave_spacer_node(spacer);
-                    }
-                    leave_spacer_node(update_spacer);
-                }
-            }
-        
-        //leave_spacer_node(spacer);
-        remove_indent();
-
-        tree.leave(node_op);
-#endif
     }
 
     void visit(Func f)
