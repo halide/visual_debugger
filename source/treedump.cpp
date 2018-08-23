@@ -916,7 +916,27 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         assert(op->call_type == Call::CallType::Halide);
         Expr patched_expr = apply_patch(selected, [&](Expr original_expr)
         {
-            auto& domain = Function(op->func).args();
+            Function f = Function(op->func);
+            int level = query_update_level(f);
+#if 1
+            Definition def;
+            if (level == 0)
+            {
+                def = f.definition();
+            }
+            else
+            {
+                assert(level > 0);
+                assert(level <= f.updates().size());
+                def = f.update(level-1);
+            }
+            assert(def.defined());
+            auto& domain = f.args();
+            auto& args = def.args();
+            Function g (op->name + "@" + std::to_string(level));
+            g.define(domain, { selected });
+#else
+            auto& domain = f.args();
             std::vector<Expr> args;
             for (auto& var_name : domain)
             {
@@ -924,12 +944,11 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
             }
             // NOTE(marcos): the 'g.definition() = def' below is a major hack,
             // but it's there because all other options failed...
-            ReductionDomain rdom;
-            Definition def (args, { selected }, rdom, true);
-            int level = query_update_level(Function(op->func));
+            Definition gdef (args, { selected }, ReductionDomain(), true);
             Function g (op->name + "@" + std::to_string(level));
             g.define(domain, { cast(selected.type(), 0) });
-            g.definition() = def;
+            g.definition() = gdef;
+#endif
             Expr new_call_expr = Call::make(g, op->args, op->value_index);
 
             return new_call_expr;
@@ -972,6 +991,16 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
 
         tree.enter(node_op);
         add_indent();
+            indented_printf("<vars>\n");
+            expr_node * var_spacer = add_spacer_node("<vars>");
+            add_indent();
+                for (auto& arg : f.args())
+                {
+                    IRMutator2::mutate( Var(arg) );
+                }
+            remove_indent();
+            leave_spacer_node(var_spacer);
+
             indented_printf("<arguments>\n");
             expr_node * arg_spacer = add_spacer_node("<arguments>");
             add_indent();

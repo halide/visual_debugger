@@ -125,14 +125,16 @@ Func example_another_tuple(Func broken, Func fixed)
 Func update_example()
 {
     Var x, y, c;
-    Func updated ("update def example");
+    Func updated ("updefs");
     updated(x,y,c) = x + y;
     updated(x,y,0) = 0;
     updated(x,y,c) = updated(x,y,c) + 20;
-    RDom r(0, 50);
+    RDom r (32, 96);
     updated(x,r,c) = updated(x,128,c) * 3;
     //updated(x,8,c) = updated(x,32,c) * 3;
-    return updated;
+    Func output ("update def example");
+    output(x, y, c) = updated(x, y, c);
+    return output;
 }
 
 Func update_example2()
@@ -177,6 +179,23 @@ Func update_tuple_example()
 extern bool stdout_echo_toggle;
 void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full); 
 
+class JITErrorReporter : public Halide::CompileTimeErrorReporter
+{
+public:
+    virtual void warning(const char* msg) override
+    {
+        fprintf(stderr, "%s", msg);
+    }
+    virtual void error(const char* msg) override
+    {
+        fprintf(stderr, "%s", msg);
+        // this should never return control back to Halide...
+        // pretty limiting for a debugger when compile_jit() fail...
+        // we might need to "fork" at the compile_jit() site just to "give it a
+        // try" before calling compile_jit() in the actual host process... ugh!
+    }
+};
+
 int main()
 {
     // redirect stdout to a log file, effectivelly silencing the console output:
@@ -187,6 +206,9 @@ int main()
     Broadcaster iobc = redirect_broadcast(stdout);
     iobc.AddEcho(&stdout_echo_toggle);
     iobc.AddFile(log);
+
+    JITErrorReporter jer;
+    Halide::set_custom_compile_time_error_reporter(&jer);
 
     //NOTE(Emily): define func here
     xsprintf(input_filename, 128, "data/pencils.jpg");
