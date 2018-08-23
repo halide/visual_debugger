@@ -127,9 +127,40 @@ Func update_example()
     Var x, y, c;
     Func updated ("update def example");
     updated(x,y,c) = x + y;
-    updated(x,y,0) = x + 100;
+    updated(x,y,0) = 0;
     updated(x,y,c) = updated(x,y,c) + 20;
+    RDom r(0, 50);
+    updated(x,r,c) = updated(x,128,c) * 3;
+    //updated(x,8,c) = updated(x,32,c) * 3;
     return updated;
+}
+
+Func update_example2()
+{
+    Var x, y, c;
+
+    Func updated("update def example 2");
+    updated(x, y, c) = x + y;
+
+    Func z ("z");
+    z(x, y, c) = updated(x, y, c);
+
+    updated(x, y, 0) = x;
+
+    Func w ("w");
+    w(x, y, c) = updated(x, y-50, c-10);
+
+    updated(x, y, c) = updated(x, y, c) + 20;
+
+    Func k ("k");
+    k(x, y, c) = updated(x, y, c);
+
+    Func output ("output");
+    output(x, y, c) = z(x, y, c)
+                    + w(x, y, c)
+                    + k(x, y, c);
+
+    return output;
 }
 
 Func update_tuple_example()
@@ -174,6 +205,7 @@ int main()
     funcs.push_back(example_tuple());
     funcs.push_back(example_another_tuple(broken, fixed));
     funcs.push_back(update_example());
+    //funcs.push_back(update_example2());
     funcs.push_back(update_tuple_example());
     
     run_gui(funcs, input_full);

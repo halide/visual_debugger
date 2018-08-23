@@ -492,7 +492,7 @@ struct IRNodePrinter
     static std::string print(const Call* op)
     {
         std::stringstream ss;
-        ss << "Call : " << op->name << " | " << print(op->call_type) << " | " << "[" << op->value_index << "]";
+        ss << "Call : " << op->name << " | " << print(op->call_type) << " | " << "value[" << op->value_index << "]";
         return ss.str();
     }
 
@@ -625,6 +625,43 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
 
     // -----------------------
 
+    std::vector<Function> call_stack;
+    int query_update_level(Function f)
+    {
+        const int num_updates = static_cast<int>(f.updates().size());
+
+        if (call_stack.empty())
+        {
+            return num_updates;
+        }
+
+        if (!call_stack.back().same_as(f))
+        {
+            // ensure that 'f' is nowhere to be seen in the call stack, since
+            // that woud break fundamental guarantees of update definitions
+            for (auto& g : call_stack)
+            {
+                assert(!g.same_as(f));
+            }
+            return num_updates;
+        }
+
+        // "recursive" call detected : calling previous update
+        int recursion_level = 0;
+        for (auto& g : call_stack)
+        {
+            if (g.same_as(f))
+            {
+                ++recursion_level;
+            }
+        }
+        assert(recursion_level > 0);
+
+        // 0 -> pure definition
+        int update_level = num_updates - recursion_level;
+        assert(update_level >= 0);
+        return update_level;
+    }
 
     // convenience method (not really a part of IRMutator2)
     template<typename T>
@@ -808,10 +845,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
                         expr_node* spacer = add_spacer_node("<callable>");
                         assert(op->func.defined());     // paranoid check...
                         auto inner_func = Function(op->func);
-                        //visit(inner_func);
-                        // TODO(marcos): OK, I know the 'value_index', but how
-                        // am I supposed to know if it is referring to the pure
-                        // definition or to some update definition?!
                         visit(inner_func, op->value_index);
                         leave_spacer_node(spacer);
                         break;
@@ -902,14 +935,82 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     // The following are convenience functions (not really a part of IRVisitor)
     void visit(Function f, int value_idx=-1)
     {
+        // query the call stack and find the appropriate definition:
+        // level == 0 -> pure definition
+        // level >  0 -> update definition (level-1)th
+        int level = query_update_level(f);
+        call_stack.emplace_back(f);
+
+        Definition def;
+        if (level == 0)
+        {
+            def = f.definition();
+        }
+        else
+        {
+            assert(level > 0);
+            assert(level <= f.updates().size());
+            def = f.update(level-1);
+        }
+        assert(def.defined());
+
+        dump_head(f);   // level
+        expr_node* node_op = tree.new_expr_node();
+        node_op->name = IRNodePrinter::print(f) + " | @" + std::to_string(level);
+
+        tree.enter(node_op);
+        add_indent();
+            // NOTE(marcos): the default Function visitor is bit wacky, visitng
+            // [predicate, body, args, schedule, specializaitons] in this order
+            // which is confusing since we are mostly interested in [args, body]
+            // for the time being, so we can roll our own visiting pattern:
+            indented_printf("<arguments>\n");
+            expr_node * arg_spacer = add_spacer_node("<arguments>");
+            add_indent();
+                for (auto& arg : def.args())
+                {
+                    IRMutator2::mutate(arg);
+                }
+            remove_indent();
+            leave_spacer_node(arg_spacer);
+
+            if (value_idx != -1)
+            {
+                assert(value_idx < def.values().size());
+                Expr pure_value = def.values()[value_idx];
+                indented_printf("<value %d>\n", value_idx);
+                expr_node * spacer = add_spacer_node("<value " + std::to_string(value_idx) + ">");
+                add_indent();
+                    IRMutator2::mutate(pure_value);
+                remove_indent();
+                leave_spacer_node(spacer);
+            }
+            else
+            {
+                expr_node * spacer = add_spacer_node("<values>");
+                int value_idx = 0;
+                for (auto& expr : def.values())
+                {
+                    indented_printf("<value %d>\n", value_idx++);
+                    add_indent();
+                        IRMutator2::mutate(expr);
+                    remove_indent();
+                }
+                leave_spacer_node(spacer);
+            }
+        remove_indent();
+        tree.leave(node_op);
+
+        call_stack.pop_back();
+
+#if 0
         dump_head(f);
         
         expr_node* node_op = tree.new_expr_node();
         node_op->name = IRNodePrinter::print(f);
         tree.enter(node_op);
 
-        auto definition = f.definition();
-        if (!definition.defined())
+        if (!f.has_pure_definition())
         {
             add_indent();
                 indented_printf("<UNDEFINED>\n");
@@ -917,6 +1018,7 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
             return;
         }
 
+        auto definition = f.definition();
         add_indent();
             // NOTE(marcos): the default Function visitor is bit wacky, visitng
             // [predicate, body, args, schedule, specializaitons] in this order
@@ -1005,28 +1107,20 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         remove_indent();
 
         tree.leave(node_op);
+#endif
     }
 
     void visit(Func f)
     {
         indented_printf("vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv\n");
         dump_head(f);
-        
         // NOTE(emily): need to add the root Func as root of expr_node tree
         expr_node* node_op = tree.new_expr_node();
         node_op->name = IRNodePrinter::print(f);
-        // NOTE(marcos): skipping the original expression in the expr_tree
-        // because 'f' might emcapsulate a Tuple of values, and a Tuple is
-        // not an Expr in Halide.
         tree.enter(node_op);
-        
-        
-        
         add_indent();
-        visit(f.function());
-        
+            visit(f.function());
         remove_indent();
-        
         tree.leave(node_op);
         indented_printf("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n");
     }
@@ -1107,6 +1201,7 @@ struct FindInputBuffers : public Halide::Internal::IRVisitor
         if (op->call_type == Call::CallType::Halide)
         {
             assert(op->func.defined());
+            //assert(Function(op->func).is_pure());
             auto definition = Function(op->func).definition();
             for (auto& expr : definition.values())
             {
