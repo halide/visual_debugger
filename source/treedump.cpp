@@ -921,7 +921,8 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
             // but it's there because all other options failed...
             ReductionDomain rdom;
             Definition def (args, { selected }, rdom, true);
-            Function g (op->name);
+            int level = query_update_level(Function(op->func)) - 1;
+            Function g (op->name + "@" + std::to_string(level));
             g.define(domain, { cast(selected.type(), 0) });
             g.definition() = def;
             Expr new_call_expr = Call::make(g, op->args, op->value_index);
