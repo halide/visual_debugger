@@ -759,7 +759,10 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
 
                 if (hovering && io.KeyCtrl && (io.MouseWheel != 0.0f))
                 {
-                    zoom *= (1.0 + io.MouseWheel * 0.0618f);
+                    float factor = 1.0f + (io.MouseWheel * 0.0618f);
+                    zoom *= factor;
+                    ImGui::SetScrollX(ImGui::GetScrollX() * factor);
+                    ImGui::SetScrollY(ImGui::GetScrollY() * factor);
                 }
             ImGui::EndChild();
 
