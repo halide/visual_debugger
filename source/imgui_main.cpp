@@ -739,7 +739,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             size.y -= ImGui::GetFrameHeightWithSpacing();
 
             //NOTE(Emily): in order to get horizontal scrolling needed to add other parameters (from example online)
-            ImGuiWindowFlags ScrollFlags =  ImGuiWindowFlags_HorizontalScrollbar;
+            ImGuiWindowFlags ScrollFlags =  ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoMove;
             ScrollFlags |= (io.KeyCtrl) ? ImGuiWindowFlags_NoScrollWithMouse : 0;
             ImGui::BeginChild(" ", size, false, ScrollFlags);
                 // screen coords of the current drawing "tip" (cursor) location
@@ -748,6 +748,15 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                 ImGui::Image((void *) (uintptr_t) idMyTexture , ImVec2(width*zoom, height*zoom));
 
                 bool hovering = ImGui::IsItemHovered();
+
+                if (hovering && ImGui::IsMouseDragging(0))
+                {
+                    ImVec2 drag = ImGui::GetMouseDragDelta(0);
+                    ImGui::SetScrollX(ImGui::GetScrollX() - drag.x);
+                    ImGui::SetScrollY(ImGui::GetScrollY() - drag.y);
+                    ImGui::ResetMouseDragDelta(0);
+                }
+
                 if (hovering && io.KeyCtrl && (io.MouseWheel != 0.0f))
                 {
                     zoom *= (1.0 + io.MouseWheel * 0.0618f);
