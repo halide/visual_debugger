@@ -434,11 +434,11 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     glGenTextures(1, &idMyTexture);
     assert(idMyTexture != 0);
 
-    bool linear_filter = true;
+    bool linear_filter = false;
     glBindTexture(GL_TEXTURE_2D, idMyTexture);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_RGBA, GL_FLOAT, NULL);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, linear_filter ? GL_LINEAR : GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, linear_filter ? GL_LINEAR : GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -735,7 +735,6 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             
             // save some space to draw the hovered pixel value below the image:
             ImVec2 size = ImGui::GetContentRegionAvail();
-            size.x = 0;
             size.y -= ImGui::GetFrameHeightWithSpacing();
 
             //NOTE(Emily): in order to get horizontal scrolling needed to add other parameters (from example online)
@@ -759,10 +758,21 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
 
                 if (hovering && io.KeyCtrl && (io.MouseWheel != 0.0f))
                 {
-                    float factor = 1.0f + (io.MouseWheel * 0.0618f);
+                    const float scale = 0.0618f;
+                    float factor = 1.0f + (io.MouseWheel * scale);
+                    // zoom around center
+                    float ds = scale * 0.5;
+                    float dx = io.MouseWheel*size.x*ds;
+                    float dy = io.MouseWheel*size.y*ds;
+                    // TODO: zoom off-center
+                    //dx += ;
+                    //dy += ;
+                    // zoom around top-left
+                    //dx = 0.0f;
+                    //dy = 0.0f;
                     zoom *= factor;
-                    ImGui::SetScrollX(ImGui::GetScrollX() * factor);
-                    ImGui::SetScrollY(ImGui::GetScrollY() * factor);
+                    ImGui::SetScrollX(ImGui::GetScrollX() * factor + dx);
+                    ImGui::SetScrollY(ImGui::GetScrollY() * factor + dy);
                 }
             ImGui::EndChild();
 
