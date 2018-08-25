@@ -628,9 +628,15 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     std::vector<Function> call_stack;
     int query_update_level(Function f)
     {
+        //std::vector<std::string> names;
+        //for (auto& g : call_stack)
+        //    names.emplace_back(g.name());
+        //names.emplace_back(f.name());
+
         const int num_updates = static_cast<int>(f.updates().size());
 
         assert(!call_stack.empty());
+        assert(call_stack.back().same_as(f));
 
         if (!call_stack.back().same_as(f))
         {
@@ -911,12 +917,14 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
             return expr;
         }
 
+        Function f = Function(op->func);
+        call_stack.emplace_back(f);
+
         // patching...
         assert(op->func.defined());     // paranoid checks...
         assert(op->call_type == Call::CallType::Halide);
         Expr patched_expr = apply_patch(selected, [&](Expr original_expr)
         {
-            Function f = Function(op->func);
             int level = query_update_level(f);
 #if 1
             Definition def;
@@ -934,7 +942,10 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
             auto& domain = f.args();
             auto& args = def.args();
             Function g (op->name + "@" + std::to_string(level));
-            g.define(domain, { selected });
+            //g.define(domain, { selected });
+            Definition gdef (args, { selected }, ReductionDomain(), true);
+            g.define(domain, { cast(selected.type(), 0) });
+            g.definition() = gdef;
 #else
             auto& domain = f.args();
             std::vector<Expr> args;
@@ -953,6 +964,8 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
 
             return new_call_expr;
         });
+
+        call_stack.pop_back();
 
         return expr;
     }
