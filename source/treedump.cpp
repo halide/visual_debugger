@@ -1123,7 +1123,7 @@ struct FindInputBuffers : public Halide::Internal::IRVisitor
 
     std::vector< Buffer<> > visit(Func f)
     {
-        visit(eval(f));
+        buffers = visit(eval(f));
         return std::move(buffers);
     }
 };
