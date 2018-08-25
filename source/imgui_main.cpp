@@ -7,6 +7,12 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl2.h>
 
+namespace ImGui
+{
+    // non-public, internal imgui routine; handy, and has been there forever...
+    void ColorTooltip(const char* text, const float* col, ImGuiColorEditFlags flags);
+}
+
 #include <stdio.h>
 #include <GLFW/glfw3.h>
 #include <Halide.h>
@@ -428,11 +434,11 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     glGenTextures(1, &idMyTexture);
     assert(idMyTexture != 0);
 
-    bool linear_filter = true;
+    bool linear_filter = false;
     glBindTexture(GL_TEXTURE_2D, idMyTexture);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_RGBA, GL_FLOAT, NULL);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, linear_filter ? GL_LINEAR : GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, linear_filter ? GL_LINEAR : GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -659,7 +665,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                              + "###ImageDisplay";   // <- ImGui ID control (###): we want this window to be the same, regardless of its title
             
             
-            ImGui::Begin(info.c_str() , no_close, ImGuiWindowFlags_HorizontalScrollbar);
+            ImGui::Begin(info.c_str() , no_close);
 
             static float zoom = 1.0f;
             ImGui::SliderFloat("Image Zoom", &zoom, 0, 10, "%.001f");
@@ -729,25 +735,89 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             
             // save some space to draw the hovered pixel value below the image:
             ImVec2 size = ImGui::GetContentRegionAvail();
-            size.x = 0;
-            size.y -= ImGui::GetFontSize() + 4;
+            size.y -= ImGui::GetFrameHeightWithSpacing();
 
-            ImGui::BeginChild(" ", size, false, ImGuiWindowFlags_HorizontalScrollbar); //NOTE(Emily): in order to get horizontal scrolling needed to add other parameters (from example online)
+            //NOTE(Emily): in order to get horizontal scrolling needed to add other parameters (from example online)
+            ImGuiWindowFlags ScrollFlags =  ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoMove;
+            ScrollFlags |= (io.KeyCtrl) ? ImGuiWindowFlags_NoScrollWithMouse : 0;
+            ImGui::BeginChild(" ", size, false, ScrollFlags);
                 // screen coords of the current drawing "tip" (cursor) location
                 // (which is where the child image control will start rendering)
                 ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
                 ImGui::Image((void *) (uintptr_t) idMyTexture , ImVec2(width*zoom, height*zoom));
+
+                bool hovering = ImGui::IsItemHovered();
+
+                if (hovering && ImGui::IsMouseDragging(0))
+                {
+                    ImVec2 drag = ImGui::GetMouseDragDelta(0);
+                    ImGui::SetScrollX(ImGui::GetScrollX() - drag.x);
+                    ImGui::SetScrollY(ImGui::GetScrollY() - drag.y);
+                    ImGui::ResetMouseDragDelta(0);
+                }
+
+                if (hovering && io.KeyCtrl && (io.MouseWheel != 0.0f))
+                {
+                    const float scale = 0.0618f;
+                    float factor = 1.0f + (io.MouseWheel * scale);
+                    // zoom around center
+                    float ds = scale * 0.5;
+                    float dx = io.MouseWheel*size.x*ds;
+                    float dy = io.MouseWheel*size.y*ds;
+                    // TODO: zoom off-center
+                    //dx += ;
+                    //dy += ;
+                    // zoom around top-left
+                    //dx = 0.0f;
+                    //dy = 0.0f;
+                    zoom *= factor;
+                    ImGui::SetScrollX(ImGui::GetScrollX() * factor + dx);
+                    ImGui::SetScrollY(ImGui::GetScrollY() * factor + dy);
+                }
             ImGui::EndChild();
 
-            ImVec2  mouse_pos = ImGui::GetMousePos();
-            ImVec2  hover_pos = mouse_pos;
-            hover_pos.x -= cursor_pos.x;
-            hover_pos.y -= cursor_pos.y;
-            int x = (int)(hover_pos.x / zoom);
-            int y = (int)(hover_pos.y / zoom);
-            float r, g, b;
-            query_pixel(output, x, y, r, g, b);
-            ImGui::Text("hovered pixel: (x=%d, y=%d) = [r=%f, g=%f, b=%f]", x, y, r, g, b);
+            if (hovering)
+            {
+                ImVec2  mouse_pos = ImGui::GetMousePos();
+                ImVec2  hover_pos = mouse_pos;
+                hover_pos.x -= cursor_pos.x;
+                hover_pos.y -= cursor_pos.y;
+                int x = (int)(hover_pos.x / zoom);
+                int y = (int)(hover_pos.y / zoom);
+                float rgb [3];
+                query_pixel(output, x, y, rgb[0], rgb[1], rgb[2]);
+                ImGui::ColorEdit3("hovered pixel", rgb, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_NoPicker | ImGuiColorEditFlags_NoTooltip);
+                ImGui::SameLine();
+                ImGui::Text("(x=%d, y=%d) = [r=%f, g=%f, b=%f]", x, y, rgb[0], rgb[1], rgb[2]);
+                if (io.KeyShift)
+                {
+                    ImGui::ColorTooltip("", rgb, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel);
+                }
+            }
+            else
+            {
+                ImGui::Text("");
+            }
+
+            static int pick_x = 0;
+            static int pick_y = 0;
+            if (hovering && io.MouseDown[1])
+            {
+                ImVec2 mouse_pos = ImGui::GetMousePos();
+                ImVec2 mouse_pick_pos = mouse_pos;
+                mouse_pick_pos.x -= cursor_pos.x;
+                mouse_pick_pos.y -= cursor_pos.y;
+                pick_x = (int)(mouse_pick_pos.x / zoom);
+                pick_y = (int)(mouse_pick_pos.y / zoom);
+            }
+            {
+                float rgb [3];
+                query_pixel(output, pick_x, pick_y, rgb[0], rgb[1], rgb[2]);
+                ImGui::SameLine(ImGui::GetWindowWidth() - 600);
+                ImGui::ColorEdit3("picked pixel", rgb, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_NoPicker | ImGuiColorEditFlags_NoTooltip);
+                ImGui::SameLine();
+                ImGui::Text("(x=%d, y=%d) = [r=%f, g=%f, b=%f]", pick_x, pick_y, rgb[0], rgb[1], rgb[2]);
+            }
 
             ImGui::End();
         }
