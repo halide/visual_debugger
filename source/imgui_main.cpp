@@ -760,16 +760,25 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                 {
                     const float scale = 0.0618f;
                     float factor = 1.0f + (io.MouseWheel * scale);
-                    // zoom around center
-                    float ds = scale * 0.5;
-                    float dx = io.MouseWheel*size.x*ds;
-                    float dy = io.MouseWheel*size.y*ds;
-                    // TODO: zoom off-center
-                    //dx += ;
-                    //dy += ;
-                    // zoom around top-left
-                    //dx = 0.0f;
-                    //dy = 0.0f;
+                    // 1. zoom around top-left
+                    //float dx = 0.0f;
+                    //float dy = 0.0f;
+                    // 2. zoom around center
+                    //float ds_x = scale * 0.5;
+                    //float ds_y = scale * 0.5;
+                    //float dx = io.MouseWheel*size.x*ds_x;
+                    //float dy = io.MouseWheel*size.y*ds_y;
+                    // 2. zoom off-center (around mouse pointer location)
+                    ImVec2  mouse_pos = ImGui::GetMousePos();
+                    ImVec2  hover_pos = mouse_pos;
+                    hover_pos.x -= cursor_pos.x;
+                    hover_pos.y -= cursor_pos.y;
+                    hover_pos.x -= ImGui::GetScrollX();
+                    hover_pos.y -= ImGui::GetScrollY();
+                    float ds_x = scale * (hover_pos.x / size.x);
+                    float ds_y = scale * (hover_pos.y / size.y);
+                    float dx = io.MouseWheel*size.x*ds_x;
+                    float dy = io.MouseWheel*size.y*ds_y;
                     zoom *= factor;
                     ImGui::SetScrollX(ImGui::GetScrollX() * factor + dx);
                     ImGui::SetScrollY(ImGui::GetScrollY() * factor + dy);
