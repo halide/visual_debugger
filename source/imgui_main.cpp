@@ -61,21 +61,35 @@ void ToggleButton(const char* str_id, bool* v)
     draw_list->AddCircleFilled(ImVec2(*v ? (p.x + width - radius) : (p.x + radius), p.y + radius), radius - 1.5f, IM_COL32(255, 255, 255, 255));
 }
 
+std::string sanitize(std::string input)
+{
+    std::string illegalChars = "\\/:?\"<>| ";
+    for(auto i = input.begin(); i < input.end(); i++)
+    {
+        bool found = illegalChars.find(*i) != std::string::npos;
+        if(found)
+        {
+            *i = '-';
+        }
+    }
+    return input;
+}
+
 void default_output_name(std::string name, int id)
 {
     assert(output.defined());
     if(output.type().is_float())
     {
-        fname = "data/output/" + name + "_" + std::to_string(id) + ".pfm";
+        fname = "data/output/" + sanitize(name) + "_" + std::to_string(id) + ".pfm";
     }
     else if(output.type().is_uint() && output.type().bits() == 8)
     {
-        fname = "data/output/" + name + "_" + std::to_string(id) + ".png";
+        fname = "data/output/" + sanitize(name) + "_" + std::to_string(id) + ".png";
     }
     else
     {
         output = output.as<float>();
-        fname = "data/output/" + name + "_" +std::to_string(id) + ".pfm";
+        fname = "data/output/" + sanitize(name) + "_" +std::to_string(id) + ".pfm";
     }
 }
 
@@ -84,16 +98,16 @@ void default_output_name_no_dirs(std::string name, int id)
     assert(output.defined());
     if(output.type().is_float())
     {
-        fname = name + "_" + std::to_string(id) + ".pfm";
+        fname = sanitize(name) + "_" + std::to_string(id) + ".pfm";
     }
     else if(output.type().is_uint() && output.type().bits() == 8)
     {
-        fname = name + "_" + std::to_string(id) + ".png";
+        fname = sanitize(name) + "_" + std::to_string(id) + ".png";
     }
     else
     {
         output = output.as<float>();
-        fname = name + "_" +std::to_string(id) + ".pfm";
+        fname = sanitize(name) + "_" +std::to_string(id) + ".pfm";
     }
 }
 
