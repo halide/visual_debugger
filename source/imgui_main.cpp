@@ -880,3 +880,5 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     glfwTerminate();
 
 }
+
+
