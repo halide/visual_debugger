@@ -1,89 +1,43 @@
-// ImGui - standalone example application for GLFW + OpenGL2, using legacy fixed pipeline
-// If you are new to ImGui, see examples/README.txt and documentation at the top of imgui.cpp.
-// (GLFW is a cross-platform general purpose library for handling windows, inputs, OpenGL/Vulkan graphics context creation, etc.)
-
-// **DO NOT USE THIS CODE IF YOUR CODE/ENGINE IS USING MODERN OPENGL (SHADERS, VBO, VAO, etc.)**
-// **Prefer using the code in the example_glfw_opengl2/ folder**
-// See imgui_impl_glfw.cpp for details.
-
 // include our own local copy of imconfig.h, should we need to customize it
 #include "imconfig.h"
 // we also need to define this to prevent imgui.h form including the stock
 // version of imconfig.h
 #define IMGUI_DISABLE_INCLUDE_IMCONFIG_H
-
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl2.h>
+
+namespace ImGui
+{
+    // non-public, internal imgui routine; handy, and has been there forever...
+    void ColorTooltip(const char* text, const float* col, ImGuiColorEditFlags flags);
+}
+
 #include <stdio.h>
 #include <GLFW/glfw3.h>
+#include <Halide.h>
 
-#include "treedump.cpp"
+#include "system.hpp"
+#include "utils.h"
+#include "HalideImageIO.h"
+
+#include "../third-party/imguifilesystem/imguifilesystem.h"
+
+using namespace Halide;
+
+bool stdout_echo_toggle (false);
+bool save_images(false);
+
+int view_transform_value(1);
+int min_val(0), max_val(0);
+
+//NOTE(Emily): vars related to saving images
+Halide::Buffer<> output;
+std::string fname = "";
 
 static void glfw_error_callback(int error, const char* description)
 {
     fprintf(stderr, "Glfw Error %d: %s\n", error, description);
-}
-
-struct rgba {
-    float r, g, b, a;
-};
-
-
-//NOTE(Emily): method to generate example tree using struc
-expr_node * generate_example_tree(){
-    expr_node * root = new expr_node();
-    root->name = "Func: output";
-    expr_node * temp = new expr_node();
-    temp->name = "<arguments>";
-    root->children.push_back(temp);
-    temp->name = "Variable: v60 | let";
-    root->children[0]->children.push_back(temp);
-    temp->name = "Variable: v61 | let";
-    root->children[0]->children.push_back(temp);
-    temp->name = "Variable: v62 | let";
-    root->children[0]->children.push_back(temp);
-    temp->name = "<definition>";
-    root->children.push_back(temp);
-    temp->name = "Function: f";
-    root->children[1]->children.push_back(temp);
-    temp->name = "<arguments>";
-    root->children[1]->children[0]->children.push_back(temp);
-    temp->name = "Variable: v54 | let";
-    root->children[1]->children[0]->children[0]->children.push_back(temp);
-    temp->name = "Variable: v55 | let";
-    root->children[1]->children[0]->children[0]->children.push_back(temp);
-    temp->name = "Variable: v56 | let";
-    root->children[1]->children[0]->children[0]->children.push_back(temp);
-    temp->name = "<definition>";
-    root->children[1]->children[0]->children.push_back(temp);
-    temp->name = "Mul";
-    root->children[1]->children[0]->children[1]->children.push_back(temp);
-    temp->name = "UIntImm: 10";
-    root->children[1]->children[0]->children[1]->children[0]->children.push_back(temp);
-    temp->name = "Call: image | Halide";
-    root->children[1]->children[0]->children[1]->children[0]->children.push_back(temp);
-    temp->name = "...";
-    root->children[1]->children[0]->children[1]->children[0]->children[1]->children.push_back(temp);
-    return root;
-}
-
-void set_color(std::vector<rgba>& pixels){
-    float R = rand()/(float)RAND_MAX;
-    float G = rand()/(float)RAND_MAX;
-    float B = rand()/(float)RAND_MAX;
-    for(auto& p : pixels){
-        p.r = R;
-        p.g = G;
-        p.b = B;
-        p.a = 1;
-    }
-}
-
-void update_buffer(GLuint idMyTexture, std::vector<rgba> pixels, int width, int height){
-    glBindTexture(GL_TEXTURE_2D, idMyTexture);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_FLOAT, pixels.data());
-    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 void ToggleButton(const char* str_id, bool* v)
@@ -107,158 +61,814 @@ void ToggleButton(const char* str_id, bool* v)
     draw_list->AddCircleFilled(ImVec2(*v ? (p.x + width - radius) : (p.x + radius), p.y + radius), radius - 1.5f, IM_COL32(255, 255, 255, 255));
 }
 
-void display_node(expr_node * parent, GLuint idMyTexture, int width, int height, Func f, Halide::Buffer<uint8_t> input_full, std::string& selected_name){
-    if(ImGui::TreeNode(parent->name.c_str())){
-        if(parent->node_id != 0){
-            static int clicked = 0;
-            if (ImGui::Button("View Result of Expr"))
-                clicked++;
-            if (clicked & 1)
-            {
-                selected_name = parent->name;
-                select_and_visualize(f, parent->node_id, input_full, idMyTexture);
-                
-            }
-            clicked = 0;
+std::string sanitize(std::string input)
+{
+    std::string illegalChars = "\\/:?\"<>| ";
+    for(auto i = input.begin(); i < input.end(); i++)
+    {
+        bool found = illegalChars.find(*i) != std::string::npos;
+        if(found)
+        {
+            *i = '-';
         }
-        if(!parent->children.empty()){
-            for(int i = 0; i < parent->children.size(); i++){
-                display_node(parent->children[i], idMyTexture, width, height, f, input_full, selected_name);
-            }
-        }
-        ImGui::TreePop();
+    }
+    return input;
+}
+
+void default_output_name(std::string name, int id)
+{
+    assert(output.defined());
+    if(output.type().is_float())
+    {
+        fname = "data/output/" + sanitize(name) + "_" + std::to_string(id) + ".pfm";
+    }
+    else if(output.type().is_uint() && output.type().bits() == 8)
+    {
+        fname = "data/output/" + sanitize(name) + "_" + std::to_string(id) + ".png";
+    }
+    else
+    {
+        output = output.as<float>();
+        fname = "data/output/" + sanitize(name) + "_" +std::to_string(id) + ".pfm";
     }
 }
 
-void run_gui(expr_node * tree, Func f, Halide::Buffer<uint8_t> input_full)
+void default_output_name_no_dirs(std::string name, int id)
+{
+    assert(output.defined());
+    if(output.type().is_float())
+    {
+        fname = sanitize(name) + "_" + std::to_string(id) + ".pfm";
+    }
+    else if(output.type().is_uint() && output.type().bits() == 8)
+    {
+        fname = sanitize(name) + "_" + std::to_string(id) + ".png";
+    }
+    else
+    {
+        output = output.as<float>();
+        fname = sanitize(name) + "_" +std::to_string(id) + ".pfm";
+    }
+}
+
+int id_expr_debugging = -1;
+Halide::Type selected_type;
+
+// from 'treedump.cpp':
+Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value = 0, int min = 0, int max = 0);
+
+void refresh_texture(GLuint idMyTexture, Halide::Buffer<>& output)
+{
+    auto dims = output.dimensions();
+    // only 2D or 3D images for now (no 1D LUTs or nD entities)
+    assert(dims >= 2);
+    assert(dims <= 3);
+
+    int width    = output.width();      // same as output.dim(0).extent()
+    int height   = output.height();     // same as output.dim(1).extent()
+    int channels = output.channels();   // same as output.dim(2).extent() when 'dims >= 2', or 1 otherwise
+
+    // only monochrome or rgb for now
+    assert(channels == 1 || channels == 3);
+
+    bool is_monochrome = (channels == 1);
+
+    GLenum internal_format (GL_INVALID_ENUM),
+           external_format (GL_INVALID_ENUM),
+           external_type   (GL_INVALID_ENUM);
+
+    external_format = (is_monochrome) ? GL_RED
+                                      : GL_RGB;
+
+    #ifndef GL_RGBA32F
+    #define GL_RGBA32F 0x8814
+    #endif//GL_RGBA32F
+
+    Type type = output.type();
+    bool is_float = type.is_float();
+    auto bits = type.bits();
+    switch(bits)
+    {
+        case 8:
+            external_type   = GL_UNSIGNED_BYTE;
+            internal_format = GL_RGBA8;
+            break;
+        case 16:
+            external_type   = GL_UNSIGNED_SHORT;
+            internal_format = GL_RGBA16;                                    // maybe force GL_RGBA8 fow now?
+            break;
+        case 32:
+            external_type   = (is_float) ? GL_FLOAT   : GL_UNSIGNED_INT;
+            internal_format = (is_float) ? GL_RGBA32F : GL_RGBA16;          // maybe force GL_RGBA8 for now?
+            break;
+        default:
+            assert(false);
+            break;
+            
+    }
+
+    glBindTexture(GL_TEXTURE_2D, idMyTexture);
+        glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, output.data());
+        // TODO(marcos): generate mip-maps to improve visualization on zoom-out
+        // auto glGenerateMipMap = (void(*)(GLenum))glfwGetProcAddress("glGenerateMipMap");
+        //glGenerateMipMap(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+template<typename T, int K>
+void query_pixel(Halide::Runtime::Buffer<T, K>& image, int x, int y, float& r, float& g, float& b)
+{
+    r = (float)image(x, y, 0);
+    g = (float)image(x, y, 1);
+    b = (float)image(x, y, 2);
+}
+
+void query_pixel(Halide::Buffer<>& buffer, int x, int y, float& r, float& g, float& b)
+{
+    r = g = b = 0.0f;
+
+    if ((x < 0) || (x >= buffer.width()))
+        return;
+    if ((y < 0) || (y >= buffer.height()))
+        return;
+
+    switch (output.type().code())
+    {
+        case halide_type_int :
+            switch (output.type().bits())
+            {
+                case 8 :
+                {
+                    Halide::Runtime::Buffer<int8_t> image = *buffer.get();
+                    query_pixel(image, x, y, r, g, b);
+                    break;
+                }
+                case 16 :
+                {
+                    Halide::Runtime::Buffer<int16_t> image = *buffer.get();
+                    query_pixel(image, x, y, r, g, b);
+                    break;
+                }
+                case 32 :
+                {
+                    Halide::Runtime::Buffer<int32_t> image = *buffer.get();
+                    query_pixel(image, x, y, r, g, b);
+                    break;
+                }
+                default:
+                    assert(false);
+                    break;
+            }
+            break;
+        case halide_type_uint :
+            switch (output.type().bits())
+            {
+                case 8 :
+                {
+                    Halide::Runtime::Buffer<uint8_t> image = *buffer.get();
+                    query_pixel(image, x, y, r, g, b);
+                    break;
+                }
+                case 16 :
+                {
+                    Halide::Runtime::Buffer<uint16_t> image = *buffer.get();
+                    query_pixel(image, x, y, r, g, b);
+                    break;
+                }
+                case 32 :
+                {
+                    Halide::Runtime::Buffer<uint32_t> image = *buffer.get();
+                    query_pixel(image, x, y, r, g, b);
+                    break;
+                }
+                default:
+                    assert(false);
+                    break;
+            }
+            break;
+        case halide_type_float :
+            switch (output.type().bits())
+            {
+                case 32 :
+                {
+                    Halide::Runtime::Buffer<float> image = *buffer.get();
+                    query_pixel(image, x, y, r, g, b);
+                    break;
+                }
+                default:
+                    assert(false);
+                    break;
+            }
+            break;
+        default :
+            assert(false);
+            break;
+    }
+}
+
+void display_node(expr_node* node, GLuint idMyTexture, Func f, Halide::Buffer<uint8_t>& input_full, std::string& selected_name, Profiling& times, const std::string& target_features)
+{
+    const int id = node->node_id;
+    const char* label = node->name.c_str();
+    const bool selected = (id_expr_debugging == id);
+    const bool terminal = node->children.empty();
+    const bool viewable = (id != 0);   // <- whether or not this expr_node can be visualized
+
+    if (selected)
+    {
+        const ImU32 LimeGreen = 0xFF00CF40;
+        ImGui::PushStyleColor(ImGuiCol_Text,   LimeGreen);
+        ImGui::PushStyleColor(ImGuiCol_Button, LimeGreen);
+    }
+
+    bool clicked = false;
+    if (viewable)
+    {
+        ImGui::PushID(id);
+        clicked = ImGui::SmallButton(" ");
+        ImGui::PopID();
+        ImGui::SameLine();
+    }
+
+    bool open = (terminal) ? ImGui::TreeNodeEx(label, ImGuiTreeNodeFlags_Leaf)
+                           : ImGui::TreeNode(label);
+
+    if (selected)
+    {
+        ImGui::PopStyleColor();
+        ImGui::PopStyleColor();
+    }
+
+    if (clicked)
+    {
+        times = select_and_visualize(f, id, input_full, selected_type, output, target_features, view_transform_value, min_val, max_val);
+        refresh_texture(idMyTexture, output);
+        if(save_images)
+        {
+            assert(output.defined());
+            //NOTE(Emily): need to create default filename for all images
+            //we want to decide file extension based on data type
+
+            if(fname == "") default_output_name(f.name(), id);
+            
+            if(!SaveImage(fname.c_str(), output))
+                fprintf(stderr, "Error saving image\n");
+            
+            fname = ""; //NOTE(Emily): done saving so want to reset fname
+        }
+        id_expr_debugging = id;
+        selected_name = label;
+    }
+
+    if (!open)
+    {
+        return;
+    }
+
+    for(auto& child : node->children)
+    {
+        display_node(child, idMyTexture, f, input_full, selected_name, times, target_features);
+    }
+
+    // NOTE(marcos): TreePop() must be called only when TreeNode*() returns true
+    ImGui::TreePop();
+}
+
+std::string type_to_string(Halide::Type type)
+{
+    std::stringstream ss;
+    switch (type.code())
+    {
+        case halide_type_uint:
+            ss << "u";
+        case halide_type_int:
+            ss << "int";
+            break;
+        case halide_type_float:
+            ss << "float";
+            break;
+        case halide_type_handle:
+            ss << "handle";
+            break;
+    }
+    ss << type.bits();
+    ss << "[";
+    ss << type.lanes();
+    ss << "]";
+    return ss.str();
+    return ss.str();
+}
+
+void render_gui(GLFWwindow* window)
+{
+    assert(glfwGetCurrentContext() == window);
+
+    ImGui::Render();
+
+    glClear(GL_COLOR_BUFFER_BIT);
+    ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
+    glfwSwapBuffers(window);
+}
+
+void glfw_on_window_resized(GLFWwindow* window, int width, int height)
+{
+    assert(glfwGetCurrentContext() == window);
+    glViewport(0, 0, width, height);
+
+    ImGui_ImplOpenGL2_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    render_gui(window);
+}
+
+bool OptionalCheckbox(const char* label, bool* v, bool enabled=true)
+{
+    if (enabled)
+    {
+        return ImGui::Checkbox(label, v);
+    }
+
+    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+    bool dummy = false;
+    bool result = ImGui::Checkbox(label, &dummy);
+    ImGui::PopStyleVar();
+    return result;
+}
+
+bool OptionalRadioButton(const char* label, int* v, int v_button, bool enabled=true)
+{
+    if (enabled)
+    {
+        return ImGui::RadioButton(label, v, v_button);
+    }
+
+    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+    bool result = ImGui::RadioButton(label, false);
+    ImGui::PopStyleVar();
+    return result;
+}
+
+ImVec2 ImageViewer(ImTextureID texture, const ImVec2& texture_size, float& zoom, const ImVec2& canvas_size)
+{
+    auto& io = ImGui::GetIO();
+
+    //NOTE(Emily): in order to get horizontal scrolling needed to add other parameters (from example online)
+    ImGuiWindowFlags ScrollFlags =  ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoMove;
+    ScrollFlags |= (io.KeyCtrl) ? ImGuiWindowFlags_NoScrollWithMouse : 0;
+    ImGui::BeginChild(" ", canvas_size, false, ScrollFlags);
+        // screen coords of the current drawing "tip" (cursor) location
+        // (which is where the child image control will start rendering)
+        ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
+        ImGui::Image(texture , ImVec2(zoom*texture_size.x, zoom*texture_size.y));
+    
+        bool hovering = ImGui::IsItemHovered();
+    
+        if (hovering && ImGui::IsMouseDragging(0))
+        {
+            ImVec2 drag = ImGui::GetMouseDragDelta(0);
+            ImGui::SetScrollX(ImGui::GetScrollX() - drag.x);
+            ImGui::SetScrollY(ImGui::GetScrollY() - drag.y);
+            ImGui::ResetMouseDragDelta(0);
+        }
+    
+        if (hovering && io.KeyCtrl && (io.MouseWheel != 0.0f))
+        {
+            const float scale = 0.0618f;
+            float factor = 1.0f + (io.MouseWheel * scale);
+            // 1. zoom around top-left
+            //float dx = 0.0f;
+            //float dy = 0.0f;
+            // 2. zoom around center
+            //float ds_x = scale * 0.5;
+            //float ds_y = scale * 0.5;
+            //float dx = io.MouseWheel*size.x*ds_x;
+            //float dy = io.MouseWheel*size.y*ds_y;
+            // 2. zoom off-center (around mouse pointer location)
+            ImVec2  mouse_pos = ImGui::GetMousePos();
+            ImVec2  hover_pos = mouse_pos;
+            hover_pos.x -= cursor_pos.x;
+            hover_pos.y -= cursor_pos.y;
+            hover_pos.x -= ImGui::GetScrollX();
+            hover_pos.y -= ImGui::GetScrollY();
+            float ds_x = scale * (hover_pos.x / canvas_size.x);
+            float ds_y = scale * (hover_pos.y / canvas_size.y);
+            float dx = io.MouseWheel * canvas_size.x * ds_x;
+            float dy = io.MouseWheel * canvas_size.y * ds_y;
+            zoom *= factor;
+            ImGui::SetScrollX(ImGui::GetScrollX() * factor + dx);
+            ImGui::SetScrollY(ImGui::GetScrollY() * factor + dy);
+        }
+    ImGui::EndChild();
+
+    ImVec2 pixel_coord = { -1.0f, -1.0f };
+    if (hovering)
+    {
+        ImVec2  mouse_pos = ImGui::GetMousePos();
+        ImVec2  hover_pos = mouse_pos;
+        hover_pos.x -= cursor_pos.x;
+        hover_pos.y -= cursor_pos.y;
+        pixel_coord.x = (hover_pos.x / zoom);
+        pixel_coord.y = (hover_pos.y / zoom);
+    }
+    
+    return pixel_coord;
+}
+
+void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
 {
     // Setup window
     glfwSetErrorCallback(glfw_error_callback);
     if (!glfwInit())
         return;
     GLFWwindow* window = glfwCreateWindow(1280, 720, "Halide Visual Debugger", NULL, NULL);
+    assert(window);
     glfwMakeContextCurrent(window);
-    glfwSwapInterval(1); // Enable vsync
+    glfwSwapInterval(0); // Disable vsync to reduce input response lag
 
     // Setup Dear ImGui binding
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= 0; // this no-op is here just to suppress unused variable warnings
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;   // Enable Gamepad Controls
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL2_Init();
+    glfwSetFramebufferSizeCallback(window, glfw_on_window_resized);
 
     // Setup style
-    //ImGui::StyleColorsDark();
     ImGui::StyleColorsClassic();
-    
-    
 
-    // Load Fonts
-    // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them. 
-    // - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple. 
-    // - If the file cannot be loaded, the function will return NULL. Please handle those errors in your application (e.g. use an assertion, or display an error and quit).
-    // - The fonts will be rasterized at a given size (w/ oversampling) and stored into a texture when calling ImFontAtlas::Build()/GetTexDataAsXXXX(), which ImGui_ImplXXXX_NewFrame below will call.
-    // - Read 'misc/fonts/README.txt' for more instructions and details.
-    // - Remember that in C/C++ if you want to include a backslash \ in a string literal you need to write a double backslash \\ !
-    //io.Fonts->AddFontDefault();
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf", 16.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf", 15.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf", 16.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/ProggyTiny.ttf", 10.0f);
-    //ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
-    //IM_ASSERT(font != NULL);
-
-    bool show_another_window = true;
     bool show_image = true;
+    bool show_expr_tree = true;
+    bool show_func_select = true;
+    bool show_target_select = true;
+    bool show_stdout_box = true;
+    bool show_save_image = true;
+    bool show_range_normalize = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-    
+
     std::string selected_name = "No node selected, displaying output";
-    
-    int width = input_full.width();
-    int height = input_full.height();
-    int channels = input_full.channels();
-    
+
+    glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
+
     GLuint idMyTexture = 0;
     glGenTextures(1, &idMyTexture);
     assert(idMyTexture != 0);
-    
+
+    bool linear_filter = false;
     glBindTexture(GL_TEXTURE_2D, idMyTexture);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_RGBA, GL_FLOAT, NULL);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, linear_filter ? GL_LINEAR : GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, linear_filter ? GL_LINEAR : GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
     glBindTexture(GL_TEXTURE_2D, 0);
-    
+
+    // TODO(marcos): maybe we should make 'select_and_visualize' return the
+    // corresponding expr_tree; this will spare us of a visitor step.
+    //expr_tree tree = get_tree(funcs[0]);
+    expr_tree tree;
+    std::string target_features;
+
     //NOTE(Emily): call to update buffer to display output of function
-    select_and_visualize(f, 0, input_full, idMyTexture);
+    Profiling times = { };
+    int cpu_value(0), gpu_value(0), func_value(0);
     
+    int range_value(2);
+
+    //target flag bools (need to be outside of loop to maintain state)
+    bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false), f16c(false);
+    bool neon(false);
+    bool debug_runtime(false), no_asserts(false), no_bounds_query(false);
+    
+    bool range_select = false;
+
+    SystemInfo sys;
+
+    //NOTE(Emily): temporary to explore demo window
+    bool open_demo(false);
+
+    Func selected;
+
     // Main loop
     while (!glfwWindowShouldClose(window))
     {
-        // Poll and handle events (inputs, window resize, etc.)
-        // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
-        // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application.
-        // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application.
-        // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
-        glfwPollEvents();
-
         // Start the ImGui frame
         ImGui_ImplOpenGL2_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
-
-        // NOTE(Emily): main expression tree window
-        // Tip: if we don't call ImGui::Begin()/ImGui::End() the widgets automatically appears in a window called "Debug".
+        if(show_stdout_box)
         {
-            if (ImGui::CollapsingHeader("Expression Tree"))
-            {
-                //Note(Emily): call recursive method to display tree
-                display_node(tree, idMyTexture, width, height, f, input_full, selected_name);
-            }
-            
-        }
-        
-        
-        //NOTE(Emily): Window to show image info
-        if (show_another_window)
-        {
-            ImGui::SetNextWindowPos(ImVec2(650, 20), ImGuiCond_FirstUseEver);
-            ImGui::Begin("Image Information Pop Up", &show_another_window);
-            ImGui::Text("Information about the currently displayed image: ");
-            std::string size_info = "width: " + std::to_string(width) + " height: " + std::to_string(height) + " channels: " + std::to_string(channels);
-            ImGui::Text("%s", size_info.c_str());
-            ImGui::Text("Currently Selected Expr: %s", selected_name.c_str());
-            if (ImGui::Button("Close Me"))
-                show_another_window = false;
+            bool * no_close = NULL;
+            ImGui::Begin("Output", no_close);
+            ImGui::Checkbox("Show stdout in terminal", &stdout_echo_toggle);
             ImGui::End();
         }
         
+        if(true)
+        {
+            ImGui::Begin("display demo window");
+            ImGui::Checkbox("open", &open_demo);
+            if(open_demo)
+            {
+                ImGui::ShowDemoWindow();
+            }
+            ImGui::End();
+        }
+        
+        if(show_save_image)
+        {
+            bool * no_close = NULL;
+            ImGui::Begin("Save images to disk upon selection: ", no_close);
+            ToggleButton("Save all images", &save_images);
+            ImGui::SameLine();
+            ImGui::Text("Save all displayed images");
+            
+            ImGui::End();
+        }
+
+        std::string target_features_before = target_features;
+
+        if(show_target_select)
+        {
+            bool * no_close = NULL;
+            
+            ImGui::Begin("Select compilation target: ", no_close);
+            
+            ImGui::Text("CPU: ");
+
+            ImGui::RadioButton("host", &cpu_value, 0);
+
+            OptionalRadioButton("x86",    &cpu_value, 1, sys.Supports(Target::Arch::X86, 32));
+            ImGui::SameLine();
+            OptionalRadioButton("x86_64", &cpu_value, 2, sys.Supports(Target::Arch::X86, 64));
+
+            if(cpu_value == 1 || cpu_value == 2)
+            {
+                OptionalCheckbox("sse41", &sse41, sys.Supports(Target::SSE41));
+                ImGui::SameLine();
+                OptionalCheckbox("avx", &avx, sys.Supports(Target::AVX));
+                ImGui::SameLine();
+                OptionalCheckbox("avx2", &avx2, sys.Supports(Target::AVX2));
+                ImGui::SameLine();
+                OptionalCheckbox("avx512", &avx512, sys.Supports(Target::AVX512));
+
+                // FMA is actually orthogonal to AVX (and is even orthogonal to AVX2!)
+                OptionalCheckbox("fma", &fma, sys.Supports(Target::FMA));
+                ImGui::SameLine();
+                // FMA4 is AMD-only; Intel adopted FMA3 (which Halide does not yet support)
+                OptionalCheckbox("fma4", &fma4, sys.Supports(Target::FMA4));
+
+                OptionalCheckbox("f16c", &f16c, sys.Supports(Target::F16C));
+            }
+
+            OptionalRadioButton("ARM", &cpu_value, 3, sys.Supports(Target::Arch::ARM));
+            if(cpu_value == 3)
+            {
+                ImGui::Checkbox("NEON", &neon);
+                target_features += (neon) ? "-neon" : "-no_neon";
+            }
+
+            ImGui::Text("GPU: ");
+            
+            OptionalRadioButton("none",        &gpu_value, 0);
+            OptionalRadioButton("Metal",       &gpu_value, 1, sys.metal);
+            OptionalRadioButton("CUDA",        &gpu_value, 2, sys.cuda);
+            OptionalRadioButton("OpenCL",      &gpu_value, 3, sys.opencl);
+            OptionalRadioButton("Direct3D 12", &gpu_value, 4, sys.d3d12);
+
+            ImGui::Text("Halide: ");
+            ImGui::Checkbox("Debug Runtime", &debug_runtime);
+            ImGui::Checkbox("No Asserts", &no_asserts);
+            ImGui::Checkbox("No Bounds Query", &no_bounds_query);
+
+            //ImGui::Text("%s", target_features.c_str());
+
+            ImGui::End();
+
+            if (cpu_value == 0) target_features = "host";
+            if (cpu_value == 1) target_features = "x86";
+            if (cpu_value == 2) target_features = "x86_64";
+            if (cpu_value == 3) target_features = "armv7s";
+
+            target_features += (sse41)  ? "-sse41"  : "" ;
+            target_features += (avx)    ? "-avx"    : "" ;
+            target_features += (avx2)   ? "-avx2"   : "" ;
+            target_features += (avx512) ? "-avx512" : "" ;
+            target_features += (fma)    ? "-fma"    : "" ;
+            target_features += (fma4)   ? "-fma4"   : "" ;
+            target_features += (f16c)   ? "-f16c"   : "" ;
+
+            if (gpu_value == 1) target_features += "-metal";
+            if (gpu_value == 2) target_features += "-cuda";
+            if (gpu_value == 3) target_features += "-opencl";
+            if (gpu_value == 4) target_features += "-d3d12compute";
+
+            target_features += (debug_runtime)   ? "-debug"           : "" ;
+            target_features += (no_asserts)      ? "-no_asserts"      : "" ;
+            target_features += (no_bounds_query) ? "-no_bounds_query" : "" ;
+        }
+
+        bool target_changed = (target_features_before != target_features);
+        target_features_before = target_features;
+
+        bool target_selected = !target_features.empty();
+
+        if(show_func_select)
+        {
+            bool * no_close = NULL;
+            ImGui::Begin("Select Func to visualize: ", no_close);
+            int id = 0;
+            for(auto func : funcs)
+            {
+                int func_value_before = func_value;
+                ImGui::RadioButton(func.name().c_str(), &func_value, id);
+                bool func_changed = (func_value_before != func_value);
+                bool changed = func_changed || !selected.defined() || target_changed;
+                if(func_value == id && changed)
+                {
+                    int show_id = id_expr_debugging;
+                    if (func_changed)
+                    {
+                        tree.root = nullptr;
+                        id_expr_debugging = -1;
+                        show_id = 0;
+                        selected = Func();
+                    }
+                    if (!selected.defined())
+                    {
+                        selected = func;
+                    }
+                    if (tree.root == nullptr)
+                    {
+                        tree = get_tree(func);
+                    }
+                    times = select_and_visualize(func, id_expr_debugging, input_full, selected_type, output, target_features, view_transform_value, min_val, max_val);
+                    refresh_texture(idMyTexture, output);
+                    break;
+                }
+                id++;
+            }
+            ImGui::End();
+        }
+
+        bool func_selected = selected.defined();
+
+        // NOTE(Emily): main expression tree window
+        if(show_expr_tree)
+        {
+            
+            bool * no_close = NULL;
+            ImGui::Begin("Expression Tree", no_close, ImGuiWindowFlags_HorizontalScrollbar);
+            //Note(Emily): call recursive method to display tree
+            if(func_selected && target_selected)
+            {
+                display_node(tree.root, idMyTexture, selected, input_full, selected_name, times, target_features);
+            }
+            ImGui::End();
+            
+        }
+
+        
         if (show_image)
         {
-            ImGui::SetNextWindowPos(ImVec2(650, 200), ImGuiCond_FirstUseEver);
-            ImGui::Begin("Image", &show_image);
+            bool * no_close = NULL;
             
-            ImGui::Image((void *) (uintptr_t) idMyTexture , ImVec2(width, height));
+            int width    = output.width();
+            int height   = output.height();
+            int channels = output.channels();
+
+            std::string info = std::to_string(width) + "x" + std::to_string(height) + "x" + std::to_string(channels)
+                             + " | " + type_to_string(selected_type)
+                             + " | " + std::to_string(times.run_time) + "s"
+                             + " | (up: " + std::to_string(times.upl_time) + "s)"
+                             + " | (jit: " + std::to_string(times.jit_time) + "s)"
+                             + "###ImageDisplay";   // <- ImGui ID control (###): we want this window to be the same, regardless of its title
+            
+            
+            ImGui::Begin(info.c_str() , no_close);
+
+            static float zoom = 1.0f;
+            ImGui::SliderFloat("Image Zoom", &zoom, 0, 10, "%.001f");
+
+            ImGui::SameLine();
+
+            if (ImGui::Checkbox("filter", &linear_filter))
+            {
+                GLenum filter = (linear_filter) ? GL_LINEAR : GL_NEAREST;
+                glBindTexture(GL_TEXTURE_2D, idMyTexture);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+                glBindTexture(GL_TEXTURE_2D, 0);
+            }
+
+            
+            
+            ImGui::SameLine();
+            
+            bool show_fs_dialogue = ImGui::Button("Save Image");
+            default_output_name_no_dirs(selected_name, id_expr_debugging);             //update fname to be default string
+            const char * default_dir = "./data/output";                                //default directory to open
+            static ImGuiFs::Dialog dlg;                                                // one per dialog (and must be static)
+            const char* chosenPath = dlg.saveFileDialog(show_fs_dialogue, default_dir, fname.c_str());  // see other dialog types and the full list of arguments for advanced usage
+            if (strlen(chosenPath)>0) {
+                ImGui::Text("Chosen file: \"%s\"",dlg.getChosenPath());
+                if(!SaveImage(dlg.getChosenPath(), output))
+                    fprintf(stderr, "Error saving image\n");
+                chosenPath = NULL;
+            }
+            
+            if(!show_range_normalize)
+            {
+                bool changed = false;
+                
+                changed = ImGui::DragIntRange2("Pixel Range", &min_val, &max_val, 3, 0, 0, "Min: %d", "Max: %d");
+                ImGui::SameLine();
+                if(ImGui::Button("Reset"))
+                {
+                    min_val = 0;
+                    max_val = 0;
+                    changed = true;
+                    view_transform_value = 1;
+                }
+                
+                int previous = range_value; //NOTE(Emily): if we switch between range normalize/clamp we want to force refresh
+                
+                ImGui::SameLine();
+                ImGui::RadioButton("range normalize", &range_value, 2);
+                ImGui::SameLine();
+                ImGui::RadioButton("range clamp", &range_value, 3);
+                
+                
+                
+                // must be set to it back false when 'min_val' and 'max_val' are both zero
+                range_select = (min_val != 0 || max_val != 0);
+                if (range_select)
+                {
+                    // prevent division by zero:
+                    max_val = (min_val == max_val) ? max_val + 1
+                                                   : max_val;
+                    view_transform_value = range_value; //NOTE(Emily): set transform view to type of range transform
+                }
+                if (changed || (previous != range_value))
+                    selected = Func();  // will force a refresh
+            }
+            
+            // save some space to draw the hovered pixel value below the image:
+            ImVec2 canvas_size = ImGui::GetContentRegionAvail();
+            canvas_size.y -= ImGui::GetFrameHeightWithSpacing();
+
+            ImVec2 pixel_coord = ImageViewer((ImTextureID)(uintptr_t)idMyTexture, ImVec2(width, height), zoom, canvas_size);
+            bool hovering = (pixel_coord.x >= 0.0f) && (pixel_coord.y >= 0.0f);
+
+            if (hovering)
+            {
+                int x = (int)pixel_coord.x;
+                int y = (int)pixel_coord.y;
+                float rgb [3];
+                query_pixel(output, x, y, rgb[0], rgb[1], rgb[2]);
+                ImGui::ColorEdit3("hovered pixel", rgb, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_NoPicker | ImGuiColorEditFlags_NoTooltip);
+                ImGui::SameLine();
+                ImGui::Text("(x=%d, y=%d) = [r=%f, g=%f, b=%f]", x, y, rgb[0], rgb[1], rgb[2]);
+                if (io.KeyShift)
+                {
+                    ImGui::ColorTooltip("", rgb, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel);
+                }
+            }
+            else
+            {
+                ImGui::Text("");
+            }
+
+            static int pick_x = 0;
+            static int pick_y = 0;
+            if (hovering && io.MouseDown[1])
+            {
+                pick_x = (int)pixel_coord.x;
+                pick_y = (int)pixel_coord.y;
+            }
+            {
+                float rgb [3];
+                query_pixel(output, pick_x, pick_y, rgb[0], rgb[1], rgb[2]);
+                ImGui::SameLine(ImGui::GetWindowWidth() - 600);
+                ImGui::ColorEdit3("picked pixel", rgb, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_NoPicker | ImGuiColorEditFlags_NoTooltip);
+                ImGui::SameLine();
+                ImGui::Text("(x=%d, y=%d) = [r=%f, g=%f, b=%f]", pick_x, pick_y, rgb[0], rgb[1], rgb[2]);
+            }
+
             ImGui::End();
         }
 
         // Rendering
-        ImGui::Render();
-        int display_w, display_h;
-        glfwGetFramebufferSize(window, &display_w, &display_h);
-        glViewport(0, 0, display_w, display_h);
-        glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
-        glClear(GL_COLOR_BUFFER_BIT);
+        render_gui(window);
 
-        ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
+        // NOTE(marcos): moving event handling to the end of the main loop so
+        // that we don't "lose" the very first frame and are left staring at a
+        // blank screen until the mouse starts hovering the window:
+        // (alternatively, we can use 'glfwPostEmptyEvent()' to force an event
+        //  artificially into the event queue)
 
-        glfwMakeContextCurrent(window);
-        glfwSwapBuffers(window);
+        //glfwPollEvents();     // <- this is power hungry!
+        glfwWaitEvents();       // <- this is a more CPU/power/battery friendly choice
     }
 
     // Cleanup

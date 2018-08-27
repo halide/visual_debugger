@@ -14,48 +14,10 @@
     #include <sys/stat.h>
 #endif//_MSC_VER
 
-
-
-// //// Utilities /////////////////////////////////////////////////////////////
-#ifndef XSTR
-#define XSTR(x) #x
-#endif//XSTR
-
-#ifndef STR
-#define STR(x) XSTR(x)
-#endif//XSTR
-
-// auxiliary function to manipulate strings directly in stack memory
-#define xsprintf(var, size, ...) char var [size]; sprintf(var, __VA_ARGS__)
-///////////////////////////////////////////////////////////// Utilities //// //
-
-
-//#include "utils.h"
-
-#include "varmap.cpp"
-
-
-
-
-// //// stb image I/O /////////////////////////////////////////////////////////
-#define STB_IMAGE_STATIC
-#define STB_IMAGE_IMPLEMENTATION
-#include "../third-party/stb/stb_image.h"
-
-#define STB_IMAGE_WRITE_STATIC
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "../third-party/stb/stb_image_write.h"
-
-#define STB_IMAGE_RESIZE_STATIC
-#define STB_IMAGE_RESIZE_IMPLEMENTATION
-#include "../third-party/stb/stb_image_resize.h"
-///////////////////////////////////////////////////////// stb image I/O //// //
-
-#include "HalideImageIO.h"
-
-#define GL_RGBA32F 0x8814
-
+#include "utils.h"
 using namespace Halide;
+
+
 
 template<typename T>
 Runtime::Buffer<T> Crop(Buffer<T>& image, int hBorder, int vBorder)
@@ -88,131 +50,70 @@ Buffer<T>& Uncrop(Buffer<T>& image)
 
 
 
-Type type__of(Func f)
+Expr eval(Func f, int tuple_idx=0, int updef_idx=-1)
 {
-    // assuming 'f' is not a tuple and only resolves to a single value:
-    Expr expr = f.value();
-    Type type = expr.type();
-    return(type);
-}
-
-Type promote(Type type)
-{
-    if (type.is_float())
+    if (!f.defined())
     {
-        return(type);
+        return Expr();
     }
 
-    auto more_bits = type.bits() * 2;
-    auto promoted = Int(more_bits);
-    return(promoted);
+    if (updef_idx == -1)
+    {
+        // by default, choose the very last update definition (if any)
+        updef_idx = f.num_update_definitions();
+    }
+
+    Tuple values { Expr() };
+    if (updef_idx == 0)
+    {
+        // pure definition
+        values = f.values();
+    }
+    else
+    {
+        --updef_idx;
+        assert(updef_idx >= 0);
+        assert(updef_idx < f.num_update_definitions());
+        values = f.update_values(updef_idx);
+    }
+
+    assert(tuple_idx < values.size());
+    Expr value = values[tuple_idx];
+    return value;
 }
 
-Func promote(Func f)
+struct def
 {
-    auto ftype = type__of(f);
-    auto gtype = promote(ftype);
-    Func g { f.name() };
-    auto domain = f.args();
-    g(domain) = cast(gtype, f(domain));
-    return(g);
-}
+    Func _f;
+    Func g;
+    def(Func f) : _f(f), g("def-" + f.name()) { }
+    operator Func() { return g; }
+    Func operator = (Expr value)
+    {
+        dom(g, _f) = value;
+        return g;
+    }
+    static FuncRef dom(Func g, Func f)
+    {
+        assert(!g.defined());
+        assert( f.defined());
+        auto domain = f.args();
+        return g(domain);
+    }
+};
 
-Func as_weights(Func f)
+Func wrap(Func f)
 {
-    auto ftype = type__of(f);
-    if (ftype.is_float())
-        return(f);
-
-    auto domain = f.args();
-    Expr w = cast(Float(32), f(domain));
-    w /= cast(Float(32), ftype.max());
-    Func g { "w_" + f.name() };
-    g(domain) = w;
-    return(g);
+    if (!f.defined())
+    {
+        return Func();
+    }
+    
+    Func g = def(f) = eval(f);
+    return g;
 }
 
-Var x { "x" };
-Var y { "y" };
-Var c { "c" };
 
-Func Sobel(Func input)
-{
-    Var x, y, c;
-
-    Type base_type = type__of(input);
-    Type high_type = promote(base_type);
-
-    Func I { "input" };
-    I(x, y, c) = cast(high_type, input(x, y, c));
-
-    /*
-        *     -1    0   +1         1    0   +1
-        *   +--------------+    +--------------+
-        * -1| -1 |  0 |  1 |  -1| -1 | -2 | -1 |
-        *   +--------------+    +--------------+
-        *  0| -2 |  0 |  2 |   0|  0 |  0 |  0 |
-        *   +--------------+    +--------------+
-        * +1| -1 |  0 |  1 |  +1|  1 |  2 |  1 |
-        *   +--------------+    +--------------+
-        *        sobel_x             sobel_y
-        */
-    Func sobel_x ("sobel_x");
-    sobel_x(x, y, c) = I(x+1, y-1, c)
-                     - I(x-1, y-1, c)
-                     + 2 * (I(x+1, y, c) - I(x-1, y, c))
-                     + I(x+1, y+1, c)
-                     - I(x-1, y+1, c);
-
-    Func sobel_y ("sobel_y");
-    sobel_y(x, y, c) = I(x-1, y+1, c)
-                     - I(x-1, y-1, c)
-                     + 2 * (I(x, y+1, c) - I(x, y-1, c))
-                     + I(x+1, y+1, c)
-                     - I(x+1, y-1, c);
-
-    Expr sobel_xy = sobel_x(x, y, c) * sobel_x(x, y, c)
-                  + sobel_y(x, y, c) * sobel_y(x, y, c);
-
-    sobel_xy = sqrt(sobel_xy);
-    sobel_xy = cast(high_type, sobel_xy);
-    sobel_xy = clamp(sobel_xy, 0, base_type.max());
-
-    Func output { "Sobel" };
-    output(x, y, c) = cast(base_type, sobel_xy);;
-    return output;
-}
-
-Func Blur(Func input)
-{
-    Var x, y, c;
-
-    Type base_type = type__of(input);
-    Type high_type = promote(base_type);
-
-    Func I { "input" };
-    I(x, y, c) = cast(high_type, input(x, y, c));
-
-    /*
-     * +--------------+
-     * |  0 |  1 |  0 |
-     * +--------------+
-     * |  1 |  4 |  1 |
-     * +--------------+
-     * |  0 |  1 |  0 |
-     * +--------------+
-     */
-    Expr blur = I(x, y - 1, c)
-              + I(x - 1, y, c)
-              + 4 * I(x, y, c)
-              + I(x + 1, y, c)
-              + I(x, y + 1, c);
-    blur /= 8;
-
-    Func output { "Blur" };
-    output(x, y, c) = cast(base_type, blur);
-    return(output);
-}
 
 using namespace Halide::Internal;
 
@@ -591,7 +492,7 @@ struct IRNodePrinter
     static std::string print(const Call* op)
     {
         std::stringstream ss;
-        ss << "Call : " << op->name << " | " << print(op->call_type);
+        ss << "Call : " << op->name << " | " << print(op->call_type) << " | " << "[" << op->value_index << "]";
         return ss.str();
     }
 
@@ -599,7 +500,18 @@ struct IRNodePrinter
     static std::string print(Function f)
     {
         std::stringstream ss;
-        ss << "Function : " << f.name();
+        ss << "Function : " << f.name() << " | ";
+        if (f.is_pure())
+        {
+            ss << "pure";
+        }
+        else
+        {
+            ss << f.updates().size() << " updates";
+        }
+        ss << " | ";
+        ss << f.outputs();  // num_outputs; Tuple cardinality
+        ss << " values";
         return ss.str();
     }
 
@@ -609,10 +521,14 @@ struct IRNodePrinter
         ss << "Func : " << f.name();
         return ss.str();
     }
-    
+
+    // NOTE(marcos): we'll need an auxiliary class that inherits from IRVisitor
+    // to implement this...
     //static std::string print(Expr e)
     //{
-    //    e.accept(this);
+    //    IRNodePrinterVisitor vis;
+    //    e.accept(vis);
+    //    return vis.str;
     //}
 };
 
@@ -720,33 +636,87 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         // building the tree recursively (need to add node before visiting children)
         expr_node* node_op = tree.new_expr_node();
         node_op->name = IRNodePrinter::print(op);
-        node_op->original = op;
         node_op->node_id = id;
+        //node_op->original = op;
         tree.enter(node_op);
         
         dump_head(op, id);
         Expr expr = dump_guts(op);
-    
-        node_op->modify = expr;
+        //node_op->modified = expr;
 
-        //const int id = assign_id();         // generate unique id
-        //Expr expr = IRMutator2::visit(op);  // visit/mutate children
         if (id == target_id)
         {
             assert(id > 0);
             assert(!selected.defined());
             selected = expr;
         }
-        // propagate selection upwards in the traversal
-        //if (selected.defined())
-        //{
-        //    expr = selected;
-        //}
         
         //NOTE(Emily): we need to pop back the parents after visiting children
         tree.leave(node_op);
         return expr;
     }
+
+    #define default_expr_visitor(IRNodeType) \
+        virtual Expr visit(const IRNodeType* op) override { return mutate_and_select(op); }
+
+    default_expr_visitor(Add)
+    default_expr_visitor(Mul)
+    default_expr_visitor(Div)
+    default_expr_visitor(Mod)
+    default_expr_visitor(Sub)
+    default_expr_visitor(Min)
+    default_expr_visitor(Max)
+    default_expr_visitor(EQ)
+    default_expr_visitor(NE)
+    default_expr_visitor(LT)
+    default_expr_visitor(LE)
+    default_expr_visitor(GT)
+    default_expr_visitor(GE)
+    default_expr_visitor(And)
+    default_expr_visitor(Or)
+    default_expr_visitor(Not)
+    default_expr_visitor(UIntImm)
+    default_expr_visitor(IntImm)
+    default_expr_visitor(FloatImm)
+    default_expr_visitor(StringImm)
+    default_expr_visitor(Variable)
+    default_expr_visitor(Cast)
+    default_expr_visitor(Select)
+    default_expr_visitor(Load)
+    default_expr_visitor(Ramp)
+    default_expr_visitor(Broadcast)
+    default_expr_visitor(Shuffle)
+
+    #undef default_expr_visitor
+
+    //NOTE(Emily): Disabling Stmt nodes for now - it doesn't make sense to visualize them, so we are not assigning IDs to them
+    template<typename T>
+    Stmt mutate_and_select_stmt(const T* op)
+    {
+        dump_head(op);
+        add_indent();
+            Stmt stmt = IRMutator2::visit(op);  // visit/mutate children
+        remove_indent();
+        return stmt;
+    }
+
+    #define default_stmt_visitor(IRNodeType) \
+        virtual Stmt visit(const IRNodeType* op) override { return mutate_and_select_stmt(op); }
+
+    default_stmt_visitor(LetStmt)
+    default_stmt_visitor(AssertStmt)
+    default_stmt_visitor(ProducerConsumer)
+    default_stmt_visitor(For)
+    default_stmt_visitor(Store)
+    default_stmt_visitor(Provide)
+    default_stmt_visitor(Allocate)
+    default_stmt_visitor(Free)
+    default_stmt_visitor(Prefetch)
+    default_stmt_visitor(Block)
+    default_stmt_visitor(IfThenElse)
+    default_stmt_visitor(Evaluate)
+
+    #undef default_stmt_visitor
 
     // convenience method (not really a part of IRMutator2)
     template<typename PatchFn>
@@ -762,221 +732,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         return patched_expr;
     }
 
-    virtual Expr visit(const Add* op) override
-    {
-        return mutate_and_select(op);
-        //Expr keep = mutate_and_select(op);
-        //op = keep.as<Add>();
-        //Expr replaced = Div::make(op->a, op->b);
-        //return replaced;
-    }
-
-    virtual Expr visit(const Mul* op) override
-    {
-        return mutate_and_select(op);
-        //Expr keep = mutate_and_select(op);
-        //op = keep.as<Mul>();
-        //Expr replaced = Div::make(op->b, op->a);
-        //return replaced;
-    }
-    
-    virtual Expr visit(const Div* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Mod* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Sub* op) override
-    {
-        return mutate_and_select(op);
-    }
-
-    virtual Expr visit(const Min* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Max* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const EQ* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const NE* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const LT* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const LE* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const GT* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const GE* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const And* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Or* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Not* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const UIntImm* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const IntImm* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const FloatImm* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const StringImm* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Variable* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Cast* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Select* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Load* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Ramp* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Broadcast* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    virtual Expr visit(const Shuffle* op) override
-    {
-        return mutate_and_select(op);
-    }
-    
-    //NOTE(Emily): Disabling Stmt nodes for now - it doesn't make sense to visualize them, so we are not assigning IDs to them
-    template<typename T>
-    Stmt mutate_and_select_stmt(const T* op)
-    {
-        //const int id = ++traversal_id;    // generate unique id
-        dump_head(op);
-        add_indent();
-            Stmt stmt = IRMutator2::visit(op);  // visit/mutate children
-        remove_indent();
-        return stmt;
-    }
-    
-    virtual Stmt visit(const LetStmt* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const AssertStmt* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const ProducerConsumer* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const For* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const Store* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const Provide* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const Allocate* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const Free* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const Prefetch* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const Block* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const IfThenElse* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
-    virtual Stmt visit(const Evaluate* op) override
-    {
-        return mutate_and_select_stmt(op);
-    }
-    
     virtual Expr visit(const Let* op) override
     {
         if (selected.defined())
@@ -1006,11 +761,27 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         return patched_expr;
     }
 
+    expr_node* add_spacer_node(std::string label)
+    {
+        expr_node* node_op = tree.new_expr_node();
+        node_op->name = label;
+        tree.enter(node_op);
+        return node_op;
+    }
+    
+    void leave_spacer_node(expr_node* spacer)
+    {
+        tree.leave(spacer);
+    }
+
     bool arg_selected = false;
 
     Expr dump_guts(const Call* op)
     {
         bool had_selection = selected.defined();
+        
+        //NOTE(Emily): adding separation node here
+        expr_node* arg_spacer = add_spacer_node("<arguments>");
 
         add_indent();
             indented_printf("<arguments>\n");
@@ -1023,6 +794,8 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         remove_indent();
 
         bool has_selection = selected.defined();
+        
+        leave_spacer_node(arg_spacer);
 
         add_indent();
             indented_printf("<callable>\n");
@@ -1031,9 +804,16 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
                 {
                     case Call::CallType::Halide :
                     {
+                        //NOTE(Emily): adding separation node here
+                        expr_node* spacer = add_spacer_node("<callable>");
                         assert(op->func.defined());     // paranoid check...
                         auto inner_func = Function(op->func);
-                        visit(inner_func);
+                        //visit(inner_func);
+                        // TODO(marcos): OK, I know the 'value_index', but how
+                        // am I supposed to know if it is referring to the pure
+                        // definition or to some update definition?!
+                        visit(inner_func, op->value_index);
+                        leave_spacer_node(spacer);
                         break;
                     }
                     case Call::CallType::Intrinsic :
@@ -1050,12 +830,9 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
                 }
             remove_indent();
         remove_indent();
-
+        
+        
         arg_selected = (!had_selection && has_selection);
-        if (arg_selected)
-        {
-            int a = 0;
-        }
 
         return Expr(op);
     }
@@ -1065,7 +842,6 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         // it's possible that something up the expression tree has been selected
         // already, but we still want to visit the entire tree for visualization
         // purposes
-        //assert(!selected.defined());
         if (selected.defined())
         {
             return mutate_and_select(op);
@@ -1108,6 +884,8 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
             {
                 args.emplace_back( Var(var_name) );
             }
+            // NOTE(marcos): the 'g.definition() = def' below is a major hack,
+            // but it's there because all other options failed...
             ReductionDomain rdom;
             Definition def (args, { selected }, rdom, true);
             Function g (op->name);
@@ -1115,45 +893,17 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
             g.definition() = def;
             Expr new_call_expr = Call::make(g, op->args, op->value_index);
 
-            /*
-            Function g (op->name);
-            auto& domain = Function(op->func).args();
-            g.define(domain, { selected });
-            Expr new_call_expr = Call::make(g, op->args, op->value_index);
-            */
-
-            /*
-            Func g;
-            add_indent();
-            indented_printf("g -- %s\n", g.name().c_str());
-            std::vector<Var> domain;
-            for (auto& var_name : Function(op->func).args())
-            {
-                indented_printf("p -- %s\n", var_name.c_str());
-                domain.emplace_back(var_name);
-            }
-            remove_indent();
-            g(domain) = selected;
-            Expr new_call_expr = Call::make(g.function(), op->args, op->value_index);
-            */
-
             return new_call_expr;
         });
 
         return expr;
     }
 
-    void visit(const Expr expr)
-    {
-        IRMutator2::mutate(expr);
-    }
-
     // The following are convenience functions (not really a part of IRVisitor)
-    void visit(Function f)
+    void visit(Function f, int value_idx=-1)
     {
         dump_head(f);
         
-        // NOTE(emily): need to add the root Func as root of expr_node tree
         expr_node* node_op = tree.new_expr_node();
         node_op->name = IRNodePrinter::print(f);
         tree.enter(node_op);
@@ -1168,26 +918,90 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         }
 
         add_indent();
-            //f.accept(this);
             // NOTE(marcos): the default Function visitor is bit wacky, visitng
             // [predicate, body, args, schedule, specializaitons] in this order
             // which is confusing since we are mostly interested in [args, body]
             // for the time being, so we can roll our own visiting pattern:
             indented_printf("<arguments>\n");
+            expr_node * arg_spacer = add_spacer_node("<arguments>");
             add_indent();
                 for (auto& arg : definition.args())
                 {
                     IRMutator2::mutate(arg);
                 }
             remove_indent();
-            int value_idx = 0;
-            for (auto& expr : definition.values())
+            leave_spacer_node(arg_spacer);
+
+            if (value_idx != -1)
             {
-                indented_printf("<value %d>\n", value_idx++);
+                assert(value_idx < f.values().size());
+                Expr pure_value = f.values()[value_idx];
+                indented_printf("<value %d>\n", value_idx);
+                expr_node * spacer = add_spacer_node("<value " + std::to_string(value_idx) + ">");
                 add_indent();
-                    IRMutator2::mutate(expr);
+                    IRMutator2::mutate(pure_value);
                 remove_indent();
+                leave_spacer_node(spacer);
+                // TODO(marcos): the code below may loop in infinite recursion;
+                // still not sure as to which definition (pure or updates) the
+                // value index from a Call node refers to...
+                /*
+                if (f.has_update_definition())
+                {
+                    expr_node * update_spacer = add_spacer_node("<update definitions>");
+                    for (auto& update_def : f.updates())
+                    {
+                        assert(value_idx < update_def.values().size());
+                        Expr update_value = update_def.values()[value_idx];
+                        indented_printf("<value %d>\n", value_idx);
+                        expr_node * spacer = add_spacer_node("<value>");
+                        add_indent();
+                            IRMutator2::mutate(update_value);
+                        remove_indent();
+                    }
+                    leave_spacer_node(update_spacer);
+                }
+                */
             }
+            else
+            {
+                // show everything:
+                expr_node * spacer = add_spacer_node("<values>");
+                int value_idx = 0;
+                for (auto& expr : definition.values())
+                {
+                    indented_printf("<value %d>\n", value_idx++);
+                    add_indent();
+                        IRMutator2::mutate(expr);
+                    remove_indent();
+                }
+                leave_spacer_node(spacer);
+        
+                if(f.has_update_definition())
+                {
+                    expr_node * update_spacer = add_spacer_node("<update definitions>");
+                    int num_updates = (int)f.updates().size();
+                    for(int i = 0; i < num_updates; i++)
+                    {
+                        auto update_def = f.update(i);
+                        value_idx = 0;
+                        expr_node * spacer  = add_spacer_node("<update " + std::to_string(i) + ">");
+                        expr_node * spacer2 = add_spacer_node("<values>");
+                        for(auto& expr : update_def.values())
+                        {
+                            indented_printf("<value %d>\n", value_idx++);
+                            add_indent();
+                                IRMutator2::mutate(expr);
+                            remove_indent();
+                        }
+                        leave_spacer_node(spacer2);
+                        leave_spacer_node(spacer);
+                    }
+                    leave_spacer_node(update_spacer);
+                }
+            }
+        
+        //leave_spacer_node(spacer);
         remove_indent();
 
         tree.leave(node_op);
@@ -1201,12 +1015,16 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
         // NOTE(emily): need to add the root Func as root of expr_node tree
         expr_node* node_op = tree.new_expr_node();
         node_op->name = IRNodePrinter::print(f);
-        Expr expr = f(f.args());
-        node_op->original = expr;
+        // NOTE(marcos): skipping the original expression in the expr_tree
+        // because 'f' might emcapsulate a Tuple of values, and a Tuple is
+        // not an Expr in Halide.
         tree.enter(node_op);
         
+        
+        
         add_indent();
-            visit(f.function());
+        visit(f.function());
+        
         remove_indent();
         
         tree.leave(node_op);
@@ -1216,56 +1034,41 @@ struct DebuggerSelector : public Halide::Internal::IRMutator2
     Func mutate(Func f)
     {
         visit(f);
-        Func g;
-        if(!selected.defined()){
-            return f;
+        if(!selected.defined())
+        {
+            // note that Func f could be encapsulating a Tuple of values, or even
+            // consist of update definitions (which themselves could be Tuples)
+            // ideally, if no sub-expression has been selected, it should default
+            // to selecting the first tuple value of the last update definition
+            selected = eval(f);
         }
-        DebuggerSelector().visit(selected);
-        auto domain = f.args();
-        g(domain) = selected;
+        assert(selected.defined());
+        Func g = def(f) = selected;
         return g;
+    }
+
+    void visit(const Expr expr)
+    {
+        IRMutator2::mutate(expr);
     }
 
     #undef indented_printf
 };
 
-struct IRDump3 : public DebuggerSelector { };
+struct IRDump : public DebuggerSelector { };
 
-Func transform(Func f)
+Func transform(Func f, int id=0, int value_idx=0)
 {
-    Func g = DebuggerSelector(
-        //26      //Let
-        //27      //Call, immediatelly inside a Let
-        //823     //Let
-        //1556    //Let
-        //1653    //Call, immediatelly inside a Let
-        //1801    //Let
-    ).mutate(f);
+    Func g = DebuggerSelector(id).mutate(f);
 
-    auto domain = f.args();
-    Expr transformed_expr = 0;
-    if (g.defined())
+    Expr transformed_expr = eval(g, value_idx);
+    if (!transformed_expr.defined())
     {
-        domain = g.args();
-        transformed_expr = g(domain);
+        transformed_expr = 0;
     }
 
-    Func h;
-    h(domain) = cast(type__of(f), transformed_expr);
+    Func h = def(g) = transformed_expr;
     return h;
-}
-
-void display_map(Func f)
-{
-    IRVarMap test;
-    test.visit(f);
-    std::map<std::string, Halide::Expr> map = test.var_map;
-    for(auto name : map)
-    {
-        printf("%s\n", name.first.c_str());
-        IRDump3 dump;
-        dump.visit(name.second);
-    }
 }
 
 //NOTE(Emily): helper function to print out expr_node tree
@@ -1280,91 +1083,118 @@ void display_node(expr_node * parent)
 
 expr_tree get_tree(Func f)
 {
-    //testing that expr_node tree was correctly built
-    IRDump3 dump;
+    IRDump dump;
     dump.mutate(f);
-    //printf("displaying nodes in tree: \n");
-    //display_node(tree);
     return std::move(dump.tree);
-    
 }
 
-void select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, GLuint idMyTexture)
+struct FindInputBuffers : public Halide::Internal::IRVisitor
 {
-    //id = 24;
-    Func m = DebuggerSelector(id).mutate(f);
-    //printf("SELECTION RESULT BELOW:");
-    //IRDump3().visit(m);
-    //printf("SELECTION RESULT ABOVE:");
-    
-    auto domain = f.args();
-    Expr transformed_expr = 0;
-    if (m.defined())
+    std::vector< Buffer<> > buffers;
+
+    virtual void visit(const Call* op) override
     {
-        domain = m.args();
-        transformed_expr = m(domain);
+        if (op->call_type == Call::CallType::Image)
+        {
+            // TODO(marcos): the same buffer is likely to be accessed multiple
+            // times by an expression... right now, this visitor will collect
+            // the same buffer multiple times -- not really a problem, but it
+            // would be nice to track uniqueness with an additional set<name>.
+            assert(op->image.defined());
+            buffers.emplace_back(op->image);
+        }
+        IRVisitor::visit(op);
+        if (op->call_type == Call::CallType::Halide)
+        {
+            assert(op->func.defined());
+            auto definition = Function(op->func).definition();
+            for (auto& expr : definition.values())
+            {
+                expr.accept(this);
+            }
+        }
+    }
+
+    std::vector< Buffer<> > visit(Expr expr)
+    {
+        expr.accept(this);
+        return std::move(buffers);
+    }
+
+    std::vector< Buffer<> > visit(Func f)
+    {
+        buffers = visit(eval(f));
+        return std::move(buffers);
+    }
+};
+
+Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value = 0, int min = 0, int max = 0)
+{
+    Func m = transform(f, id);
+    auto input_buffers = FindInputBuffers().visit(m);
+
+    // preserve type prior to any data type view transforms:
+    type = eval(m).type();
+
+    // Apply data type view transforms here (type casts, range normalization, etc)
+    // https://git.corp.adobe.com/slomp/halide_visualdbg/issues/30
+    switch (view_transform_value)
+    {
+        case 0 : // do nothing (full bit-range normalization)
+            break;
+        case 1 : // overflow (force-cast to 8bit)
+        {
+            if (!type.is_float() && type.bits() > 8)
+            {
+                m = def(m) = cast<uint8_t>(eval(m));
+            }
+            break;
+        }
+        case 2 : // range-normalize
+        {
+            m = def(m) = ( cast<float>(eval(m)) - cast<float>(min) )
+                       / ( cast<float>(max)     - cast<float>(min) );
+            break;
+        }
+        case 3 : // range-clamp
+        {
+            Expr lower = Halide::max(Expr(0),   Expr(min));
+            Expr upper = Halide::min(Expr(255), Expr(max));
+            Expr constrained = clamp( eval(m), cast(type, lower), cast(type, upper) );
+            m = def(m) = cast<uint8_t>(constrained);
+            break;
+        }
+        case 4 : // automatic min-max range detection (based on buffer content)
+                 // Halide inline reductions might be useful here:
+                 // http://halide-lang.org/docs/namespace_halide.html#a9d7999c3871839488df9d591b3f55adf
+            assert(false);
+            break;
+        default:
+            break;
     }
     
-    
-    
+    Type t = eval(m).type();
+    bool is_float = t.is_float();
+
     Halide::Buffer<uint8_t> output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(input_full.width(), input_full.height(), input_full.channels());
     auto output_cropped = Crop(output_buffer, 2, 2);
-    Target target = get_host_target();
-    //target.set_feature(Target::CUDA);
-    //output.gpu_tile(...)
-    
-    typedef std::chrono::high_resolution_clock clock_t;
-    
-    Type t = transformed_expr.type();
-    bool is_float = t.is_float();
-    
+
     auto dims = output_buffer.dimensions();
     // only 2D or 3D images for now (no 1D LUTs or nD entities)
     assert(dims >= 2);
     assert(dims <= 3);
 
-    int channels = 0;
-    if(dims == 2)
-    {
-        channels = 1;
-    }
-    else if(dims == 3)
-    {
-        channels = output_buffer.dim(2).extent();
-    }
+    auto bits = t.bits(); //size of type
+
+    int width    = output_buffer.width();       // same as output.dim(0).extent()
+    int height   = output_buffer.height();      // same as output.dim(1).extent()
+    int channels = output_buffer.channels();    // same as output.dim(2).extent() when 'dims >= 2', or 1 otherwise
+
     // only monochrome or rgb for now
     assert(channels == 1 || channels == 3);
 
     bool is_monochrome = (channels == 1);
-    
-    GLenum internal_format(GL_INVALID_ENUM), external_format(GL_INVALID_ENUM), external_type(GL_INVALID_ENUM);
-    external_format = (is_monochrome) ? GL_RED
-                                      : GL_RGB;
-    
-    auto bits = t.bits(); //size of type
-    switch(bits)
-    {
-        case 8:
-            external_type   = GL_UNSIGNED_BYTE;
-            internal_format = GL_RGBA8;
-            break;
-        case 16:
-            external_type   = GL_UNSIGNED_SHORT;
-            internal_format = GL_RGBA16;                                    // maybe force GL_RGBA8 fow now?
-            break;
-        case 32:
-            external_type   = (is_float) ? GL_FLOAT   : GL_UNSIGNED_INT;
-            internal_format = (is_float) ? GL_RGBA32F : GL_RGBA16;          // maybe force GL_RGBA8 for now?
-            break;
-        default:
-            assert(false);
-            break;
-            
-    }
-    
-    int width  = output_buffer.dim(0).extent();
-    int height = output_buffer.dim(1).extent();
-    
+
     Halide::Runtime::Buffer<> modified_output_buffer;
 
     switch(t.code())
@@ -1463,6 +1293,58 @@ void select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, GL
             break;
     }
 
+    Target host_target = get_host_target();
+    Target::OS os      = host_target.os;
+    Target::Arch arch  = host_target.arch;
+    int arch_bits      = host_target.bits;
+
+    Target base_target (os, arch, arch_bits);
+    std::string target_string = base_target.to_string();
+    target_features.erase(0, target_features.find("-"));    // erase the cpu feature, since base_target already has the correct one
+    if (!target_features.empty())
+    {
+        target_features.erase(0, target_features.find("-")+1);
+        target_string.append("-");
+        target_string.append(target_features);
+    }
+
+    Target target;
+    if (Target::validate_target_string(target_string))
+    {
+        target = Target(target_string);
+    }
+    else
+    {
+        fprintf(stderr, "WARNING: Invalid Halide Target : %s\n", target_string.c_str());
+        fprintf(stderr, "         will revert to the default host target.\n");
+        target = host_target;
+    }
+    target_string = target.to_string();
+    printf("Halide Target : %s\n", target_string.c_str());
+    fflush(stdout);
+
+    bool gpu = target.has_gpu_feature();
+
+    if (gpu)
+    {
+        m = wrap(m);                        // <- add one level of indirection to isolate the schedule below
+        Var x = m.args()[0];
+        Var y = m.args()[1];
+        Var tx, ty;
+        m.gpu_tile(x, y, tx, ty, 8, 8, Halide::TailStrategy::GuardWithIf);
+        for (auto buffer : input_buffers)
+        {
+            //buffer.device_free();         // <- not necessary: device_deallocate() will call it anyway if necessary
+            buffer.device_deallocate();     // <- to prevent "halide_copy_to_device does not support switching interfaces"
+            buffer.set_host_dirty();        // <- mandatory! otherwise data won't be re-uploaded even though a new device interface is evetually created! (Halide bug?)
+        }
+    }
+    else
+    {
+        // TODO(marcos): we might need some here vectorize() for CPU too...
+        //m.vectorize();
+    }
+
     if(is_monochrome)
     {
         m.output_buffer()
@@ -1477,134 +1359,31 @@ void select_and_visualize(Func f, int id, Halide::Buffer<uint8_t> input_full, GL
             .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
     }
 
-    PROFILE_P(
-                "compile_jit",
-                m.compile_jit(target);
-                );
-                    
-    PROFILE_P(
-                "realize",
-                m.realize(modified_output_buffer);
-                );
+    Profiling times = { };
 
-    glBindTexture(GL_TEXTURE_2D, idMyTexture);
-        glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, external_format, external_type, modified_output_buffer.data());
-    glBindTexture(GL_TEXTURE_2D, 0);
-    
-    /*
-    Func h;
-    h(domain) = cast(type__of(f), transformed_expr);
+    times.jit_time =
+        PROFILE(
+            m.compile_jit(target);
+        );
 
-    h.output_buffer()
-        .dim(0).set_stride( output_buffer.dim(0).stride() )
-        .dim(1).set_stride( output_buffer.dim(1).stride() )
-        .dim(2).set_stride( output_buffer.dim(2).stride() );
+    times.upl_time =
+        PROFILE(
+            if (!gpu)
+                return 0.0;
+            for (auto buffer : input_buffers)
+            {
+                buffer.copy_to_device(target);
+            }
+        );
 
-    PROFILE_P(
-              "compile_jit",
-              h.compile_jit(target);
-              );
-    
-    PROFILE_P(
-              "realize",
-              h.realize(output_cropped);
-              );
-    
-    mkdir("data/output", S_IRWXU | S_IRWXG | S_IRWXO);
-    xsprintf(output_filename, 128, "data/output/output-%s-%d.png", target.to_string().c_str(), id);
-    if (!SaveImage(output_filename, output_buffer))
-        printf("Error saving image\n");
-    */
-}
+    times.run_time =
+        PROFILE(
+            m.realize(modified_output_buffer, target);
+        );
 
-expr_tree tree_from_func(Func output, Halide::Buffer<uint8_t> input_full)
-{
-    /*xsprintf(input_filename, 128, "data/pencils.jpg");
-    Halide::Buffer<uint8_t> input_full = LoadImage(input_filename);
-    if (!input_full.defined())
-        return  NULL;
+    modified_output_buffer.copy_to_host();
 
-    Func input = Identity(input_full, "image");
-    Func sobel = Sobel(input);
-    Func blur  = Blur(input);
-    Func soft  = Sobel(blur);
-    Expr final = as_weights(soft)(x, y, c)
-               + as_weights(sobel)(x, y, c);
-    final *= blur(x, y, c);
-    final += input(x, y, c);
-    final = clamp(final, 0, 255);
+    output = std::move(modified_output_buffer);
 
-    Func output { "output" };
-    //output(x, y, c) = cast(type__of(input), final);
-    
-    {
-    Func f{ "f" };
-    Func g{"g"};
-    {
-    Var x, y, c;
-    f(x,y, c) = 10 * input(x, 0, 2-c);
-    g(x,y,c) = input(x, y, c) + 1;
-    }
-
-    {
-    Var x, y, c;
-    output(x, y, c) = f(x, y,c) + g(x,y,c);
-    }
-    }
-    */
-    
-    //IRDump3().visit(output);
-
-    Func out = transform(output);
-    //IRDump3().visit(out);
-
-    //IRDump3().visit(output);
-
-    //checking expr_node tree
-    expr_tree full_tree = get_tree(output);
-    //output = transform(output);
-    //display_map(output);
-    
-    //return NULL; //TEMPORARY - returning before realizing image
-    
-    Halide::Buffer<uint8_t> output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(input_full.width(), input_full.height(), input_full.channels());
-    out.output_buffer()
-            .dim(0).set_stride( output_buffer.dim(0).stride() )
-            .dim(1).set_stride( output_buffer.dim(1).stride() )
-            .dim(2).set_stride( output_buffer.dim(2).stride() );
-    auto output_cropped = Crop(output_buffer, 2, 2);
-    Target target = get_host_target();
-    //target.set_feature(Target::CUDA);
-    //output.gpu_tile(...)
-
-    typedef std::chrono::high_resolution_clock clock_t;
-
-    PROFILE_P(
-        "compile_jit",
-        output.compile_jit(target);
-    );
-    //output.print_loop_nest();
-    output.compile_to_lowered_stmt("data/output/output.html", {}, HTML, target);
-    
-    /* NEED TO CAST FUNC TO UINT8_T
-    auto domain = m.args();
-    Expr body = m.function().extern_definition_proxy_expr();
-    Func out;
-    out(domain) = cast(type__of(output), body);
-    */
-    
-    
-    
-    PROFILE_P(
-        "realize",
-        out.realize(output_cropped);
-    );
-    
-
-    mkdir("data/output", S_IRWXU | S_IRWXG | S_IRWXO);
-    xsprintf(output_filename, 128, "data/output/output-%s.png", target.to_string().c_str());
-    if (!SaveImage(output_filename, output_buffer))
-        return expr_tree{};
-
-    return std::move(full_tree);
+    return times;
 }

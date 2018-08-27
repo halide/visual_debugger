@@ -3,23 +3,15 @@
 #include <vector>
 #include <deque>
 
-// //// Halide ////////////////////////////////////////////////////////////////
 #include <Halide.h>
-
-//////////////////////////////////////////////////////////////// Halide //// //
-
-#include "HalideIdentity.h"
-#include "HalideGaussian.h"
-#include "HalideKawase.h"
-
-using namespace Halide;
 
 struct expr_node {
     std::string name;
     std::vector<expr_node *> children;
     int node_id = 0;
-    Expr original;
-    Expr modify;
+    // NOTE(marcos): the following fields don't seem to be used in practice
+    //Halide::Expr original;
+    //Halide::Expr modified;
 };
 
 struct expr_tree
@@ -58,3 +50,14 @@ struct expr_tree
     }
 };
 
+// NOTE(marcos): implementation in 'treedump.cpp'
+expr_tree get_tree(Halide::Func f);
+
+
+
+struct Profiling
+{
+    double jit_time;
+    double upl_time;
+    double run_time;
+};

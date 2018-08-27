@@ -1,15 +1,38 @@
+if (NOT CMAKING_WHOLE_SOLUTION)
+	cmake_minimum_required(VERSION 3.0)
+	set(CMAKE_CXX_STANDARD 11)
+	project(visdbg)
+	# locate and configure third-party dependencies:
+	include(../third-party/CMakeLists.txt)
+endif()
+
+
+
 add_executable(
 	visdbg
-	./main.cpp
-	./imconfig.h
-	./utils.h
+
 	../data/force_working_directory.cpp
+	
+	./imgui_main.cpp
+	./main.cpp
+	./system.cpp
+	./treedump.cpp
+
+	./HalideIdentity.h
+	./HalideImageIO.h
+	./imconfig.h
+	./io-broadcast.hpp
+	./system.hpp
+	./utils.h
+
+	../third-party/imguifilesystem/dirent_portable.h
+	../third-party/imguifilesystem/imguifilesystem.h		
+	../third-party/imguifilesystem/imguifilesystem.cpp
 )
 
 
 
-# locate and configure third-party dependencies:
-include(../third-party/CMakeLists.txt)
+# configure third-party dependencies:
 
 target_include_directories(
 	visdbg PUBLIC
@@ -63,6 +86,7 @@ if (LINUX)
 		dl
 	)
 endif()
+
 
 if (NOT MSVC)
 	target_compile_options(visdbg PUBLIC -fno-rtti)
