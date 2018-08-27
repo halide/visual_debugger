@@ -12,7 +12,8 @@ add_executable(
 	visdbg
 
 	../data/force_working_directory.cpp
-	
+
+	./debug-api.cpp	
 	./imgui_main.cpp
 	./main.cpp
 	./system.cpp
