@@ -142,21 +142,42 @@ Func update_tuple_example()
 }
 
 
+
+
 // from 'imgui_main.cpp':
 extern bool stdout_echo_toggle;
-void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full); 
+void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full);
+
+struct UI
+{
+
+    void running(std::vector<Func> funcs, Halide::Buffer<uint8_t> input)
+    {
+        // redirect stdout to a log file, effectivelly silencing the console output:
+        const char* logfile = "data/output/log-halide-visdbg.txt";
+        fprintf(stdout, ">> Redirecting 'stdout' to log file '%s'\n", logfile);
+        FILE* log = fopen(logfile, "w");
+        assert(log);
+        Broadcaster iobc = redirect_broadcast(stdout);
+        iobc.AddEcho(&stdout_echo_toggle);
+        iobc.AddFile(log);
+        
+        run_gui(funcs, input);
+        
+        iobc.Terminate();
+        fprintf(stdout, "<< Done with 'stdout' redirection\n");
+        
+        fclose(log);
+    }
+    
+    
+};
 
 int main()
 {
-    // redirect stdout to a log file, effectivelly silencing the console output:
-    const char* logfile = "data/output/log-halide-visdbg.txt";
-    fprintf(stdout, ">> Redirecting 'stdout' to log file '%s'\n", logfile);
-    FILE* log = fopen(logfile, "w");
-    assert(log);
-    Broadcaster iobc = redirect_broadcast(stdout);
-    iobc.AddEcho(&stdout_echo_toggle);
-    iobc.AddFile(log);
-
+    
+    
+    
     //NOTE(Emily): define func here
     xsprintf(input_filename, 128, "data/pencils.jpg");
     Halide::Buffer<uint8_t> input_full = LoadImage(input_filename);
@@ -176,12 +197,8 @@ int main()
     funcs.push_back(update_example());
     funcs.push_back(update_tuple_example());
     
-    run_gui(funcs, input_full);
-
-    iobc.Terminate();
-    fprintf(stdout, "<< Done with 'stdout' redirection\n");
-
-    fclose(log);
+    UI ui;
+    ui.running(funcs, input_full);
 
     return 0;
 }
