@@ -393,6 +393,72 @@ bool OptionalRadioButton(const char* label, int* v, int v_button, bool enabled=t
     return result;
 }
 
+ImVec2 ImageViewer(ImTextureID texture, const ImVec2& texture_size, float& zoom, const ImVec2& canvas_size)
+{
+    auto& io = ImGui::GetIO();
+
+    //NOTE(Emily): in order to get horizontal scrolling needed to add other parameters (from example online)
+    ImGuiWindowFlags ScrollFlags =  ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoMove;
+    ScrollFlags |= (io.KeyCtrl) ? ImGuiWindowFlags_NoScrollWithMouse : 0;
+    ImGui::BeginChild(" ", canvas_size, false, ScrollFlags);
+        // screen coords of the current drawing "tip" (cursor) location
+        // (which is where the child image control will start rendering)
+        ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
+        ImGui::Image(texture , ImVec2(zoom*texture_size.x, zoom*texture_size.y));
+    
+        bool hovering = ImGui::IsItemHovered();
+    
+        if (hovering && ImGui::IsMouseDragging(0))
+        {
+            ImVec2 drag = ImGui::GetMouseDragDelta(0);
+            ImGui::SetScrollX(ImGui::GetScrollX() - drag.x);
+            ImGui::SetScrollY(ImGui::GetScrollY() - drag.y);
+            ImGui::ResetMouseDragDelta(0);
+        }
+    
+        if (hovering && io.KeyCtrl && (io.MouseWheel != 0.0f))
+        {
+            const float scale = 0.0618f;
+            float factor = 1.0f + (io.MouseWheel * scale);
+            // 1. zoom around top-left
+            //float dx = 0.0f;
+            //float dy = 0.0f;
+            // 2. zoom around center
+            //float ds_x = scale * 0.5;
+            //float ds_y = scale * 0.5;
+            //float dx = io.MouseWheel*size.x*ds_x;
+            //float dy = io.MouseWheel*size.y*ds_y;
+            // 2. zoom off-center (around mouse pointer location)
+            ImVec2  mouse_pos = ImGui::GetMousePos();
+            ImVec2  hover_pos = mouse_pos;
+            hover_pos.x -= cursor_pos.x;
+            hover_pos.y -= cursor_pos.y;
+            hover_pos.x -= ImGui::GetScrollX();
+            hover_pos.y -= ImGui::GetScrollY();
+            float ds_x = scale * (hover_pos.x / canvas_size.x);
+            float ds_y = scale * (hover_pos.y / canvas_size.y);
+            float dx = io.MouseWheel * canvas_size.x * ds_x;
+            float dy = io.MouseWheel * canvas_size.y * ds_y;
+            zoom *= factor;
+            ImGui::SetScrollX(ImGui::GetScrollX() * factor + dx);
+            ImGui::SetScrollY(ImGui::GetScrollY() * factor + dy);
+        }
+    ImGui::EndChild();
+
+    ImVec2 pixel_coord = { -1.0f, -1.0f };
+    if (hovering)
+    {
+        ImVec2  mouse_pos = ImGui::GetMousePos();
+        ImVec2  hover_pos = mouse_pos;
+        hover_pos.x -= cursor_pos.x;
+        hover_pos.y -= cursor_pos.y;
+        pixel_coord.x = (hover_pos.x / zoom);
+        pixel_coord.y = (hover_pos.y / zoom);
+    }
+    
+    return pixel_coord;
+}
+
 void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
 {
     // Setup window
@@ -734,65 +800,16 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             }
             
             // save some space to draw the hovered pixel value below the image:
-            ImVec2 size = ImGui::GetContentRegionAvail();
-            size.y -= ImGui::GetFrameHeightWithSpacing();
+            ImVec2 canvas_size = ImGui::GetContentRegionAvail();
+            canvas_size.y -= ImGui::GetFrameHeightWithSpacing();
 
-            //NOTE(Emily): in order to get horizontal scrolling needed to add other parameters (from example online)
-            ImGuiWindowFlags ScrollFlags =  ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoMove;
-            ScrollFlags |= (io.KeyCtrl) ? ImGuiWindowFlags_NoScrollWithMouse : 0;
-            ImGui::BeginChild(" ", size, false, ScrollFlags);
-                // screen coords of the current drawing "tip" (cursor) location
-                // (which is where the child image control will start rendering)
-                ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
-                ImGui::Image((void *) (uintptr_t) idMyTexture , ImVec2(width*zoom, height*zoom));
-
-                bool hovering = ImGui::IsItemHovered();
-
-                if (hovering && ImGui::IsMouseDragging(0))
-                {
-                    ImVec2 drag = ImGui::GetMouseDragDelta(0);
-                    ImGui::SetScrollX(ImGui::GetScrollX() - drag.x);
-                    ImGui::SetScrollY(ImGui::GetScrollY() - drag.y);
-                    ImGui::ResetMouseDragDelta(0);
-                }
-
-                if (hovering && io.KeyCtrl && (io.MouseWheel != 0.0f))
-                {
-                    const float scale = 0.0618f;
-                    float factor = 1.0f + (io.MouseWheel * scale);
-                    // 1. zoom around top-left
-                    //float dx = 0.0f;
-                    //float dy = 0.0f;
-                    // 2. zoom around center
-                    //float ds_x = scale * 0.5;
-                    //float ds_y = scale * 0.5;
-                    //float dx = io.MouseWheel*size.x*ds_x;
-                    //float dy = io.MouseWheel*size.y*ds_y;
-                    // 2. zoom off-center (around mouse pointer location)
-                    ImVec2  mouse_pos = ImGui::GetMousePos();
-                    ImVec2  hover_pos = mouse_pos;
-                    hover_pos.x -= cursor_pos.x;
-                    hover_pos.y -= cursor_pos.y;
-                    hover_pos.x -= ImGui::GetScrollX();
-                    hover_pos.y -= ImGui::GetScrollY();
-                    float ds_x = scale * (hover_pos.x / size.x);
-                    float ds_y = scale * (hover_pos.y / size.y);
-                    float dx = io.MouseWheel*size.x*ds_x;
-                    float dy = io.MouseWheel*size.y*ds_y;
-                    zoom *= factor;
-                    ImGui::SetScrollX(ImGui::GetScrollX() * factor + dx);
-                    ImGui::SetScrollY(ImGui::GetScrollY() * factor + dy);
-                }
-            ImGui::EndChild();
+            ImVec2 pixel_coord = ImageViewer((ImTextureID)(uintptr_t)idMyTexture, ImVec2(width, height), zoom, canvas_size);
+            bool hovering = (pixel_coord.x >= 0.0f) && (pixel_coord.y >= 0.0f);
 
             if (hovering)
             {
-                ImVec2  mouse_pos = ImGui::GetMousePos();
-                ImVec2  hover_pos = mouse_pos;
-                hover_pos.x -= cursor_pos.x;
-                hover_pos.y -= cursor_pos.y;
-                int x = (int)(hover_pos.x / zoom);
-                int y = (int)(hover_pos.y / zoom);
+                int x = (int)pixel_coord.x;
+                int y = (int)pixel_coord.y;
                 float rgb [3];
                 query_pixel(output, x, y, rgb[0], rgb[1], rgb[2]);
                 ImGui::ColorEdit3("hovered pixel", rgb, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_NoPicker | ImGuiColorEditFlags_NoTooltip);
@@ -812,12 +829,8 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             static int pick_y = 0;
             if (hovering && io.MouseDown[1])
             {
-                ImVec2 mouse_pos = ImGui::GetMousePos();
-                ImVec2 mouse_pick_pos = mouse_pos;
-                mouse_pick_pos.x -= cursor_pos.x;
-                mouse_pick_pos.y -= cursor_pos.y;
-                pick_x = (int)(mouse_pick_pos.x / zoom);
-                pick_y = (int)(mouse_pick_pos.y / zoom);
+                pick_x = (int)pixel_coord.x;
+                pick_y = (int)pixel_coord.y;
             }
             {
                 float rgb [3];
