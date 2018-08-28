@@ -48,10 +48,14 @@ struct DebugFunc
         while(ui.running){
             //do something
         }
-        this->f.realize(output, target, param_map); //TODO(Emily): realize should take a Pipeline::RealizationArg
+        this->f.realize(output, target); //TODO(Emily): realize should take a Pipeline::RealizationArg
         
     }
 };
 
-// TODO(Emily): need to implement
-DebugFunc debug(Func f);
+DebugFunc debug(Func f)
+{
+    DebugFunc debug_f;
+    debug_f.f = f;
+    return debug_f;
+}

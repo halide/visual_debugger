@@ -169,9 +169,18 @@ int main()
     funcs.push_back(update_example());
     funcs.push_back(update_tuple_example());
     
-    //from debug_api.hpp
-    UI ui;
-    ui.run(funcs, input_full);
+    
+    //NOTE(Emily): setting up output buffer to realize in debug
+    //Probably want to instead figure out stride/size etc. in debug.realize
+    Halide::Runtime::Buffer<> modified_output_buffer;
+    modified_output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(input_full.width(), input_full.height(), input_full.channels());
+    Target host_target = get_host_target();
+    broken.output_buffer()
+    .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
+    .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
+    .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
+    
+    debug(broken).realize(input_full, modified_output_buffer, host_target);
 
     return 0;
 }
