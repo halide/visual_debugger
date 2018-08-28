@@ -115,7 +115,7 @@ int id_expr_debugging = -1;
 Halide::Type selected_type;
 
 // from 'treedump.cpp':
-Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value = 0, int min = 0, int max = 0);
+Profiling select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value = 0, int min = 0, int max = 0);
 
 void refresh_texture(GLuint idMyTexture, Halide::Buffer<>& output)
 {
@@ -266,7 +266,7 @@ void query_pixel(Halide::Buffer<>& buffer, int x, int y, float& r, float& g, flo
     }
 }
 
-void display_node(expr_node* node, GLuint idMyTexture, Func f, Halide::Buffer<uint8_t>& input_full, std::string& selected_name, Profiling& times, const std::string& target_features)
+void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& selected_name, Profiling& times, const std::string& target_features)
 {
     const int id = node->node_id;
     const char* label = node->name.c_str();
@@ -301,7 +301,7 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, Halide::Buffer<ui
 
     if (clicked)
     {
-        times = select_and_visualize(f, id, input_full, selected_type, output, target_features, view_transform_value, min_val, max_val);
+        times = select_and_visualize(f, id, selected_type, output, target_features, view_transform_value, min_val, max_val);
         refresh_texture(idMyTexture, output);
         if(save_images)
         {
@@ -327,7 +327,7 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, Halide::Buffer<ui
 
     for(auto& child : node->children)
     {
-        display_node(child, idMyTexture, f, input_full, selected_name, times, target_features);
+        display_node(child, idMyTexture, f, selected_name, times, target_features);
     }
 
     // NOTE(marcos): TreePop() must be called only when TreeNode*() returns true
@@ -473,7 +473,7 @@ ImVec2 ImageViewer(ImTextureID texture, const ImVec2& texture_size, float& zoom,
     return pixel_coord;
 }
 
-void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<> output_buff)
+void run_gui(std::vector<Func> funcs, Halide::Buffer<> output_buff)
 {
     // Setup window
     glfwSetErrorCallback(glfw_error_callback);
@@ -704,7 +704,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Halid
                     {
                         tree = get_tree(func);
                     }
-                    times = select_and_visualize(func, id_expr_debugging, input_full, selected_type, output, target_features, view_transform_value, min_val, max_val);
+                    times = select_and_visualize(func, id_expr_debugging, selected_type, output, target_features, view_transform_value, min_val, max_val);
                     refresh_texture(idMyTexture, output);
                     break;
                 }
@@ -724,7 +724,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Halid
             //Note(Emily): call recursive method to display tree
             if(func_selected && target_selected)
             {
-                display_node(tree.root, idMyTexture, selected, input_full, selected_name, times, target_features);
+                display_node(tree.root, idMyTexture, selected, selected_name, times, target_features);
             }
             ImGui::End();
             

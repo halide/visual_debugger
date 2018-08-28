@@ -1128,7 +1128,7 @@ struct FindInputBuffers : public Halide::Internal::IRVisitor
     }
 };
 
-Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value = 0, int min = 0, int max = 0)
+Profiling select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value = 0, int min = 0, int max = 0)
 {
     Func m = transform(f, id);
     auto input_buffers = FindInputBuffers().visit(m);

@@ -5,12 +5,12 @@ using namespace Halide;
 
 // from 'imgui_main.cpp':
 extern bool stdout_echo_toggle;
-void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<> output_buff);
+void run_gui(std::vector<Func> funcs, Halide::Buffer<> output_buff);
 
 struct UI
 {
     bool running = false;
-    void run(std::vector<Func> funcs, Halide::Buffer<uint8_t> input, Halide::Buffer<> output)
+    void run(std::vector<Func> funcs, Halide::Buffer<> output)
     {
         running = true;
         // redirect stdout to a log file, effectivelly silencing the console output:
@@ -22,7 +22,7 @@ struct UI
         iobc.AddEcho(&stdout_echo_toggle);
         iobc.AddFile(log);
         
-        run_gui(funcs, input, output);
+        run_gui(funcs, output);
         running = false;
         
         iobc.Terminate();
@@ -39,13 +39,13 @@ struct DebugFunc
     Func f;
     Halide::Buffer<> output;
     
-    void realize(Halide::Buffer<uint8_t> input, Halide::Buffer<> output, const Target &target = Target(), const ParamMap & param_map = ParamMap::empty_map()) //args, ...
+    void realize(Halide::Buffer<> output, const Target &target = Target(), const ParamMap & param_map = ParamMap::empty_map()) //args, ...
     {
         this->output = std::move(output);
         UI ui;
         std::vector<Func> funcs;
         funcs.push_back(this->f);
-        ui.run(funcs, input, output);
+        ui.run(funcs, output);
         while(ui.running){
             //gui running
         }
@@ -55,7 +55,7 @@ struct DebugFunc
     
     //TODO(Emily): other realize calls
     //need to figure out output buffer sizes for these calls
-    Realization realize(Halide::Buffer<> input, std::vector<int32_t> sizes, const Target &target = Target(),
+    Realization realize(std::vector<int32_t> sizes, const Target &target = Target(),
                         const ParamMap &param_map = ParamMap::empty_map())
     {
         UI ui;
@@ -63,7 +63,7 @@ struct DebugFunc
         funcs.push_back(this->f);
         Halide::Buffer<> output = this->f.realize(sizes, target, param_map); //TODO(Emily): need to handle case of multiple outputs
         this->output = std::move(output);
-        ui.run(funcs, input, output);
+        ui.run(funcs, output);
         while(ui.running)
         {
             //gui running
@@ -71,7 +71,7 @@ struct DebugFunc
         return this->output;
     }
     
-    Realization realize(Halide::Buffer<> input, int x_size, int y_size, int z_size, int w_size, const Target &target = Target(),
+    Realization realize(int x_size, int y_size, int z_size, int w_size, const Target &target = Target(),
                         const ParamMap &param_map = ParamMap::empty_map())
     {
         UI ui;
@@ -79,7 +79,7 @@ struct DebugFunc
         funcs.push_back(this->f);
         Halide::Buffer<> output = this->f.realize(x_size, y_size, z_size, w_size, target, param_map); //TODO(Emily): need to handle case of multiple outputs
         this->output = std::move(output);
-        ui.run(funcs, input, output);
+        ui.run(funcs, output);
         while(ui.running)
         {
             //gui running
@@ -87,7 +87,7 @@ struct DebugFunc
         return this->output;
     }
     
-    Realization realize(Halide::Buffer<> input, int x_size, int y_size, int z_size, const Target &target = Target(),
+    Realization realize(int x_size, int y_size, int z_size, const Target &target = Target(),
                         const ParamMap &param_map = ParamMap::empty_map())
     {
         UI ui;
@@ -95,7 +95,7 @@ struct DebugFunc
         funcs.push_back(this->f);
         Halide::Buffer<> output = this->f.realize(x_size, y_size, z_size, target, param_map); //TODO(Emily): need to handle case of multiple outputs
         this->output = std::move(output);
-        ui.run(funcs, input, output);
+        ui.run(funcs, output);
         while(ui.running)
         {
             //gui running
@@ -103,7 +103,7 @@ struct DebugFunc
         return this->output;
     }
     
-    Realization realize(Halide::Buffer<> input, int x_size, int y_size, const Target &target = Target(),
+    Realization realize(int x_size, int y_size, const Target &target = Target(),
                         const ParamMap &param_map = ParamMap::empty_map())
     {
         UI ui;
@@ -111,7 +111,7 @@ struct DebugFunc
         funcs.push_back(this->f);
         Halide::Buffer<> output = this->f.realize(x_size, y_size, target, param_map); //TODO(Emily): need to handle case of multiple outputs
         this->output = std::move(output);
-        ui.run(funcs, input, output);
+        ui.run(funcs, output);
         while(ui.running)
         {
             //gui running
@@ -127,7 +127,7 @@ struct DebugFunc
         funcs.push_back(this->f);
         Halide::Buffer<> output = this->f.realize(x_size, target, param_map); //TODO(Emily): need to handle case of multiple outputs
         this->output = std::move(output);
-        ui.run(funcs, input, output);
+        ui.run(funcs, output);
         while(ui.running)
         {
             //gui running
@@ -135,7 +135,7 @@ struct DebugFunc
         return this->output;
     }
     
-    Realization realize(Halide::Buffer<> input, const Target &target = Target(),
+    Realization realize(const Target &target = Target(),
                         const ParamMap &param_map = ParamMap::empty_map())
     {
         
@@ -144,7 +144,7 @@ struct DebugFunc
         funcs.push_back(this->f);
         Halide::Buffer<> output = this->f.realize(target, param_map); //TODO(Emily): need to handle case of multiple outputs
         this->output = std::move(output);
-        ui.run(funcs, input, output);
+        ui.run(funcs, output);
         while(ui.running)
         {
             //gui running
