@@ -47,7 +47,7 @@ struct DebugFunc
         funcs.push_back(f);
         ui.run(funcs, input, output);
         while(ui.running){
-            //do something
+            //gui running
         }
         this->f.realize(this->output, target); //TODO(Emily): realize should take a Pipeline::RealizationArg
         

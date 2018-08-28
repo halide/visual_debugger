@@ -170,8 +170,7 @@ int main()
     funcs.push_back(update_tuple_example());
     
     
-    //NOTE(Emily): setting up output buffer to realize in debug
-    //Probably want to instead figure out stride/size etc. in debug.realize
+    //NOTE(Emily): setting up output buffer to use with realize in debug
     Halide::Buffer<> modified_output_buffer;
     modified_output_buffer = Halide::Buffer<uint8_t>::make_interleaved(input_full.width(), input_full.height(), input_full.channels());
     Target host_target = get_host_target();
