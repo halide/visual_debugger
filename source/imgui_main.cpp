@@ -473,7 +473,7 @@ ImVec2 ImageViewer(ImTextureID texture, const ImVec2& texture_size, float& zoom,
     return pixel_coord;
 }
 
-void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
+void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<> output_buff)
 {
     // Setup window
     glfwSetErrorCallback(glfw_error_callback);
@@ -546,6 +546,8 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
 
     //NOTE(Emily): temporary to explore demo window
     bool open_demo(false);
+    
+    output = output_buff;
 
     Func selected;
 

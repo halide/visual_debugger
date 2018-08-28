@@ -1176,7 +1176,7 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
     Type t = eval(m).type();
     bool is_float = t.is_float();
 
-    Halide::Buffer<uint8_t> output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(input_full.width(), input_full.height(), input_full.channels());
+    Halide::Buffer<uint8_t> output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(output.width(), output.height(), output.channels());
     auto output_cropped = Crop(output_buffer, 2, 2);
 
     auto dims = output_buffer.dimensions();

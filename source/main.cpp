@@ -172,8 +172,8 @@ int main()
     
     //NOTE(Emily): setting up output buffer to realize in debug
     //Probably want to instead figure out stride/size etc. in debug.realize
-    Halide::Runtime::Buffer<> modified_output_buffer;
-    modified_output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(input_full.width(), input_full.height(), input_full.channels());
+    Halide::Buffer<> modified_output_buffer;
+    modified_output_buffer = Halide::Buffer<uint8_t>::make_interleaved(input_full.width(), input_full.height(), input_full.channels());
     Target host_target = get_host_target();
     broken.output_buffer()
     .dim(0).set_stride( modified_output_buffer.dim(0).stride() )

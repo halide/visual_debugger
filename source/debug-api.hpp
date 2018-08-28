@@ -5,12 +5,12 @@ using namespace Halide;
 
 // from 'imgui_main.cpp':
 extern bool stdout_echo_toggle;
-void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full);
+void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full, Halide::Buffer<> output_buff);
 
 struct UI
 {
     bool running = false;
-    void run(std::vector<Func> funcs, Halide::Buffer<uint8_t> input)
+    void run(std::vector<Func> funcs, Halide::Buffer<uint8_t> input, Halide::Buffer<> output)
     {
         running = true;
         // redirect stdout to a log file, effectivelly silencing the console output:
@@ -22,7 +22,7 @@ struct UI
         iobc.AddEcho(&stdout_echo_toggle);
         iobc.AddFile(log);
         
-        run_gui(funcs, input);
+        run_gui(funcs, input, output);
         running = false;
         
         iobc.Terminate();
@@ -37,18 +37,19 @@ struct UI
 struct DebugFunc
 {
     Func f;
+    Halide::Buffer<> output;
     
-    void realize(Halide::Buffer<uint8_t> input, Halide::Runtime::Buffer<> output, const Target &target = Target(), const ParamMap & param_map = ParamMap::empty_map()) //args, ...
+    void realize(Halide::Buffer<uint8_t> input, Halide::Buffer<> output, const Target &target = Target(), const ParamMap & param_map = ParamMap::empty_map()) //args, ...
     {
-        
+        this->output = std::move(output);
         UI ui;
         std::vector<Func> funcs;
         funcs.push_back(f);
-        ui.run(funcs, input);
+        ui.run(funcs, input, output);
         while(ui.running){
             //do something
         }
-        this->f.realize(output, target); //TODO(Emily): realize should take a Pipeline::RealizationArg
+        this->f.realize(this->output, target); //TODO(Emily): realize should take a Pipeline::RealizationArg
         
     }
 };
