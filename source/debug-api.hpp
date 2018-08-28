@@ -44,13 +44,112 @@ struct DebugFunc
         this->output = std::move(output);
         UI ui;
         std::vector<Func> funcs;
-        funcs.push_back(f);
+        funcs.push_back(this->f);
         ui.run(funcs, input, output);
         while(ui.running){
             //gui running
         }
-        this->f.realize(this->output, target); //TODO(Emily): realize should take a Pipeline::RealizationArg
+        this->f.realize(this->output, target, param_map); //TODO(Emily): realize should take a Pipeline::RealizationArg
         
+    }
+    
+    //TODO(Emily): other realize calls
+    //need to figure out output buffer sizes for these calls
+    Realization realize(Halide::Buffer<> input, std::vector<int32_t> sizes, const Target &target = Target(),
+                        const ParamMap &param_map = ParamMap::empty_map())
+    {
+        UI ui;
+        std::vector<Func> funcs;
+        funcs.push_back(this->f);
+        Halide::Buffer<> output = this->f.realize(sizes, target, param_map); //TODO(Emily): need to handle case of multiple outputs
+        this->output = std::move(output);
+        ui.run(funcs, input, output);
+        while(ui.running)
+        {
+            //gui running
+        }
+        return this->output;
+    }
+    
+    Realization realize(Halide::Buffer<> input, int x_size, int y_size, int z_size, int w_size, const Target &target = Target(),
+                        const ParamMap &param_map = ParamMap::empty_map())
+    {
+        UI ui;
+        std::vector<Func> funcs;
+        funcs.push_back(this->f);
+        Halide::Buffer<> output = this->f.realize(x_size, y_size, z_size, w_size, target, param_map); //TODO(Emily): need to handle case of multiple outputs
+        this->output = std::move(output);
+        ui.run(funcs, input, output);
+        while(ui.running)
+        {
+            //gui running
+        }
+        return this->output;
+    }
+    
+    Realization realize(Halide::Buffer<> input, int x_size, int y_size, int z_size, const Target &target = Target(),
+                        const ParamMap &param_map = ParamMap::empty_map())
+    {
+        UI ui;
+        std::vector<Func> funcs;
+        funcs.push_back(this->f);
+        Halide::Buffer<> output = this->f.realize(x_size, y_size, z_size, target, param_map); //TODO(Emily): need to handle case of multiple outputs
+        this->output = std::move(output);
+        ui.run(funcs, input, output);
+        while(ui.running)
+        {
+            //gui running
+        }
+        return this->output;
+    }
+    
+    Realization realize(Halide::Buffer<> input, int x_size, int y_size, const Target &target = Target(),
+                        const ParamMap &param_map = ParamMap::empty_map())
+    {
+        UI ui;
+        std::vector<Func> funcs;
+        funcs.push_back(this->f);
+        Halide::Buffer<> output = this->f.realize(x_size, y_size, target, param_map); //TODO(Emily): need to handle case of multiple outputs
+        this->output = std::move(output);
+        ui.run(funcs, input, output);
+        while(ui.running)
+        {
+            //gui running
+        }
+        return this->output;
+    }
+    
+    Realization realize(Halide::Buffer<> input, int x_size, const Target &target = Target(),
+                        const ParamMap &param_map = ParamMap::empty_map())
+    {
+        UI ui;
+        std::vector<Func> funcs;
+        funcs.push_back(this->f);
+        Halide::Buffer<> output = this->f.realize(x_size, target, param_map); //TODO(Emily): need to handle case of multiple outputs
+        this->output = std::move(output);
+        ui.run(funcs, input, output);
+        while(ui.running)
+        {
+            //gui running
+        }
+        return this->output;
+    }
+    
+    Realization realize(Halide::Buffer<> input, const Target &target = Target(),
+                        const ParamMap &param_map = ParamMap::empty_map())
+    {
+        
+        UI ui;
+        std::vector<Func> funcs;
+        funcs.push_back(this->f);
+        Halide::Buffer<> output = this->f.realize(target, param_map); //TODO(Emily): need to handle case of multiple outputs
+        this->output = std::move(output);
+        ui.run(funcs, input, output);
+        while(ui.running)
+        {
+            //gui running
+        }
+        return this->output;
     }
 };
 

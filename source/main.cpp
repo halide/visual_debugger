@@ -142,6 +142,16 @@ Func update_tuple_example()
     return updated;
 }
 
+Func simple_realize_x_y_example()
+{
+    Func gradient;
+    Var x, y;
+    Expr e = x + y;
+    gradient(x,y) = e;
+    
+    return gradient;
+}
+
 
 // from 'imgui_main.cpp':
 extern bool stdout_echo_toggle;
@@ -179,7 +189,11 @@ int main()
     .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
     .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
     
-    debug(broken).realize(input_full, modified_output_buffer, host_target);
+    
+    //debug(broken).realize(input_full, modified_output_buffer, host_target);
+    
+    Func simple_other_realize = simple_realize_x_y_example();
+    debug(simple_other_realize).realize(input_full, 800, 600, host_target); //NOTE(Emily): right now we need to pass in an input buffer although it isn't used. should handle this use case
 
     return 0;
 }
