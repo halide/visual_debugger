@@ -39,30 +39,22 @@ struct DebugFunc
     Func f;
     Halide::Buffer<> output;
     
-    void realize(Halide::Buffer<> output, const Target &target = Target(), const ParamMap & param_map = ParamMap::empty_map())
-    {
-        //NOTE(Emily): case with one output
-        UI ui;
-        std::vector<Func> funcs;
-        funcs.push_back(this->f);
-        this->output = std::move(output);
-        ui.run(funcs, this->output);
-        while(ui.running)
-        {
-            //ui running
-        }
-        this->f.realize(output, target, param_map);
-    }
-    
-    
     void realize(Pipeline::RealizationArg outputs, const Target &target = Target(), const ParamMap & param_map = ParamMap::empty_map()) //args, ...
     {
-        //NOTE(Emily): case with multiple outputs
+        if(outputs.size() == 1)
+        {
+            halide_buffer_t * buf = outputs.buf;
+            Buffer<> buffer (*buf);
+            this->output = buffer;
+        }
+        else
+        {
+            this->output = outputs.buffer_list->at(0);
+        }
         UI ui;
         std::vector<Func> funcs;
         funcs.push_back(this->f);
         
-        this->output = outputs.buffer_list->at(0);
         ui.run(funcs, this->output);
         ui.run(funcs, this->output);
         while(ui.running){
