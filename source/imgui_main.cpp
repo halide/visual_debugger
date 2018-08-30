@@ -407,6 +407,77 @@ bool OptionalRadioButton(const char* label, int* v, int v_button, bool enabled=t
     return result;
 }
 
+ImVec2 calculate_range()
+{
+    ImVec2 range;
+    switch (selected_type.code())
+    {
+        case halide_type_int :
+            switch (selected_type.bits())
+        {
+            case 8 :
+            {
+                range = {-128, 127};
+                break;
+            }
+            case 16 :
+            {
+                range = {-32768, 32767};
+                break;
+            }
+            case 32 :
+            {
+                range = {-2147483648, 2147483647};
+                break;
+            }
+            default:
+                assert(false);
+                break;
+        }
+            break;
+        case halide_type_uint :
+            switch (selected_type.bits())
+        {
+            case 8 :
+            {
+                range = {0, 255};
+                break;
+            }
+            case 16 :
+            {
+                range = {0, 65535};
+                break;
+            }
+            case 32 :
+            {
+                range = {0, (float) 4294967295};
+                break;
+            }
+            default:
+                assert(false);
+                break;
+        }
+            break;
+        case halide_type_float :
+            switch (selected_type.bits())
+        {
+            case 32 :
+            {
+                range = {-3.4e38, 3.4e38};
+                break;
+            }
+            default:
+                assert(false);
+                break;
+        }
+            break;
+        default :
+            assert(false);
+            break;
+    }
+    return range;
+}
+
 ImVec2 ImageViewer(ImTextureID texture, const ImVec2& texture_size, float& zoom, const ImVec2& canvas_size)
 {
     auto& io = ImGui::GetIO();
@@ -782,8 +853,10 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<> output_buff)
             if(!show_range_normalize)
             {
                 bool changed = false;
+                ImVec2 range = calculate_range();
                 
-                changed = ImGui::DragIntRange2("Pixel Range", &min_val, &max_val, 3, 0, 0, "Min: %d", "Max: %d");
+                
+                changed = ImGui::DragIntRange2("Pixel Range", &min_val, &max_val, 1, range.x, range.y, "Min: %d", "Max: %d");
                 ImGui::SameLine();
                 if(ImGui::Button("Reset"))
                 {
@@ -840,7 +913,8 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<> output_buff)
             {
                 ImGui::Text("");
             }
-
+            
+            
             static int pick_x = 0;
             static int pick_y = 0;
             if (hovering && io.MouseDown[1])
@@ -856,6 +930,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<> output_buff)
                 ImGui::SameLine();
                 ImGui::Text("(x=%d, y=%d) = [r=%f, g=%f, b=%f]", pick_x, pick_y, rgb[0], rgb[1], rgb[2]);
             }
+             
 
             ImGui::End();
         }
