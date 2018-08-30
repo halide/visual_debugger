@@ -39,22 +39,40 @@ struct DebugFunc
     Func f;
     Halide::Buffer<> output;
     
-    void realize(Halide::Buffer<> output, const Target &target = Target(), const ParamMap & param_map = ParamMap::empty_map()) //args, ...
+    void realize(Halide::Buffer<> output, const Target &target = Target(), const ParamMap & param_map = ParamMap::empty_map())
     {
-        this->output = std::move(output);
+        //NOTE(Emily): case with one output
         UI ui;
         std::vector<Func> funcs;
         funcs.push_back(this->f);
-        ui.run(funcs, output);
+        this->output = std::move(output);
+        ui.run(funcs, this->output);
+        while(ui.running)
+        {
+            //ui running
+        }
+        this->f.realize(output, target, param_map);
+    }
+    
+    
+    void realize(Pipeline::RealizationArg outputs, const Target &target = Target(), const ParamMap & param_map = ParamMap::empty_map()) //args, ...
+    {
+        //NOTE(Emily): case with multiple outputs
+        UI ui;
+        std::vector<Func> funcs;
+        funcs.push_back(this->f);
+        
+        this->output = outputs.buffer_list->at(0);
+        ui.run(funcs, this->output);
+        ui.run(funcs, this->output);
         while(ui.running){
             //gui running
         }
-        this->f.realize(this->output, target, param_map); //TODO(Emily): realize should take a Pipeline::RealizationArg
+        this->f.realize(std::move(outputs), target, param_map);
         
     }
     
     //TODO(Emily): other realize calls
-    //need to figure out output buffer sizes for these calls
     Realization realize(std::vector<int32_t> sizes, const Target &target = Target(),
                         const ParamMap &param_map = ParamMap::empty_map())
     {
