@@ -115,7 +115,7 @@ int id_expr_debugging = -1;
 Halide::Type selected_type;
 
 // from 'treedump.cpp':
-Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value = 0, int min = 0, int max = 0);
+Profiling select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value = 0, int min = 0, int max = 0);
 
 void refresh_texture(GLuint idMyTexture, Halide::Buffer<>& output)
 {
@@ -266,7 +266,7 @@ void query_pixel(Halide::Buffer<>& buffer, int x, int y, float& r, float& g, flo
     }
 }
 
-void display_node(expr_node* node, GLuint idMyTexture, Func f, Halide::Buffer<uint8_t>& input_full, std::string& selected_name, Profiling& times, const std::string& target_features)
+void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& selected_name, Profiling& times, const std::string& target_features)
 {
     const int id = node->node_id;
     const char* label = node->name.c_str();
@@ -301,7 +301,7 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, Halide::Buffer<ui
 
     if (clicked)
     {
-        times = select_and_visualize(f, id, input_full, selected_type, output, target_features, view_transform_value, min_val, max_val);
+        times = select_and_visualize(f, id, selected_type, output, target_features, view_transform_value, min_val, max_val);
         refresh_texture(idMyTexture, output);
         if(save_images)
         {
@@ -327,7 +327,7 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, Halide::Buffer<ui
 
     for(auto& child : node->children)
     {
-        display_node(child, idMyTexture, f, input_full, selected_name, times, target_features);
+        display_node(child, idMyTexture, f, selected_name, times, target_features);
     }
 
     // NOTE(marcos): TreePop() must be called only when TreeNode*() returns true
@@ -407,6 +407,97 @@ bool OptionalRadioButton(const char* label, int* v, int v_button, bool enabled=t
     return result;
 }
 
+ImVec2 calculate_range()
+{
+    ImVec2 range;
+    switch (selected_type.code())
+    {
+        case halide_type_int :
+            switch (selected_type.bits())
+        {
+            case 8 :
+            {
+                range = {-128, 127};
+                break;
+            }
+            case 16 :
+            {
+                range = {-32768, 32767};
+                break;
+            }
+            case 32 :
+            {
+                range = {-2147483648, 2147483647};
+                break;
+            }
+            default:
+                assert(false);
+                break;
+        }
+            break;
+        case halide_type_uint :
+            switch (selected_type.bits())
+        {
+            case 8 :
+            {
+                range = {0, 255};
+                break;
+            }
+            case 16 :
+            {
+                range = {0, 65535};
+                break;
+            }
+            case 32 :
+            {
+                range = {0, (float) 4294967295};
+                break;
+            }
+            default:
+                assert(false);
+                break;
+        }
+            break;
+        case halide_type_float :
+            switch (selected_type.bits())
+        {
+            case 32 :
+            {
+                range = {-3.4e38, 3.4e38};
+                break;
+            }
+            default:
+                assert(false);
+                break;
+        }
+            break;
+        default :
+            assert(false);
+            break;
+    }
+    return range;
+}
+
+int calculate_speed()
+{
+    int speed;
+    switch (selected_type.bits()) {
+        case 8:
+            speed = 1;
+            break;
+        case 16:
+            speed = 1000;
+            break;
+        case 32:
+            speed = 5000000;
+            break;
+        default:
+            assert(false);
+            break;
+    }
+    return speed;
+}
+
 ImVec2 ImageViewer(ImTextureID texture, const ImVec2& texture_size, float& zoom, const ImVec2& canvas_size)
 {
     auto& io = ImGui::GetIO();
@@ -473,7 +564,7 @@ ImVec2 ImageViewer(ImTextureID texture, const ImVec2& texture_size, float& zoom,
     return pixel_coord;
 }
 
-void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
+void run_gui(std::vector<Func> funcs, Halide::Buffer<> output_buff)
 {
     // Setup window
     glfwSetErrorCallback(glfw_error_callback);
@@ -546,6 +637,8 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
 
     //NOTE(Emily): temporary to explore demo window
     bool open_demo(false);
+    
+    output = output_buff;
 
     Func selected;
 
@@ -702,7 +795,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                     {
                         tree = get_tree(func);
                     }
-                    times = select_and_visualize(func, id_expr_debugging, input_full, selected_type, output, target_features, view_transform_value, min_val, max_val);
+                    times = select_and_visualize(func, id_expr_debugging, selected_type, output, target_features, view_transform_value, min_val, max_val);
                     refresh_texture(idMyTexture, output);
                     break;
                 }
@@ -722,7 +815,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             //Note(Emily): call recursive method to display tree
             if(func_selected && target_selected)
             {
-                display_node(tree.root, idMyTexture, selected, input_full, selected_name, times, target_features);
+                display_node(tree.root, idMyTexture, selected, selected_name, times, target_features);
             }
             ImGui::End();
             
@@ -780,8 +873,10 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             if(!show_range_normalize)
             {
                 bool changed = false;
+                ImVec2 range = calculate_range();
+                int speed = calculate_speed();
                 
-                changed = ImGui::DragIntRange2("Pixel Range", &min_val, &max_val, 3, 0, 0, "Min: %d", "Max: %d");
+                changed = ImGui::DragIntRange2("Pixel Range", &min_val, &max_val, speed, range.x, range.y, "Min: %d", "Max: %d");
                 ImGui::SameLine();
                 if(ImGui::Button("Reset"))
                 {
@@ -838,7 +933,8 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
             {
                 ImGui::Text("");
             }
-
+            
+            
             static int pick_x = 0;
             static int pick_y = 0;
             if (hovering && io.MouseDown[1])
@@ -854,6 +950,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
                 ImGui::SameLine();
                 ImGui::Text("(x=%d, y=%d) = [r=%f, g=%f, b=%f]", pick_x, pick_y, rgb[0], rgb[1], rgb[2]);
             }
+             
 
             ImGui::End();
         }
@@ -880,3 +977,5 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full)
     glfwTerminate();
 
 }
+
+

@@ -13,6 +13,7 @@
 #include "HalideImageIO.h"
 
 #include "io-broadcast.hpp"
+#include "debug-api.hpp"
 
 using namespace Halide;
 
@@ -174,6 +175,16 @@ Func update_tuple_example()
     return updated;
 }
 
+Func simple_realize_x_y_example()
+{
+    Func gradient;
+    Var x, y;
+    Expr e = x + y;
+    gradient(x,y) = e;
+    
+    return gradient;
+}
+
 
 // from 'imgui_main.cpp':
 extern bool stdout_echo_toggle;
@@ -198,14 +209,6 @@ public:
 
 int main()
 {
-    // redirect stdout to a log file, effectivelly silencing the console output:
-    const char* logfile = "data/output/log-halide-visdbg.txt";
-    fprintf(stdout, ">> Redirecting 'stdout' to log file '%s'\n", logfile);
-    FILE* log = fopen(logfile, "w");
-    assert(log);
-    Broadcaster iobc = redirect_broadcast(stdout);
-    iobc.AddEcho(&stdout_echo_toggle);
-    iobc.AddFile(log);
 
     JITErrorReporter jer;
     Halide::set_custom_compile_time_error_reporter(&jer);
@@ -230,12 +233,21 @@ int main()
     //funcs.push_back(update_example2());
     funcs.push_back(update_tuple_example());
     
-    run_gui(funcs, input_full);
-
-    iobc.Terminate();
-    fprintf(stdout, "<< Done with 'stdout' redirection\n");
-
-    fclose(log);
+    
+    //NOTE(Emily): setting up output buffer to use with realize in debug
+    Halide::Buffer<> modified_output_buffer;
+    modified_output_buffer = Halide::Buffer<uint8_t>::make_interleaved(input_full.width(), input_full.height(), input_full.channels());
+    Target host_target = get_host_target();
+    broken.output_buffer()
+    .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
+    .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
+    .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
+    
+    
+    debug(broken).realize(modified_output_buffer, host_target);
+    
+    Func simple_other_realize = simple_realize_x_y_example();
+    //debug(simple_other_realize).realize(800, 600, host_target); //NOTE(Emily): right now we need to pass in an input buffer although it isn't used. should handle this use case
 
     return 0;
 }
