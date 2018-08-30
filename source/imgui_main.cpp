@@ -478,6 +478,26 @@ ImVec2 calculate_range()
     return range;
 }
 
+int calculate_speed()
+{
+    int speed;
+    switch (selected_type.bits()) {
+        case 8:
+            speed = 1;
+            break;
+        case 16:
+            speed = 1000;
+            break;
+        case 32:
+            speed = 5000000;
+            break;
+        default:
+            assert(false);
+            break;
+    }
+    return speed;
+}
+
 ImVec2 ImageViewer(ImTextureID texture, const ImVec2& texture_size, float& zoom, const ImVec2& canvas_size)
 {
     auto& io = ImGui::GetIO();
@@ -854,9 +874,9 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<> output_buff)
             {
                 bool changed = false;
                 ImVec2 range = calculate_range();
+                int speed = calculate_speed();
                 
-                
-                changed = ImGui::DragIntRange2("Pixel Range", &min_val, &max_val, 1, range.x, range.y, "Min: %d", "Max: %d");
+                changed = ImGui::DragIntRange2("Pixel Range", &min_val, &max_val, speed, range.x, range.y, "Min: %d", "Max: %d");
                 ImGui::SameLine();
                 if(ImGui::Button("Reset"))
                 {
