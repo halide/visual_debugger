@@ -56,7 +56,6 @@ struct DebugFunc
         funcs.push_back(this->f);
         
         ui.run(funcs, this->output);
-        ui.run(funcs, this->output);
         while(ui.running){
             //gui running
         }
