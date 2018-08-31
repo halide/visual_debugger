@@ -12,11 +12,12 @@ add_executable(
 	visdbg
 
 	../data/force_working_directory.cpp
-	
+
 	./imgui_main.cpp
 	./main.cpp
 	./system.cpp
 	./treedump.cpp
+	./debug-api.cpp
 
 	./HalideIdentity.h
 	./HalideImageIO.h
@@ -24,7 +25,8 @@ add_executable(
 	./io-broadcast.hpp
 	./system.hpp
 	./utils.h
-
+	./debug-api.hpp	
+	
 	../third-party/imguifilesystem/dirent_portable.h
 	../third-party/imguifilesystem/imguifilesystem.h		
 	../third-party/imguifilesystem/imguifilesystem.cpp

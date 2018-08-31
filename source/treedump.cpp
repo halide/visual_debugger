@@ -1,10 +1,4 @@
 #ifdef  _MSC_VER
-    #ifndef _CRT_SECURE_NO_WARNINGS
-    #define _CRT_SECURE_NO_WARNINGS
-    #endif//_CRT_SECURE_NO_WARNINGS
-#endif//_MSC_VER
-
-#ifdef  _MSC_VER
     #include <direct.h>
     #define mkdir(path, dontcare) _mkdir(path)
     #define S_IRWXU 0000700
@@ -1128,7 +1122,7 @@ struct FindInputBuffers : public Halide::Internal::IRVisitor
     }
 };
 
-Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_full, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value = 0, int min = 0, int max = 0)
+Profiling select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value, int min, int max)
 {
     Func m = transform(f, id);
     auto input_buffers = FindInputBuffers().visit(m);
@@ -1176,7 +1170,7 @@ Profiling select_and_visualize(Func f, int id, Halide::Buffer<uint8_t>& input_fu
     Type t = eval(m).type();
     bool is_float = t.is_float();
 
-    Halide::Buffer<uint8_t> output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(input_full.width(), input_full.height(), input_full.channels());
+    Halide::Buffer<uint8_t> output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(output.width(), output.height(), output.channels());
     auto output_cropped = Crop(output_buffer, 2, 2);
 
     auto dims = output_buffer.dimensions();
