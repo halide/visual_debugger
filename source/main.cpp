@@ -12,7 +12,6 @@
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include "HalideImageIO.h"
 
-#include "io-broadcast.hpp"
 #include "debug-api.hpp"
 
 using namespace Halide;
