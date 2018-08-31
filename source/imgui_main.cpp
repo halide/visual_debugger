@@ -893,7 +893,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<> output_buff)
                 ImVec2 range = calculate_range();
                 int speed = calculate_speed();
                 
-                changed = ImGui::DragIntRange2("Pixel Range", &min_val, &max_val, (float)speed, (int)range.x, (int)range.y, "Min: %d", "Max: %d");
+                changed = ImGui::DragIntRange2("Pixel Range", &min_val, &max_val, (float)speed, (int) range.x, (int) range.y, "Min: %d", "Max: %d");
                 ImGui::SameLine();
                 if(ImGui::Button("Reset"))
                 {
@@ -920,6 +920,10 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<> output_buff)
                     max_val = (min_val == max_val) ? max_val + 1
                                                    : max_val;
                     view_transform_value = range_value; //NOTE(Emily): set transform view to type of range transform
+                }
+                if(changed && !range_select)
+                {
+                    view_transform_value = 1; //NOTE(Emily): switch back to default handling of overflow values
                 }
                 if (changed || (previous != range_value))
                     selected = Func();  // will force a refresh
