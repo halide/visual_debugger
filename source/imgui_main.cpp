@@ -7,6 +7,8 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl2.h>
 
+#include <limits>
+
 namespace ImGui
 {
     // non-public, internal imgui routine; handy, and has been there forever...
@@ -417,17 +419,17 @@ ImVec2 calculate_range()
         {
             case 8 :
             {
-                range = {-128, 127};
+                range = {std::numeric_limits<int8_t>::min(), std::numeric_limits<int8_t>::max()};
                 break;
             }
             case 16 :
             {
-                range = {-32768, 32767};
+                range = {std::numeric_limits<int16_t>::min(), std::numeric_limits<int16_t>::max()};
                 break;
             }
             case 32 :
             {
-                range = {-2147483648, 2147483647};
+                range = {std::numeric_limits<int32_t>::min(), std::numeric_limits<int32_t>::max()};
                 break;
             }
             default:
@@ -440,17 +442,17 @@ ImVec2 calculate_range()
         {
             case 8 :
             {
-                range = {0, 255};
+                range = {std::numeric_limits<uint8_t>::min(), std::numeric_limits<uint8_t>::max()};
                 break;
             }
             case 16 :
             {
-                range = {0, 65535};
+                range = {std::numeric_limits<uint16_t>::min(), std::numeric_limits<uint16_t>::max()};
                 break;
             }
             case 32 :
             {
-                range = {0, (float) 4294967295};
+                range = {std::numeric_limits<uint32_t>::min(), std::numeric_limits<uint32_t>::max()};
                 break;
             }
             default:
@@ -463,7 +465,7 @@ ImVec2 calculate_range()
         {
             case 32 :
             {
-                range = {-3.4e38, 3.4e38};
+                range = {std::numeric_limits<float_t>::min(), std::numeric_limits<float_t>::max()};
                 break;
             }
             default:
