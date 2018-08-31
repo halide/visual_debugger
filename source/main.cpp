@@ -141,9 +141,6 @@ Func simple_realize_x_y_example()
 }
 
 
-// from 'imgui_main.cpp':
-extern bool stdout_echo_toggle;
-void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full); 
 
 int main()
 {
@@ -154,30 +151,30 @@ int main()
         return -1;
 
     Func broken = example_broken(input_full);
-
     Func fixed = example_fixed(input_full);
 
-    std::vector<Func> funcs;
-    funcs.push_back(broken);
-    funcs.push_back(fixed);
-    funcs.push_back(example_scoped(input_full));
-    funcs.push_back(example_tuple());
-    funcs.push_back(example_another_tuple(broken, fixed));
-    funcs.push_back(update_example());
-    funcs.push_back(update_tuple_example());
-    
-    
     //NOTE(Emily): setting up output buffer to use with realize in debug
     Halide::Buffer<> modified_output_buffer;
     modified_output_buffer = Halide::Buffer<uint8_t>::make_interleaved(input_full.width(), input_full.height(), input_full.channels());
-    Target host_target = get_host_target();
+    // TODO(marcos): would it make sense to try to automate-away this Func output
+    // buffer setup from the user?
     broken.output_buffer()
-    .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
-    .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
-    .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
-    
-    
-    debug(broken).realize(modified_output_buffer, host_target);
+        .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
+        .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
+        .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
+
+    std::vector<ReplayableFunc> funcs;
+        funcs.emplace_back( ReplayableFunc(broken).realize(modified_output_buffer) );
+        funcs.emplace_back( ReplayableFunc(fixed).realize(modified_output_buffer) );
+        funcs.emplace_back( ReplayableFunc(example_scoped(input_full)).realize(modified_output_buffer) );
+        funcs.emplace_back( ReplayableFunc(example_tuple()).realize(modified_output_buffer) );
+        funcs.emplace_back( ReplayableFunc(example_another_tuple(broken, fixed)).realize(modified_output_buffer) );
+        funcs.emplace_back( ReplayableFunc(update_example()).realize(modified_output_buffer) );
+        funcs.emplace_back( ReplayableFunc(update_tuple_example()).realize(modified_output_buffer) );
+
+    //Target host_target = get_host_target();
+    //debug(broken).realize(modified_output_buffer, host_target);
+    replay(funcs);
     
     Func simple_other_realize = simple_realize_x_y_example();
     //debug(simple_other_realize).realize(800, 600, host_target); //NOTE(Emily): right now we need to pass in an input buffer although it isn't used. should handle this use case
