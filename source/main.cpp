@@ -1,18 +1,6 @@
-#ifdef  _MSC_VER
-    #ifndef _CRT_SECURE_NO_WARNINGS
-    #define _CRT_SECURE_NO_WARNINGS
-    #endif//_CRT_SECURE_NO_WARNINGS
-#endif//_MSC_VER
-
-#include <Halide.h>
+#include "HalideImageIO.h"
 #include "HalideIdentity.h"
 
-#define STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#define STB_IMAGE_RESIZE_IMPLEMENTATION
-#include "HalideImageIO.h"
-
-#include "io-broadcast.hpp"
 #include "debug-api.hpp"
 
 using namespace Halide;
@@ -159,7 +147,6 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<uint8_t>& input_full);
 
 int main()
 {
-
     //NOTE(Emily): define func here
     xsprintf(input_filename, 128, "data/pencils.jpg");
     Halide::Buffer<uint8_t> input_full = LoadImage(input_filename);

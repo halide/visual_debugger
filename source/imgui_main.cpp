@@ -1,3 +1,9 @@
+#ifdef  _MSC_VER
+    #ifndef _CRT_SECURE_NO_WARNINGS
+    #define _CRT_SECURE_NO_WARNINGS
+    #endif//_CRT_SECURE_NO_WARNINGS
+#endif//_MSC_VER
+
 #ifdef _WIN32
     // to accommodate for OpenGL user callbacks (like GLDEBUGPROCARB), glfw3.h
     // needs to #define APIENTRY if it has not been defined yet; it's safer to
@@ -29,6 +35,10 @@ namespace ImGui
 
 #include "system.hpp"
 #include "utils.h"
+
+#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include "HalideImageIO.h"
 
 #include "../third-party/imguifilesystem/imguifilesystem.h"
