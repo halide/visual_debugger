@@ -33,7 +33,6 @@ namespace ImGui
 #include <Halide.h>
 #include <GLFW/glfw3.h>
 
-#include "debug-api.hpp"
 #include "system.hpp"
 #include "utils.h"
 
@@ -592,7 +591,7 @@ ImVec2 ImageViewer(ImTextureID texture, const ImVec2& texture_size, float& zoom,
     return pixel_coord;
 }
 
-void run_gui(std::vector<Func> funcs, Halide::Buffer<> output_buff, const std::vector<ReplayableFunc> &rpfs)
+void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
 {
     // Setup window
     glfwSetErrorCallback(glfw_error_callback);
@@ -666,7 +665,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<> output_buff, const std::v
     //NOTE(Emily): temporary to explore demo window
     bool open_demo(false);
     
-    output = output_buff;
+    //output = output_buff;
 
     Func selected;
 
@@ -814,6 +813,11 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<> output_buff, const std::v
                         id_expr_debugging = -1;
                         show_id = 0;
                         selected = Func();
+                        output = Buffer<>();
+                    }
+                    if (!output.defined())
+                    {
+                        output = funcs_outputs[id];
                     }
                     if (!selected.defined())
                     {

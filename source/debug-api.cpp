@@ -11,12 +11,12 @@ using namespace Halide;
 
 // from 'imgui_main.cpp':
 extern bool stdout_echo_toggle;
-void run_gui(std::vector<Func> funcs, Halide::Buffer<> output_buff, const std::vector<ReplayableFunc> &rpfs = {});
+void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs);
 
 struct UI
 {
     bool running = false;
-    void run(std::vector<Func> funcs, Halide::Buffer<> output, const std::vector<ReplayableFunc> &rpfs = {})
+    void run(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
     {
         running = true;
         // redirect stdout to a log file, effectivelly silencing the console output:
@@ -28,7 +28,7 @@ struct UI
         iobc.AddEcho(&stdout_echo_toggle);
         iobc.AddFile(log);
         
-        run_gui(funcs, output, rpfs);
+        run_gui(funcs, funcs_outputs);
         running = false;
         
         iobc.Terminate();
@@ -58,7 +58,7 @@ void DebugFunc::realize(Pipeline::RealizationArg outputs, const Target &target,
     std::vector<Func> funcs;
     funcs.push_back(this->f);
         
-    ui.run(funcs, this->output);
+    ui.run(funcs, { this->output });
     while(ui.running){
         //gui running
     }
@@ -74,7 +74,7 @@ Realization DebugFunc::realize(std::vector<int32_t> sizes, const Target &target,
     funcs.push_back(this->f);
     Realization outputs = this->f.realize(sizes, target, param_map);
     this->output = std::move(outputs[0]);
-    ui.run(funcs, this->output);
+    ui.run(funcs, { this->output });
     while(ui.running)
     {
         //gui running
@@ -90,7 +90,7 @@ Realization DebugFunc::realize(int x_size, int y_size, int z_size, int w_size, c
     funcs.push_back(this->f);
     Realization outputs = this->f.realize(x_size, y_size, z_size, w_size, target, param_map);
     this->output = std::move(outputs[0]);
-    ui.run(funcs, this->output);
+    ui.run(funcs, { this->output });
     while(ui.running)
     {
         //gui running
@@ -106,7 +106,7 @@ Realization DebugFunc::realize(int x_size, int y_size, int z_size, const Target 
     funcs.push_back(this->f);
     Realization outputs = this->f.realize(x_size, y_size, z_size, target, param_map);
     this->output = std::move(outputs[0]);
-    ui.run(funcs, this->output);
+    ui.run(funcs, { this->output });
     while(ui.running)
     {
         //gui running
@@ -122,7 +122,7 @@ Realization DebugFunc::realize(int x_size, int y_size, const Target &target,
     funcs.push_back(this->f);
     Realization outputs = this->f.realize(x_size, y_size, target, param_map);
     this->output = std::move(outputs[0]);
-    ui.run(funcs, this->output);
+    ui.run(funcs, { this->output });
     while(ui.running)
     {
         //gui running
@@ -138,7 +138,7 @@ Realization DebugFunc::realize(Halide::Buffer<> input, int x_size, const Target 
     funcs.push_back(this->f);
     Realization outputs = this->f.realize(x_size, target, param_map);
     this->output = std::move(outputs[0]);
-    ui.run(funcs, this->output);
+    ui.run(funcs, { this->output });
     while(ui.running)
     {
         //gui running
@@ -155,7 +155,7 @@ Realization DebugFunc::realize(const Target &target,
     funcs.push_back(this->f);
     Realization outputs = this->f.realize(target, param_map); 
     this->output = std::move(outputs[0]);
-    ui.run(funcs, this->output);
+    ui.run(funcs, { this->output });
     while(ui.running)
     {
         //gui running
@@ -188,26 +188,29 @@ ReplayableFunc&& ReplayableFunc::realize(Pipeline::RealizationArg outputs, const
 
 void replay(std::vector<ReplayableFunc> &rpfuncs)
 {
-    Func first_func = rpfuncs[0].f;
-    Pipeline::RealizationArg &outputs = rpfuncs[0].outputs;
-
-    Buffer<> output;
-    if(outputs.size() == 1)
-    {
-        halide_buffer_t * buf = outputs.buf;
-        Buffer<> buffer (*buf);
-        output = buffer;
-    }
-    else
-    {
-        output = outputs.buffer_list->at(0);
-    }
-
     std::vector<Func> funcs;
-    funcs.push_back(first_func);
+    std::vector<Buffer<>> funcs_outputs;
+    for (auto& rpf : rpfuncs)
+    {
+        Func& f = rpf.f;
+        auto& outputs = rpf.outputs;
+        Buffer<> output;
+        if (outputs.size() == 1)
+        {
+            halide_buffer_t * buf = outputs.buf;
+            Buffer<> buffer(*buf);
+            output = buffer;
+        }
+        else
+        {
+            output = outputs.buffer_list->at(0);
+        }
+        funcs.emplace_back(f);
+        funcs_outputs.emplace_back(output);
+    }
 
     UI ui;
-    ui.run(funcs, output, rpfuncs);
+    ui.run(funcs, funcs_outputs);
     while(ui.running){
         //gui running
     }
