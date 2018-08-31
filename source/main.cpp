@@ -156,7 +156,8 @@ int main()
     //NOTE(Emily): setting up output buffer to use with realize in debug
     Halide::Buffer<> modified_output_buffer;
     modified_output_buffer = Halide::Buffer<uint8_t>::make_interleaved(input_full.width(), input_full.height(), input_full.channels());
-    Target host_target = get_host_target();
+    // TODO(marcos): would it make sense to try to automate-away this Func output
+    // buffer setup from the user?
     broken.output_buffer()
         .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
         .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
@@ -170,7 +171,8 @@ int main()
         funcs.emplace_back( ReplayableFunc(example_another_tuple(broken, fixed)).realize(modified_output_buffer) );
         funcs.emplace_back( ReplayableFunc(update_example()).realize(modified_output_buffer) );
         funcs.emplace_back( ReplayableFunc(update_tuple_example()).realize(modified_output_buffer) );
-    
+
+    //Target host_target = get_host_target();
     //debug(broken).realize(modified_output_buffer, host_target);
     replay(funcs);
     

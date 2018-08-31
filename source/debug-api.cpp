@@ -15,10 +15,8 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs);
 
 struct UI
 {
-    bool running = false;
     void run(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
     {
-        running = true;
         // redirect stdout to a log file, effectivelly silencing the console output:
         const char* logfile = "data/output/log-halide-visdbg.txt";
         fprintf(stdout, ">> Redirecting 'stdout' to log file '%s'\n", logfile);
@@ -29,7 +27,6 @@ struct UI
         iobc.AddFile(log);
         
         run_gui(funcs, funcs_outputs);
-        running = false;
         
         iobc.Terminate();
         fprintf(stdout, "<< Done with 'stdout' redirection\n");
@@ -44,24 +41,23 @@ namespace Halide
 void DebugFunc::realize(Pipeline::RealizationArg outputs, const Target &target,
                         const ParamMap &param_map)
 {
+    Buffer<> output;
     if(outputs.size() == 1)
     {
         halide_buffer_t * buf = outputs.buf;
         Buffer<> buffer (*buf);
-        this->output = buffer;
+        output = buffer;
     }
     else
     {
-        this->output = outputs.buffer_list->at(0);
+        output = outputs.buffer_list->at(0);
     }
     UI ui;
     std::vector<Func> funcs;
     funcs.push_back(this->f);
         
-    ui.run(funcs, { this->output });
-    while(ui.running){
-        //gui running
-    }
+    ui.run(funcs, { output });
+
     this->f.realize(std::move(outputs), target, param_map);
         
 }
@@ -69,98 +65,41 @@ void DebugFunc::realize(Pipeline::RealizationArg outputs, const Target &target,
 Realization DebugFunc::realize(std::vector<int32_t> sizes, const Target &target,
                                const ParamMap &param_map)
 {
-    UI ui;
-    std::vector<Func> funcs;
-    funcs.push_back(this->f);
+    // TODO(marcos): maybe this should be the core implementation, instead of
+    // the one with 'Pipeline::RealizationArg' above...
     Realization outputs = this->f.realize(sizes, target, param_map);
-    this->output = std::move(outputs[0]);
-    ui.run(funcs, { this->output });
-    while(ui.running)
-    {
-        //gui running
-    }
+    realize(outputs, target, param_map);
     return outputs;
 }
-    
+
 Realization DebugFunc::realize(int x_size, int y_size, int z_size, int w_size, const Target &target,
                                const ParamMap &param_map)
 {
-    UI ui;
-    std::vector<Func> funcs;
-    funcs.push_back(this->f);
-    Realization outputs = this->f.realize(x_size, y_size, z_size, w_size, target, param_map);
-    this->output = std::move(outputs[0]);
-    ui.run(funcs, { this->output });
-    while(ui.running)
-    {
-        //gui running
-    }
-    return outputs;
+    return realize({ x_size, y_size, z_size, w_size }, target, param_map);;
 }
-    
+
 Realization DebugFunc::realize(int x_size, int y_size, int z_size, const Target &target,
                                const ParamMap &param_map)
 {
-    UI ui;
-    std::vector<Func> funcs;
-    funcs.push_back(this->f);
-    Realization outputs = this->f.realize(x_size, y_size, z_size, target, param_map);
-    this->output = std::move(outputs[0]);
-    ui.run(funcs, { this->output });
-    while(ui.running)
-    {
-        //gui running
-    }
-    return outputs;
+    return realize({ x_size, y_size, z_size }, target, param_map);
 }
-    
+
 Realization DebugFunc::realize(int x_size, int y_size, const Target &target,
                                const ParamMap &param_map)
 {
-    UI ui;
-    std::vector<Func> funcs;
-    funcs.push_back(this->f);
-    Realization outputs = this->f.realize(x_size, y_size, target, param_map);
-    this->output = std::move(outputs[0]);
-    ui.run(funcs, { this->output });
-    while(ui.running)
-    {
-        //gui running
-    }
-    return outputs;
+    return realize({ x_size, y_size }, target, param_map);
 }
-    
+
 Realization DebugFunc::realize(Halide::Buffer<> input, int x_size, const Target &target,
                                const ParamMap &param_map)
 {
-    UI ui;
-    std::vector<Func> funcs;
-    funcs.push_back(this->f);
-    Realization outputs = this->f.realize(x_size, target, param_map);
-    this->output = std::move(outputs[0]);
-    ui.run(funcs, { this->output });
-    while(ui.running)
-    {
-        //gui running
-    }
-    return outputs;
+    return realize(std::vector<int>{x_size}, target, param_map);
 }
-    
+
 Realization DebugFunc::realize(const Target &target,
                                const ParamMap &param_map)
 {
-        
-    UI ui;
-    std::vector<Func> funcs;
-    funcs.push_back(this->f);
-    Realization outputs = this->f.realize(target, param_map); 
-    this->output = std::move(outputs[0]);
-    ui.run(funcs, { this->output });
-    while(ui.running)
-    {
-        //gui running
-    }
-    return outputs;
+    return realize(std::vector<int>{}, target, param_map);
 }
 
 DebugFunc debug(Func f)
@@ -211,9 +150,6 @@ void replay(std::vector<ReplayableFunc> &rpfuncs)
 
     UI ui;
     ui.run(funcs, funcs_outputs);
-    while(ui.running){
-        //gui running
-    }
 }
 
 }

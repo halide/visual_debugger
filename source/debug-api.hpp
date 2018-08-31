@@ -9,7 +9,6 @@ namespace Halide
 struct DebugFunc
 {
     Func f;
-    Buffer<> output;
 
     void realize(Pipeline::RealizationArg outputs, const Target &target = Target(),
                  const ParamMap &param_map = ParamMap::empty_map());
