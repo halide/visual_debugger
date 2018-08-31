@@ -931,6 +931,10 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<> output_buff)
                                                    : max_val;
                     view_transform_value = range_value; //NOTE(Emily): set transform view to type of range transform
                 }
+                if(changed && !range_select)
+                {
+                    view_transform_value = 1; //NOTE(Emily): switch back to default handling of overflow values
+                }
                 if (changed || (previous != range_value))
                     selected = Func();  // will force a refresh
             }

@@ -11,7 +11,8 @@ struct DebugFunc
     Func f;
     Buffer<> output;
 
-    void realize(Pipeline::RealizationArg outputs, const Target &target = Target(), const ParamMap & param_map = ParamMap::empty_map());
+    void realize(Pipeline::RealizationArg outputs, const Target &target = Target(),
+                 const ParamMap & param_map = ParamMap::empty_map());
 
     Realization realize(std::vector<int32_t> sizes, const Target &target = Target(),
                         const ParamMap &param_map = ParamMap::empty_map());
