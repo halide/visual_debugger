@@ -1,3 +1,6 @@
+#ifndef HALIDE_VISDBG_UTILS_H
+#define HALIDE_VISDBG_UTILS_H
+
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -61,3 +64,5 @@ struct Profiling
     double upl_time;
     double run_time;
 };
+
+#endif//HALIDE_VISDBG_UTILS_H

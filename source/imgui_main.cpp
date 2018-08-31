@@ -1,3 +1,17 @@
+#ifdef  _MSC_VER
+    #ifndef _CRT_SECURE_NO_WARNINGS
+    #define _CRT_SECURE_NO_WARNINGS
+    #endif//_CRT_SECURE_NO_WARNINGS
+#endif//_MSC_VER
+
+#ifdef _WIN32
+    // to accommodate for OpenGL user callbacks (like GLDEBUGPROCARB), glfw3.h
+    // needs to #define APIENTRY if it has not been defined yet; it's safer to
+    // just include the Windows header prior to including the glfw3 header
+    #define NOMINMAX
+    #include <Windows.h>
+#endif//_WIN32
+
 // include our own local copy of imconfig.h, should we need to customize it
 #include "imconfig.h"
 // we also need to define this to prevent imgui.h form including the stock
@@ -16,11 +30,15 @@ namespace ImGui
 }
 
 #include <stdio.h>
-#include <GLFW/glfw3.h>
 #include <Halide.h>
+#include <GLFW/glfw3.h>
 
 #include "system.hpp"
 #include "utils.h"
+
+#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include "HalideImageIO.h"
 
 #include "../third-party/imguifilesystem/imguifilesystem.h"
@@ -419,17 +437,20 @@ ImVec2 calculate_range()
         {
             case 8 :
             {
-                range = {std::numeric_limits<int8_t>::min(), std::numeric_limits<int8_t>::max()};
+                range = { float(std::numeric_limits<int8_t>::min()),
+                          float(std::numeric_limits<int8_t>::max()) };
                 break;
             }
             case 16 :
             {
-                range = {std::numeric_limits<int16_t>::min(), std::numeric_limits<int16_t>::max()};
+                range = { float(std::numeric_limits<int16_t>::min()),
+                          float(std::numeric_limits<int16_t>::max()) };
                 break;
             }
             case 32 :
             {
-                range = {std::numeric_limits<int32_t>::min(), std::numeric_limits<int32_t>::max()};
+                range = { float(std::numeric_limits<int32_t>::min()),
+                          float(std::numeric_limits<int32_t>::max()) };
                 break;
             }
             default:
@@ -442,17 +463,20 @@ ImVec2 calculate_range()
         {
             case 8 :
             {
-                range = {std::numeric_limits<uint8_t>::min(), std::numeric_limits<uint8_t>::max()};
+                range = { float(std::numeric_limits<uint8_t>::min()),
+                          float(std::numeric_limits<uint8_t>::max()) };
                 break;
             }
             case 16 :
             {
-                range = {std::numeric_limits<uint16_t>::min(), std::numeric_limits<uint16_t>::max()};
+                range = { float(std::numeric_limits<uint16_t>::min()),
+                          float(std::numeric_limits<uint16_t>::max()) };
                 break;
             }
             case 32 :
             {
-                range = {std::numeric_limits<uint32_t>::min(), std::numeric_limits<uint32_t>::max()};
+                range = { float(std::numeric_limits<uint32_t>::min()),
+                          float(std::numeric_limits<uint32_t>::max()) };
                 break;
             }
             default:
@@ -465,7 +489,8 @@ ImVec2 calculate_range()
         {
             case 32 :
             {
-                range = {std::numeric_limits<float_t>::min(), std::numeric_limits<float_t>::max()};
+                range = { std::numeric_limits<float_t>::min(),
+                          std::numeric_limits<float_t>::max() };
                 break;
             }
             default:
@@ -566,7 +591,7 @@ ImVec2 ImageViewer(ImTextureID texture, const ImVec2& texture_size, float& zoom,
     return pixel_coord;
 }
 
-void run_gui(std::vector<Func> funcs, Halide::Buffer<> output_buff)
+void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
 {
     // Setup window
     glfwSetErrorCallback(glfw_error_callback);
@@ -640,7 +665,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<> output_buff)
     //NOTE(Emily): temporary to explore demo window
     bool open_demo(false);
     
-    output = output_buff;
+    //output = output_buff;
 
     Func selected;
 
@@ -788,6 +813,11 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<> output_buff)
                         id_expr_debugging = -1;
                         show_id = 0;
                         selected = Func();
+                        output = Buffer<>();
+                    }
+                    if (!output.defined())
+                    {
+                        output = funcs_outputs[id];
                     }
                     if (!selected.defined())
                     {
@@ -878,7 +908,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<> output_buff)
                 ImVec2 range = calculate_range();
                 int speed = calculate_speed();
                 
-                changed = ImGui::DragIntRange2("Pixel Range", &min_val, &max_val, speed, range.x, range.y, "Min: %d", "Max: %d");
+                changed = ImGui::DragIntRange2("Pixel Range", &min_val, &max_val, (float)speed, (int)range.x, (int)range.y, "Min: %d", "Max: %d");
                 ImGui::SameLine();
                 if(ImGui::Button("Reset"))
                 {
@@ -906,6 +936,10 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<> output_buff)
                                                    : max_val;
                     view_transform_value = range_value; //NOTE(Emily): set transform view to type of range transform
                 }
+                if(changed && !range_select)
+                {
+                    view_transform_value = 1; //NOTE(Emily): switch back to default handling of overflow values
+                }
                 if (changed || (previous != range_value))
                     selected = Func();  // will force a refresh
             }
@@ -914,7 +948,7 @@ void run_gui(std::vector<Func> funcs, Halide::Buffer<> output_buff)
             ImVec2 canvas_size = ImGui::GetContentRegionAvail();
             canvas_size.y -= ImGui::GetFrameHeightWithSpacing();
 
-            ImVec2 pixel_coord = ImageViewer((ImTextureID)(uintptr_t)idMyTexture, ImVec2(width, height), zoom, canvas_size);
+            ImVec2 pixel_coord = ImageViewer((ImTextureID)(uintptr_t)idMyTexture, ImVec2((float)width, (float)height), zoom, canvas_size);
             bool hovering = (pixel_coord.x >= 0.0f) && (pixel_coord.y >= 0.0f);
 
             if (hovering)

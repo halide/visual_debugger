@@ -17,6 +17,7 @@ add_executable(
 	./main.cpp
 	./system.cpp
 	./treedump.cpp
+	./debug-api.cpp
 
 	./HalideIdentity.h
 	./HalideImageIO.h
