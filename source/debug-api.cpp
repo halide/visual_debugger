@@ -121,7 +121,7 @@ ReplayableFunc&& ReplayableFunc::realize(Pipeline::RealizationArg outputs, const
 {
     new (&(this->outputs)) Pipeline::RealizationArg(std::move(outputs));
     this->target = target;
-    this->param_map = param_map;
+    new (&(this->param_map)) ParamMap(std::move(param_map));
     return std::move(*this);
 }
 
