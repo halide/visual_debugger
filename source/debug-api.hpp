@@ -70,14 +70,14 @@ struct DebugFunc
         UI ui;
         std::vector<Func> funcs;
         funcs.push_back(this->f);
-        Halide::Buffer<> output = this->f.realize(sizes, target, param_map); //TODO(Emily): need to handle case of multiple outputs
-        this->output = std::move(output);
-        ui.run(funcs, output);
+        Realization outputs = this->f.realize(sizes, target, param_map);
+        this->output = std::move(outputs[0]);
+        ui.run(funcs, this->output);
         while(ui.running)
         {
             //gui running
         }
-        return this->output;
+        return outputs;
     }
     
     Realization realize(int x_size, int y_size, int z_size, int w_size, const Target &target = Target(),
@@ -86,14 +86,14 @@ struct DebugFunc
         UI ui;
         std::vector<Func> funcs;
         funcs.push_back(this->f);
-        Halide::Buffer<> output = this->f.realize(x_size, y_size, z_size, w_size, target, param_map); //TODO(Emily): need to handle case of multiple outputs
-        this->output = std::move(output);
-        ui.run(funcs, output);
+        Realization outputs = this->f.realize(x_size, y_size, z_size, w_size, target, param_map);
+        this->output = std::move(outputs[0]);
+        ui.run(funcs, this->output);
         while(ui.running)
         {
             //gui running
         }
-        return this->output;
+        return outputs;
     }
     
     Realization realize(int x_size, int y_size, int z_size, const Target &target = Target(),
@@ -102,14 +102,14 @@ struct DebugFunc
         UI ui;
         std::vector<Func> funcs;
         funcs.push_back(this->f);
-        Halide::Buffer<> output = this->f.realize(x_size, y_size, z_size, target, param_map); //TODO(Emily): need to handle case of multiple outputs
-        this->output = std::move(output);
-        ui.run(funcs, output);
+        Realization outputs = this->f.realize(x_size, y_size, z_size, target, param_map);
+        this->output = std::move(outputs[0]);
+        ui.run(funcs, this->output);
         while(ui.running)
         {
             //gui running
         }
-        return this->output;
+        return outputs;
     }
     
     Realization realize(int x_size, int y_size, const Target &target = Target(),
@@ -118,14 +118,14 @@ struct DebugFunc
         UI ui;
         std::vector<Func> funcs;
         funcs.push_back(this->f);
-        Halide::Buffer<> output = this->f.realize(x_size, y_size, target, param_map); //TODO(Emily): need to handle case of multiple outputs
-        this->output = std::move(output);
-        ui.run(funcs, output);
+        Realization outputs = this->f.realize(x_size, y_size, target, param_map);
+        this->output = std::move(outputs[0]);
+        ui.run(funcs, this->output);
         while(ui.running)
         {
             //gui running
         }
-        return this->output;
+        return outputs;
     }
     
     Realization realize(Halide::Buffer<> input, int x_size, const Target &target = Target(),
@@ -134,14 +134,14 @@ struct DebugFunc
         UI ui;
         std::vector<Func> funcs;
         funcs.push_back(this->f);
-        Halide::Buffer<> output = this->f.realize(x_size, target, param_map); //TODO(Emily): need to handle case of multiple outputs
-        this->output = std::move(output);
-        ui.run(funcs, output);
+        Realization outputs = this->f.realize(x_size, target, param_map);
+        this->output = std::move(outputs[0]);
+        ui.run(funcs, this->output);
         while(ui.running)
         {
             //gui running
         }
-        return this->output;
+        return outputs;
     }
     
     Realization realize(const Target &target = Target(),
@@ -151,14 +151,14 @@ struct DebugFunc
         UI ui;
         std::vector<Func> funcs;
         funcs.push_back(this->f);
-        Halide::Buffer<> output = this->f.realize(target, param_map); //TODO(Emily): need to handle case of multiple outputs
-        this->output = std::move(output);
-        ui.run(funcs, output);
+        Realization outputs = this->f.realize(target, param_map); 
+        this->output = std::move(outputs[0]);
+        ui.run(funcs, this->output);
         while(ui.running)
         {
             //gui running
         }
-        return this->output;
+        return outputs;
     }
 };
 
