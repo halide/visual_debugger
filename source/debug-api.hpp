@@ -12,7 +12,7 @@ struct DebugFunc
     Buffer<> output;
 
     void realize(Pipeline::RealizationArg outputs, const Target &target = Target(),
-                 const ParamMap & param_map = ParamMap::empty_map());
+                 const ParamMap &param_map = ParamMap::empty_map());
 
     Realization realize(std::vector<int32_t> sizes, const Target &target = Target(),
                         const ParamMap &param_map = ParamMap::empty_map());
@@ -34,6 +34,23 @@ struct DebugFunc
 };
 
 DebugFunc debug(Func f);
+
+
+
+struct ReplayableFunc
+{
+    Func f;
+    Pipeline::RealizationArg outputs;
+    Target target;
+    ParamMap param_map;
+
+    ReplayableFunc(Func f = Func());
+
+    ReplayableFunc&& realize(Pipeline::RealizationArg outputs, const Target &target = Target(),
+                             const ParamMap &param_map = ParamMap::empty_map());
+};
+
+void replay(std::vector<ReplayableFunc> &rpfuncs);
 
 }
 

@@ -11,12 +11,12 @@ using namespace Halide;
 
 // from 'imgui_main.cpp':
 extern bool stdout_echo_toggle;
-void run_gui(std::vector<Func> funcs, Halide::Buffer<> output_buff);
+void run_gui(std::vector<Func> funcs, Halide::Buffer<> output_buff, const std::vector<ReplayableFunc> &rpfs = {});
 
 struct UI
 {
     bool running = false;
-    void run(std::vector<Func> funcs, Halide::Buffer<> output)
+    void run(std::vector<Func> funcs, Halide::Buffer<> output, const std::vector<ReplayableFunc> &rpfs = {})
     {
         running = true;
         // redirect stdout to a log file, effectivelly silencing the console output:
@@ -28,7 +28,7 @@ struct UI
         iobc.AddEcho(&stdout_echo_toggle);
         iobc.AddFile(log);
         
-        run_gui(funcs, output);
+        run_gui(funcs, output, rpfs);
         running = false;
         
         iobc.Terminate();
@@ -168,6 +168,49 @@ DebugFunc debug(Func f)
     DebugFunc debug_f;
     debug_f.f = f;
     return debug_f;
+}
+
+
+
+ReplayableFunc::ReplayableFunc(Func f)
+: outputs(nullptr)
+{
+    this->f = f;
+}
+
+ReplayableFunc&& ReplayableFunc::realize(Pipeline::RealizationArg outputs, const Target &target, const ParamMap &param_map)
+{
+    new (&(this->outputs)) Pipeline::RealizationArg(std::move(outputs));
+    this->target = target;
+    this->param_map = param_map;
+    return std::move(*this);
+}
+
+void replay(std::vector<ReplayableFunc> &rpfuncs)
+{
+    Func first_func = rpfuncs[0].f;
+    Pipeline::RealizationArg &outputs = rpfuncs[0].outputs;
+
+    Buffer<> output;
+    if(outputs.size() == 1)
+    {
+        halide_buffer_t * buf = outputs.buf;
+        Buffer<> buffer (*buf);
+        output = buffer;
+    }
+    else
+    {
+        output = outputs.buffer_list->at(0);
+    }
+
+    std::vector<Func> funcs;
+    funcs.push_back(first_func);
+
+    UI ui;
+    ui.run(funcs, output, rpfuncs);
+    while(ui.running){
+        //gui running
+    }
 }
 
 }
