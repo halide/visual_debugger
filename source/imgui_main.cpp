@@ -461,7 +461,7 @@ ImVec2 calculate_range()
         case halide_type_uint :
             switch (selected_type.bits())
         {
-            case 1 : 
+            case 1 : //boolean expression - cast to 8 bit
             case 8 :
             {
                 range = { float(std::numeric_limits<uint8_t>::min()),
@@ -510,7 +510,7 @@ int calculate_speed()
 {
     int speed;
     switch (selected_type.bits()) {
-        case 1:
+        case 1: //boolean expression - cast to 8 bit
         case 8:
             speed = 1;
             break;
