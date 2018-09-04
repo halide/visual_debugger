@@ -980,7 +980,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             
             static int pick_x = 0;
             static int pick_y = 0;
-            if (hovering && io.MouseDown[1])
+            if (hovering && (io.MouseDown[1] || (io.KeyCtrl && io.MouseDown[0])))
             {
                 pick_x = (int)pixel_coord.x;
                 pick_y = (int)pixel_coord.y;
