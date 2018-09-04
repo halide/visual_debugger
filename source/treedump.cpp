@@ -1236,25 +1236,24 @@ Profiling select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffe
                 case 1: //boolean valued output
                 {
                     assert(type.is_bool());
-                    m = def(m) = cast<uint8_t>(select(eval(m), 255, 0));
-                    Realization temp = m.realize(width, height);
-                    Halide::Buffer<uint8_t> test = temp[0];
+                    
                     if(is_monochrome)
-                        modified_output_buffer = Halide::Runtime::Buffer<uint8_t, 2>::make_interleaved(width, height, channels);
-                    else
-                        modified_output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(width, height, channels);
-                    /* TODO(Emily): eventually want to set RGB values to red/green - something like this:
-                    for(int i = 0; i < width; i++)
                     {
-                        for(int j = 0; j < height; j++)
-                        {
-                            if(test(i,j) == 0)
-                                modified_output_buffer(i, j) = (255, 0, 0);
-                            else
-                                modified_output_buffer(i,j) = (0, 255, 0);
-                        }
+                        m = def(m) = cast<uint8_t>(select(eval(m), 255, 0));
+                        Realization temp = m.realize(width, height);
+                        Halide::Buffer<uint8_t> test = temp[0];
+                        modified_output_buffer = Halide::Runtime::Buffer<uint8_t, 2>::make_interleaved(width, height, channels);
                     }
-                     */
+                    else
+                    {
+                        auto domain = m.args();
+                        m = def(m) = cast<uint8_t>(select(!eval(m) && domain.at(2) == 0, 255,
+                                                          eval(m) && domain.at(2) == 1, 255,
+                                                          0));
+                        Realization temp = m.realize(width, height);
+                        Halide::Buffer<uint8_t> test = temp[0];
+                        modified_output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(width, height, channels);
+                    }
                     
                     break;
                 }
