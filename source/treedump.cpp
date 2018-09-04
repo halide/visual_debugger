@@ -1233,14 +1233,14 @@ Profiling select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffe
             assert(!is_float);
             switch(bits)
             {
-                case 1:
+                case 1: //boolean valued output
                 {
-                    //NOTE(Emily): boolean valued output
-                    Realization temp = m.realize(width, height);
+                    assert(type.is_bool());
+                    //Realization temp = m.realize(width, height);
                     //TODO(Emily): need to convert temp into a buffer and then check values to assign them RGB for red/green
                     //need to figure out 1 bit uint type (or type that we can cast to)
-                    //Halide::Buffer<uint8_t> test = temp[0];
-                    modified_output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(width, height, 3);
+                    //Halide::Buffer<uint8_t> test = temp[0].as<uint8_t>();
+                    modified_output_buffer = Halide::Runtime::Buffer<uint8_t, 1>::make_interleaved(width, height, 1);
                     /* TODO(Emily): want to set RGB values in a way like this
                     for(int i = 0; i < width; i++)
                     {
