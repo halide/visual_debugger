@@ -52,7 +52,7 @@ int view_transform_value(1);
 int min_val(0), max_val(0);
 
 //NOTE(Emily): vars related to saving images
-Halide::Buffer<> output;
+Halide::Buffer<> output, orig_output;
 std::string fname = "";
 
 static void glfw_error_callback(int error, const char* description)
@@ -212,10 +212,10 @@ void query_pixel(Halide::Buffer<>& buffer, int x, int y, float& r, float& g, flo
     if ((y < 0) || (y >= buffer.height()))
         return;
 
-    switch (output.type().code())
+    switch (orig_output.type().code())
     {
         case halide_type_int :
-            switch (output.type().bits())
+            switch (orig_output.type().bits())
             {
                 case 8 :
                 {
@@ -241,7 +241,7 @@ void query_pixel(Halide::Buffer<>& buffer, int x, int y, float& r, float& g, flo
             }
             break;
         case halide_type_uint :
-            switch (output.type().bits())
+            switch (orig_output.type().bits())
             {
                 case 8 :
                 {
@@ -267,7 +267,7 @@ void query_pixel(Halide::Buffer<>& buffer, int x, int y, float& r, float& g, flo
             }
             break;
         case halide_type_float :
-            switch (output.type().bits())
+            switch (orig_output.type().bits())
             {
                 case 32 :
                 {
@@ -322,6 +322,8 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& sele
     if (clicked)
     {
         times = select_and_visualize(f, id, selected_type, output, target_features, view_transform_value, min_val, max_val);
+        if(view_transform_value == 1)
+            orig_output = std::move(output); //save original output vals for pixel picking
         refresh_texture(idMyTexture, output);
         if(save_images)
         {
@@ -623,7 +625,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
     bool show_target_select = true;
     bool show_stdout_box = true;
     bool show_save_image = true;
-    bool show_range_normalize = false;
+    bool show_range_normalize = true;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     std::string selected_name = "No node selected, displaying output";
@@ -830,6 +832,8 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                         tree = get_tree(func);
                     }
                     times = select_and_visualize(func, id_expr_debugging, selected_type, output, target_features, view_transform_value, min_val, max_val);
+                    if(view_transform_value == 1)
+                        orig_output = std::move(output); //save original output for pixel picking
                     refresh_texture(idMyTexture, output);
                     break;
                 }
@@ -904,8 +908,9 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                 chosenPath = NULL;
             }
             
-            if(!show_range_normalize)
+            if(show_range_normalize)
             {
+                
                 bool changed = false;
                 ImVec2 range = calculate_range();
                 int speed = calculate_speed();
@@ -958,7 +963,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                 int x = (int)pixel_coord.x;
                 int y = (int)pixel_coord.y;
                 float rgb [3];
-                query_pixel(output, x, y, rgb[0], rgb[1], rgb[2]);
+                query_pixel(orig_output, x, y, rgb[0], rgb[1], rgb[2]);
                 ImGui::ColorEdit3("hovered pixel", rgb, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_NoPicker | ImGuiColorEditFlags_NoTooltip);
                 ImGui::SameLine();
                 ImGui::Text("(x=%d, y=%d) = [r=%f, g=%f, b=%f]", x, y, rgb[0], rgb[1], rgb[2]);
@@ -982,7 +987,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             }
             {
                 float rgb [3];
-                query_pixel(output, pick_x, pick_y, rgb[0], rgb[1], rgb[2]);
+                query_pixel(orig_output, pick_x, pick_y, rgb[0], rgb[1], rgb[2]);
                 ImGui::SameLine(ImGui::GetWindowWidth() - 600);
                 ImGui::ColorEdit3("picked pixel", rgb, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_NoPicker | ImGuiColorEditFlags_NoTooltip);
                 ImGui::SameLine();
