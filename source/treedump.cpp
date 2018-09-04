@@ -1233,6 +1233,12 @@ Profiling select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffe
             assert(!is_float);
             switch(bits)
             {
+                case 1:
+                {
+                    //TODO(Emily): boolean valued output -- need to evaluate to red/green values for true/false
+                    modified_output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(width, height, 3);
+                    break;
+                }
                 case 8:
                 {
                     if (is_monochrome)

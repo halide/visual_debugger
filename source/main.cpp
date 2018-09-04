@@ -5,6 +5,18 @@
 
 using namespace Halide;
 
+Func example_select()
+{
+    Var x("x"), y("y");
+    Func multi_valued;
+    Func color_image;
+    Var c;
+    color_image(x, y, c) = select(c == 0, 245, // Red value
+                                  c == 1, 42,  // Green value
+                                  132);
+    return color_image;
+}
+
 Func example_broken(Buffer<> image)
 {
     Var x("x"), y("y"), c("c"), i("i");
@@ -171,7 +183,7 @@ int main()
         funcs.emplace_back( ReplayableFunc(example_another_tuple(broken, fixed)).realize(modified_output_buffer) );
         funcs.emplace_back( ReplayableFunc(update_example()).realize(modified_output_buffer) );
         funcs.emplace_back( ReplayableFunc(update_tuple_example()).realize(modified_output_buffer) );
-
+        funcs.emplace_back( ReplayableFunc(example_select()).realize(modified_output_buffer));
     //Target host_target = get_host_target();
     //debug(broken).realize(modified_output_buffer, host_target);
     replay(funcs);
