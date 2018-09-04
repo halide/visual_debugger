@@ -1236,12 +1236,12 @@ Profiling select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffe
                 case 1: //boolean valued output
                 {
                     assert(type.is_bool());
-                    m = def(m) = cast<uint8_t>(select(eval(m), 1, 0));
+                    m = def(m) = cast<uint8_t>(select(eval(m), 255, 0));
                     Realization temp = m.realize(width, height);
                     Halide::Buffer<uint8_t> test = temp[0];
                     modified_output_buffer = Halide::Runtime::Buffer<uint8_t, 1>::make_interleaved(width, height, 1);
                     is_monochrome = true;
-                    /* TODO(Emily): eventually want to set RGB values to red/green - something like this: 
+                    /* TODO(Emily): eventually want to set RGB values to red/green - something like this:
                     for(int i = 0; i < width; i++)
                     {
                         for(int j = 0; j < height; j++)

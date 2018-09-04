@@ -11,9 +11,9 @@ Func example_select()
     Func multi_valued;
     Func color_image;
     Var c;
-    color_image(x, y, c) = select(c == 0, 245, // Red value
-                                  c == 1, 42,  // Green value
-                                  132);
+    color_image(x, y, c) = select(c == 0 && x < 400, 255, // Red value
+                                  c == 1 && y < 200, 255,  // Green value
+                                  0);
     return color_image;
 }
 
