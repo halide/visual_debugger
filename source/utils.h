@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <deque>
+#include <mutex>
 
 #include <Halide.h>
 
@@ -56,13 +57,28 @@ struct expr_tree
 // NOTE(marcos): implementation in 'treedump.cpp'
 expr_tree get_tree(Halide::Func f);
 
-
-
 struct Profiling
 {
     double jit_time;
     double upl_time;
     double run_time;
 };
+
+struct Work
+{
+    std::vector< Halide::Buffer<> > input_buffers;
+    Halide::Buffer<> output_buff;
+    Halide::Func f;
+    Halide::Target target;
+};
+
+struct Result
+{
+    Halide::Buffer<> output;
+    Profiling times;
+};
+
+
+
 
 #endif//HALIDE_VISDBG_UTILS_H

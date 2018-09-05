@@ -12,6 +12,14 @@
 using namespace Halide;
 
 
+//asynch work locks:
+std::mutex work_lock, result_lock;
+//asynch work queues:
+std::vector<Work> work_queue;
+std::vector<Result> result_queue;
+
+std::condition_variable result_avail;
+std::condition_variable work_avail;
 
 template<typename T>
 Runtime::Buffer<T> Crop(Buffer<T>& image, int hBorder, int vBorder)
@@ -1372,6 +1380,20 @@ Profiling select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffe
             .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
     }
 
+    Work todo = { };
+    todo.f = m;
+    todo.target = target;
+    todo.input_buffers = input_buffers;
+    todo.output_buff = std::move(modified_output_buffer);
+    
+    work_lock.lock();
+        while(!work_queue.empty()) //remove any work that might be in the work queue
+        {
+            work_queue.pop_back();
+        }
+        work_queue.emplace_back(todo);
+    work_lock.unlock();
+    
     Profiling times = { };
 
     times.jit_time =
@@ -1399,4 +1421,47 @@ Profiling select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffe
     output = std::move(modified_output_buffer);
 
     return times;
+    
 }
+
+void process_work()
+{
+    std::unique_lock<std::mutex> l(work_lock);
+    result_avail.wait(l, [&](){return result_queue.empty(); });
+    
+    //l.lock();
+        Work todo = std::move(work_queue.back());
+        work_queue.pop_back();
+    l.unlock();
+    
+    bool gpu = todo.target.has_gpu_feature();
+    Profiling times = { };
+    times.jit_time =
+        PROFILE(
+            todo.f.compile_jit(todo.target);
+        );
+    times.upl_time =
+        PROFILE(
+            if(!gpu)
+                return 0.0;
+                for (auto buffer : todo.input_buffers)
+                {
+                    buffer.copy_to_device(todo.target);
+                }
+            );
+    times.run_time =
+        PROFILE(
+            todo.f.realize(todo.output_buff, todo.target);
+        );
+    
+    Result r = { };
+    r.output = std::move(todo.output_buff);
+    r.times = std::move(times);
+    
+    result_lock.lock();
+        result_queue.emplace_back(r);
+    result_lock.unlock();
+    
+}
+
+

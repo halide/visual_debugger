@@ -24,7 +24,6 @@
 #include <limits>
 
 #include <thread>
-#include <mutex>
 #include <condition_variable>
 
 namespace ImGui
@@ -54,6 +53,8 @@ bool save_images(false);
 
 int view_transform_value(1);
 int min_val(0), max_val(0);
+
+
 
 //NOTE(Emily): vars related to saving images
 Halide::Buffer<> output, orig_output;
@@ -140,6 +141,7 @@ Halide::Type selected_type;
 
 // from 'treedump.cpp':
 Profiling select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value = 0, int min = 0, int max = 0);
+void process_work();
 
 void refresh_texture(GLuint idMyTexture, Halide::Buffer<>& output)
 {
@@ -673,10 +675,10 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
 
     //NOTE(Emily): temporary to explore demo window
     bool open_demo(false);
-    
-    //output = output_buff;
 
     Func selected;
+    
+    std::thread t1;
 
     // Main loop
     while (!glfwWindowShouldClose(window))
@@ -837,6 +839,8 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                         tree = get_tree(func);
                     }
                     times = select_and_visualize(func, id_expr_debugging, selected_type, output, target_features, view_transform_value, min_val, max_val);
+                    t1 = std::thread(process_work);
+                    t1.detach();
                     if(view_transform_value == 1)
                         orig_output = std::move(output); //save original output for pixel picking
                     refresh_texture(idMyTexture, output);
@@ -1026,6 +1030,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
     ImGui_ImplOpenGL2_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
+    //t1.join(); //TODO(Emily): do we want this here?
 
     glfwDestroyWindow(window);
     glfwTerminate();
