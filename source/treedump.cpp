@@ -1380,9 +1380,9 @@ void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& 
     }
 
     Work todo = { };
-    todo.f = std::move(m);
+    todo.f = m;
     todo.target = target;
-    todo.input_buffers = input_buffers;
+    todo.input_buffers = std::move(input_buffers);
     todo.output_buff = std::move(modified_output_buffer);
     
     work_lock.lock();
@@ -1392,19 +1392,26 @@ void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& 
         }
         work_queue.emplace_back(todo);
     work_lock.unlock();
-    
-    std::unique_lock<std::mutex> l(work_lock);
+
     cv.notify_all();
     
 }
 
-void process_work()
+bool process_work()
 {
     std::unique_lock<std::mutex> l(work_lock);
     cv.wait(l, []{return !work_queue.empty(); }); //wait until work is available, then acquire lock
         Work todo = std::move(work_queue.back());
         work_queue.pop_back();
     l.unlock();
+    
+    // TODO: create a "faux" Work quantum to signal "stop working", which should
+    // destroy the worker thread; typically, this type of "stop working" signal
+    // is sent only on UI (program) teardown
+    //if (stop_working)
+    //{
+    //    return false;
+    //}
     
     bool gpu = todo.target.has_gpu_feature();
     Profiling times = { };
@@ -1430,14 +1437,21 @@ void process_work()
     r.output = std::move(todo.output_buff);
     r.times = std::move(times);
     
-    
     result_lock.lock();
         result_queue.emplace_back(r);
     result_lock.unlock();
     
-    std::unique_lock<std::mutex> l2(result_lock);
     cv.notify_all();
     
+    return true;
 }
 
+void halide_worker_proc(void(*notify_result)())
+{
+    while(process_work())
+    {
+        // keep working
+        notify_result();
+    }
+}
 

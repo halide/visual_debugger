@@ -143,22 +143,23 @@ Halide::Type selected_type;
 
 // from 'treedump.cpp':
 void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value = 0, int min = 0, int max = 0);
-void process_work();
+void halide_worker_proc(void(*notify_result)());
 extern std::mutex result_lock;
 extern std::condition_variable cv;
 extern std::vector<Result> result_queue;
 
-Profiling process_result()
+bool process_result(Result& result)
 {
     std::unique_lock<std::mutex> l2(result_lock);
-    cv.wait(l2, []{return !result_queue.empty(); });
-    Result r = std::move(result_queue.back());
+    if (result_queue.empty())
+    {
+        return false;
+    }
+
+    result = std::move(result_queue.back());
     result_queue.pop_back();
-    l2.unlock();
     
-    output = std::move(r.output);
-    
-    return r.times;
+    return true;
 }
 
 void refresh_texture(GLuint idMyTexture, Halide::Buffer<>& output)
@@ -230,6 +231,9 @@ void query_pixel(Halide::Runtime::Buffer<T, K>& image, int x, int y, float& r, f
 void query_pixel(Halide::Buffer<>& buffer, int x, int y, float& r, float& g, float& b)
 {
     r = g = b = 0.0f;
+    
+    if (!buffer.defined())
+        return;
 
     if ((x < 0) || (x >= buffer.width()))
         return;
@@ -346,14 +350,7 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& sele
     if (clicked)
     {
         select_and_visualize(f, id, selected_type, output, target_features, view_transform_value, min_val, max_val);
-        t1 = std::thread(process_work);
-        if(t1.joinable())
-            t1.detach();
-        times = process_result();
-        
-        if(view_transform_value == 1)
-            orig_output = std::move(output); //save original output vals for pixel picking
-        refresh_texture(idMyTexture, output);
+
         if(save_images)
         {
             assert(output.defined());
@@ -701,7 +698,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
 
     Func selected;
     
-    
+    std::thread halide_worker (halide_worker_proc, [](){ glfwPostEmptyEvent(); });
 
     // Main loop
     while (!glfwWindowShouldClose(window))
@@ -862,14 +859,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                         tree = get_tree(func);
                     }
                     select_and_visualize(func, id_expr_debugging, selected_type, output, target_features, view_transform_value, min_val, max_val);
-                    t1 = std::thread(process_work);
-                    if(t1.joinable())
-                        t1.detach();
-                    times = process_result();
-                    
-                    if(view_transform_value == 1)
-                        orig_output = std::move(output); //save original output for pixel picking
-                    refresh_texture(idMyTexture, output);
+
                     break;
                 }
                 id++;
@@ -1050,13 +1040,29 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
 
         //glfwPollEvents();     // <- this is power hungry!
         glfwWaitEvents();       // <- this is a more CPU/power/battery friendly choice
+        
+        Result result;
+        while (process_result(result))
+        {
+            times = result.times;
+            output = std::move(result.output);
+
+            if(view_transform_value == 1)
+                orig_output = std::move(output); //save original output vals for pixel picking
+            refresh_texture(idMyTexture, output);
+        }
     }
 
     // Cleanup
     ImGui_ImplOpenGL2_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
-    //t1.join(); //TODO(Emily): do we want this here?
+
+    // TODO(marcos): issue a "faux" work to wake up and teardown the worker thread
+    //halide_worker.join(); //TODO(Emily): do we want this here?
+    // Yes, ideally the thread must be joined here, but until the faux work is
+    // implemented, it is easier to leave the trhread dangling around
+    halide_worker.detach(); // <- remove this once worker termination is implemented
 
     glfwDestroyWindow(window);
     glfwTerminate();
