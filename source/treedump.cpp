@@ -19,8 +19,6 @@ std::vector<Work> work_queue;
 std::vector<Result> result_queue;
 
 std::condition_variable cv;
-bool work_avail(false);
-bool result_avail(false);
 
 template<typename T>
 Runtime::Buffer<T> Crop(Buffer<T>& image, int hBorder, int vBorder)
@@ -1396,7 +1394,6 @@ void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& 
     work_lock.unlock();
     
     std::unique_lock<std::mutex> l(work_lock);
-    work_avail = true;
     cv.notify_all();
     
 }
@@ -1404,10 +1401,9 @@ void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& 
 void process_work()
 {
     std::unique_lock<std::mutex> l(work_lock);
-    cv.wait(l, []{return work_avail; }); //wait until work is available, then acquire lock
+    cv.wait(l, []{return !work_queue.empty(); }); //wait until work is available, then acquire lock
         Work todo = std::move(work_queue.back());
         work_queue.pop_back();
-        work_avail = false;
     l.unlock();
     
     bool gpu = todo.target.has_gpu_feature();
@@ -1440,7 +1436,6 @@ void process_work()
     result_lock.unlock();
     
     std::unique_lock<std::mutex> l2(result_lock);
-    result_avail = true;
     cv.notify_all();
     
 }

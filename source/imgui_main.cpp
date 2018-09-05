@@ -146,16 +146,14 @@ void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& 
 void process_work();
 extern std::mutex result_lock;
 extern std::condition_variable cv;
-extern bool result_avail;
 extern std::vector<Result> result_queue;
 
 Profiling process_result()
 {
     std::unique_lock<std::mutex> l2(result_lock);
-    cv.wait(l2, []{return result_avail; });
+    cv.wait(l2, []{return !result_queue.empty(); });
     Result r = std::move(result_queue.back());
     result_queue.pop_back();
-    result_avail = false;
     l2.unlock();
     
     output = std::move(r.output);
