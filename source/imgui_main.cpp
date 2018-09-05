@@ -54,6 +54,8 @@ bool save_images(false);
 int view_transform_value(1);
 int min_val(0), max_val(0);
 
+std::thread t1;
+
 
 
 //NOTE(Emily): vars related to saving images
@@ -140,8 +142,26 @@ int id_expr_debugging = -1;
 Halide::Type selected_type;
 
 // from 'treedump.cpp':
-Profiling select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value = 0, int min = 0, int max = 0);
+void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value = 0, int min = 0, int max = 0);
 void process_work();
+extern std::mutex result_lock;
+extern std::condition_variable cv;
+extern bool result_avail;
+extern std::vector<Result> result_queue;
+
+Profiling process_result()
+{
+    std::unique_lock<std::mutex> l2(result_lock);
+    cv.wait(l2, []{return result_avail; });
+    Result r = std::move(result_queue.back());
+    result_queue.pop_back();
+    result_avail = false;
+    l2.unlock();
+    
+    output = std::move(r.output);
+    
+    return r.times;
+}
 
 void refresh_texture(GLuint idMyTexture, Halide::Buffer<>& output)
 {
@@ -327,7 +347,12 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& sele
 
     if (clicked)
     {
-        times = select_and_visualize(f, id, selected_type, output, target_features, view_transform_value, min_val, max_val);
+        select_and_visualize(f, id, selected_type, output, target_features, view_transform_value, min_val, max_val);
+        t1 = std::thread(process_work);
+        if(t1.joinable())
+            t1.detach();
+        times = process_result();
+        
         if(view_transform_value == 1)
             orig_output = std::move(output); //save original output vals for pixel picking
         refresh_texture(idMyTexture, output);
@@ -678,7 +703,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
 
     Func selected;
     
-    std::thread t1;
+    
 
     // Main loop
     while (!glfwWindowShouldClose(window))
@@ -838,9 +863,12 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                     {
                         tree = get_tree(func);
                     }
-                    times = select_and_visualize(func, id_expr_debugging, selected_type, output, target_features, view_transform_value, min_val, max_val);
+                    select_and_visualize(func, id_expr_debugging, selected_type, output, target_features, view_transform_value, min_val, max_val);
                     t1 = std::thread(process_work);
-                    t1.detach();
+                    if(t1.joinable())
+                        t1.detach();
+                    times = process_result();
+                    
                     if(view_transform_value == 1)
                         orig_output = std::move(output); //save original output for pixel picking
                     refresh_texture(idMyTexture, output);

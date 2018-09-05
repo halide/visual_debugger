@@ -18,8 +18,9 @@ std::mutex work_lock, result_lock;
 std::vector<Work> work_queue;
 std::vector<Result> result_queue;
 
-std::condition_variable result_avail;
-std::condition_variable work_avail;
+std::condition_variable cv;
+bool work_avail(false);
+bool result_avail(false);
 
 template<typename T>
 Runtime::Buffer<T> Crop(Buffer<T>& image, int hBorder, int vBorder)
@@ -1130,7 +1131,7 @@ struct FindInputBuffers : public Halide::Internal::IRVisitor
     }
 };
 
-Profiling select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value, int min, int max)
+void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value, int min, int max)
 {
     Func m = transform(f, id);
     auto input_buffers = FindInputBuffers().visit(m);
@@ -1381,7 +1382,7 @@ Profiling select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffe
     }
 
     Work todo = { };
-    todo.f = m;
+    todo.f = std::move(m);
     todo.target = target;
     todo.input_buffers = input_buffers;
     todo.output_buff = std::move(modified_output_buffer);
@@ -1394,44 +1395,19 @@ Profiling select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffe
         work_queue.emplace_back(todo);
     work_lock.unlock();
     
-    Profiling times = { };
-
-    times.jit_time =
-        PROFILE(
-            m.compile_jit(target);
-        );
-
-    times.upl_time =
-        PROFILE(
-            if (!gpu)
-                return 0.0;
-            for (auto buffer : input_buffers)
-            {
-                buffer.copy_to_device(target);
-            }
-        );
-
-    times.run_time =
-        PROFILE(
-            m.realize(modified_output_buffer, target);
-        );
-
-    modified_output_buffer.copy_to_host();
-
-    output = std::move(modified_output_buffer);
-
-    return times;
+    std::unique_lock<std::mutex> l(work_lock);
+    work_avail = true;
+    cv.notify_all();
     
 }
 
 void process_work()
 {
     std::unique_lock<std::mutex> l(work_lock);
-    result_avail.wait(l, [&](){return result_queue.empty(); });
-    
-    //l.lock();
+    cv.wait(l, []{return work_avail; }); //wait until work is available, then acquire lock
         Work todo = std::move(work_queue.back());
         work_queue.pop_back();
+        work_avail = false;
     l.unlock();
     
     bool gpu = todo.target.has_gpu_feature();
@@ -1458,9 +1434,14 @@ void process_work()
     r.output = std::move(todo.output_buff);
     r.times = std::move(times);
     
+    
     result_lock.lock();
         result_queue.emplace_back(r);
     result_lock.unlock();
+    
+    std::unique_lock<std::mutex> l2(result_lock);
+    result_avail = true;
+    cv.notify_all();
     
 }
 
