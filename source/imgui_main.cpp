@@ -23,6 +23,10 @@
 
 #include <limits>
 
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+
 namespace ImGui
 {
     // non-public, internal imgui routine; handy, and has been there forever...
@@ -656,6 +660,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
     int cpu_value(0), gpu_value(0), func_value(0);
     
     int range_value(2);
+    int rgba_select(-1);
 
     //target flag bools (need to be outside of loop to maintain state)
     bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false), f16c(false);
@@ -950,6 +955,12 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                 if (changed || (previous != range_value))
                     selected = Func();  // will force a refresh
             }
+            
+            /*TODO(Emily): implement slider to view specific color channels
+            {
+                ImGui::SliderInt("RGBA Select", &rgba_select, 0, 3);
+            }
+             */
             
             // save some space to draw the hovered pixel value below the image:
             ImVec2 canvas_size = ImGui::GetContentRegionAvail();
