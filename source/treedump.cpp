@@ -1352,12 +1352,6 @@ void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& 
         Var y = m.args()[1];
         Var tx, ty;
         m.gpu_tile(x, y, tx, ty, 8, 8, Halide::TailStrategy::GuardWithIf);
-        for (auto buffer : input_buffers)
-        {
-            //buffer.device_free();         // <- not necessary: device_deallocate() will call it anyway if necessary
-            buffer.device_deallocate();     // <- to prevent "halide_copy_to_device does not support switching interfaces"
-            buffer.set_host_dirty();        // <- mandatory! otherwise data won't be re-uploaded even though a new device interface is evetually created! (Halide bug?)
-        }
     }
     else
     {
@@ -1414,6 +1408,14 @@ bool process_work()
     //}
     
     bool gpu = todo.target.has_gpu_feature();
+
+    for (auto buffer : todo.input_buffers)
+    {
+        //buffer.device_free();         // <- not necessary: device_deallocate() will call it anyway if necessary
+        buffer.device_deallocate();     // <- to prevent "halide_copy_to_device does not support switching interfaces"
+        buffer.set_host_dirty();        // <- mandatory! otherwise data won't be re-uploaded even though a new device interface is evetually created! (Halide bug?)
+    }
+
     Profiling times = { };
     times.jit_time =
         PROFILE(
