@@ -977,13 +977,19 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             {
                 ImGui::Checkbox("View all channels", &all_channels);
                 if(all_channels)
-                    rgba_select = -1; //TODO(Emily): somehow want to reset this to 0 when this box is not checked
+                    rgba_select = -1;
                 if(!all_channels)
                 {
+                    int previous = rgba_select;
                     bool changed = false;
                     ImGui::SameLine();
                     int num_channels = output.channels();
                     changed = ImGui::SliderInt("RGBA Select", &rgba_select, 0, (num_channels - 1));
+                    if(!changed && previous == -1)
+                    {
+                        rgba_select = 0;
+                        changed = true;
+                    }
                     if(changed)
                         selected = Func(); //force a refresh
                 }
