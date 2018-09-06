@@ -1129,7 +1129,7 @@ struct FindInputBuffers : public Halide::Internal::IRVisitor
     }
 };
 
-void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value, int min, int max)
+void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value, int min, int max, int channel = -1)
 {
     Func m = transform(f, id);
     auto input_buffers = FindInputBuffers().visit(m);
@@ -1170,6 +1170,21 @@ void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& 
                  // http://halide-lang.org/docs/namespace_halide.html#a9d7999c3871839488df9d591b3f55adf
             assert(false);
             break;
+        default:
+            break;
+    }
+    
+    switch (channel)
+    {
+        case 0:     //only visualize r
+            break;
+        case 1:     //only visualize g
+            break;
+        case 2:     //only visualize b
+            break;
+        case 3:     //only visualize a
+            break;
+        case -1:    //default case/do nothing
         default:
             break;
     }

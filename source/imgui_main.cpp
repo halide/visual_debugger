@@ -142,7 +142,7 @@ int id_expr_debugging = -1;
 Halide::Type selected_type;
 
 // from 'treedump.cpp':
-void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value = 0, int min = 0, int max = 0);
+void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value = 0, int min = 0, int max = 0, int channels = -1);
 void halide_worker_proc(void(*notify_result)());
 extern std::mutex result_lock;
 extern std::vector<Result> result_queue;
@@ -681,14 +681,14 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
     int cpu_value(0), gpu_value(0), func_value(0);
     
     int range_value(2);
-    int rgba_select(-1);
+    int rgba_select(0);
 
     //target flag bools (need to be outside of loop to maintain state)
     bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false), f16c(false);
     bool neon(false);
     bool debug_runtime(false), no_asserts(false), no_bounds_query(false);
     
-    bool range_select = false;
+    bool range_select(false), all_channels(true);
 
     SystemInfo sys;
 
@@ -973,11 +973,22 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                     selected = Func();  // will force a refresh
             }
             
-            /*TODO(Emily): implement slider to view specific color channels
+            //NOTE(Emily): slider to view specific color channels
             {
-                ImGui::SliderInt("RGBA Select", &rgba_select, 0, 3);
+                ImGui::Checkbox("View all channels", &all_channels);
+                if(all_channels)
+                    rgba_select = -1; //TODO(Emily): somehow want to reset this to 0 when this box is not checked
+                if(!all_channels)
+                {
+                    bool changed = false;
+                    ImGui::SameLine();
+                    int num_channels = output.channels();
+                    changed = ImGui::SliderInt("RGBA Select", &rgba_select, 0, (num_channels - 1));
+                    if(changed)
+                        selected = Func(); //force a refresh
+                }
             }
-             */
+            
             
             // save some space to draw the hovered pixel value below the image:
             ImVec2 canvas_size = ImGui::GetContentRegionAvail();
