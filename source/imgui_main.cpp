@@ -858,8 +858,6 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                         tree = get_tree(func);
                     }
                     select_and_visualize(func, id_expr_debugging, selected_type, output, target_features, view_transform_value, min_val, max_val);
-
-                    break;
                 }
                 id++;
             }
