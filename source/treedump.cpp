@@ -1174,21 +1174,6 @@ void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& 
             break;
     }
     
-    switch (channel)
-    {
-        case 0:     //only visualize r
-            break;
-        case 1:     //only visualize g
-            break;
-        case 2:     //only visualize b
-            break;
-        case 3:     //only visualize a
-            break;
-        case -1:    //default case/do nothing
-        default:
-            break;
-    }
-    
     Type t = eval(m).type();
     bool is_float = t.is_float();
 
@@ -1210,6 +1195,28 @@ void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& 
     assert(channels == 1 || channels == 3);
 
     bool is_monochrome = (channels == 1);
+    
+    if(channel > -1)
+        assert(!is_monochrome);
+    auto args = m.args();
+    switch (channel)
+    {
+        case 0:     //only visualize r
+            m = def(m) = select(args.at(2) == 0, eval(m), 0);
+            break;
+        case 1:     //only visualize g
+            m = def(m) = select(args.at(2) == 1, eval(m), 0);
+            break;
+        case 2:     //only visualize b
+            m = def(m) = select(args.at(2) == 2, eval(m), 0);
+            break;
+        case 3:     //only visualize a
+            m = def(m) = select(args.at(2) == 3, eval(m), 0);
+            break;
+        case -1:    //default case/do nothing
+        default:
+            break;
+    }
 
     Halide::Runtime::Buffer<> modified_output_buffer;
 

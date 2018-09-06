@@ -53,6 +53,7 @@ bool save_images(false);
 
 int view_transform_value(1);
 int min_val(0), max_val(0);
+int rgba_select(-1);
 
 std::thread t1;
 
@@ -348,7 +349,7 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& sele
 
     if (clicked)
     {
-        select_and_visualize(f, id, selected_type, output, target_features, view_transform_value, min_val, max_val);
+        select_and_visualize(f, id, selected_type, output, target_features, view_transform_value, min_val, max_val, rgba_select);
 
         if(save_images)
         {
@@ -681,7 +682,6 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
     int cpu_value(0), gpu_value(0), func_value(0);
     
     int range_value(2);
-    int rgba_select(0);
 
     //target flag bools (need to be outside of loop to maintain state)
     bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false), f16c(false);
@@ -857,7 +857,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                     {
                         tree = get_tree(func);
                     }
-                    select_and_visualize(func, id_expr_debugging, selected_type, output, target_features, view_transform_value, min_val, max_val);
+                    select_and_visualize(func, id_expr_debugging, selected_type, output, target_features, view_transform_value, min_val, max_val, rgba_select);
                 }
                 id++;
             }
@@ -977,7 +977,10 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             {
                 ImGui::Checkbox("View all channels", &all_channels);
                 if(all_channels)
+                {
                     rgba_select = -1;
+                    selected = Func(); //force a refresh
+                }
                 if(!all_channels)
                 {
                     int previous = rgba_select;
