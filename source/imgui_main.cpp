@@ -145,7 +145,6 @@ Halide::Type selected_type;
 void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value = 0, int min = 0, int max = 0);
 void halide_worker_proc(void(*notify_result)());
 extern std::mutex result_lock;
-extern std::condition_variable cv;
 extern std::vector<Result> result_queue;
 
 bool process_result(Result& result)

@@ -1441,8 +1441,6 @@ bool process_work()
         result_queue.emplace_back(r);
     result_lock.unlock();
     
-    cv.notify_all();
-    
     return true;
 }
 
