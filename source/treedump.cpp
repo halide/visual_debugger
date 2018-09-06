@@ -1432,6 +1432,10 @@ bool process_work()
         PROFILE(
             todo.f.realize(todo.output_buff, todo.target);
         );
+    if (gpu)
+    {
+        todo.output_buff.copy_to_host();
+    }
     
     Result r = { };
     r.output = std::move(todo.output_buff);
