@@ -833,6 +833,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
         }
 
         bool target_changed = (target_features_before != target_features);
+        
         target_features_before = target_features;
 
         bool target_selected = !target_features.empty();
@@ -873,9 +874,18 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                     }
                     
                     gpu_sched = check_schedule(func);
+                    
                     select_and_visualize(func, id_expr_debugging, selected_type, output, target_features, view_transform_value, min_val, max_val, rgba_select);
                 }
                 id++;
+                if(gpu_sched && !target_changed && func_changed) //Note(Emily): initially assign default GPU target if there is a gpu schedule
+                {
+                    Halide::Target target = get_host_target();
+                    if(target.os == Halide::Target::OSX)
+                        gpu_value = 1;
+                    else
+                        gpu_value = 3;
+                }
             }
             ImGui::End();
         }
