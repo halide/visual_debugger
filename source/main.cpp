@@ -5,6 +5,15 @@
 
 using namespace Halide;
 
+Func add_gpu_schedule(Func f)
+{
+    Var x = f.args()[0];
+    Var y = f.args()[1];
+    Var tx, ty;
+    f.gpu_tile(x, y, tx, ty, 8, 8, Halide::TailStrategy::GuardWithIf);
+    return f;
+}
+
 Func example_select()
 {
     Var x("x"), y("y");
@@ -43,6 +52,8 @@ Func example_broken(Buffer<> image)
     
     Func output("broken output");
     output(x,y,c) = cast<uint8_t>(lut(cast<uint8_t>(blend(x,y,c))));
+
+    output = add_gpu_schedule(output);
     
     return output;
 }

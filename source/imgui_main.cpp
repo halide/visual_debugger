@@ -789,16 +789,13 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                 ImGui::Checkbox("NEON", &neon);
                 target_features += (neon) ? "-neon" : "-no_neon";
             }
-            if(gpu_sched)
-            {
-                ImGui::Text("GPU: ");
-                
-                OptionalRadioButton("none",        &gpu_value, 0);
-                OptionalRadioButton("Metal",       &gpu_value, 1, sys.metal);
-                OptionalRadioButton("CUDA",        &gpu_value, 2, sys.cuda);
-                OptionalRadioButton("OpenCL",      &gpu_value, 3, sys.opencl);
-                OptionalRadioButton("Direct3D 12", &gpu_value, 4, sys.d3d12);
-            }
+
+            ImGui::Text("GPU: ");
+            OptionalRadioButton("none",        &gpu_value, 0);
+            OptionalRadioButton("Metal",       &gpu_value, 1, (gpu_sched && sys.metal));
+            OptionalRadioButton("CUDA",        &gpu_value, 2, (gpu_sched && sys.cuda));
+            OptionalRadioButton("OpenCL",      &gpu_value, 3, (gpu_sched && sys.opencl));
+            OptionalRadioButton("Direct3D 12", &gpu_value, 4, (gpu_sched && sys.d3d12));
 
             ImGui::Text("Halide: ");
             ImGui::Checkbox("Debug Runtime", &debug_runtime);
@@ -882,9 +879,9 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                 {
                     Halide::Target target = get_host_target();
                     if(target.os == Halide::Target::OSX)
-                        gpu_value = 1;
+                        gpu_value = (sys.metal) ? 1 : 0;
                     else
-                        gpu_value = 3;
+                        gpu_value = (sys.opencl) ? 3 : 0;
                 }
             }
             ImGui::End();
