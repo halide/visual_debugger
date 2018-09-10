@@ -621,6 +621,18 @@ ImVec2 ImageViewer(ImTextureID texture, const ImVec2& texture_size, float& zoom,
     return pixel_coord;
 }
 
+bool check_schedule(Func f)
+{
+    bool gpu = false;
+    assert(f.defined());
+    for(auto d : f.function().definition().schedule().dims())
+    {
+        if(d.for_type == Halide::Internal::ForType::GPUBlock || d.for_type == Halide::Internal::ForType::GPUThread)
+            gpu = true;
+    }
+    return gpu;
+}
+
 void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
 {
     // Setup window
@@ -685,7 +697,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
 
     //target flag bools (need to be outside of loop to maintain state)
     bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false), f16c(false);
-    bool neon(false);
+    bool neon(false), gpu_sched(false);
     bool debug_runtime(false), no_asserts(false), no_bounds_query(false);
     
     bool range_select(false), all_channels(true);
@@ -777,14 +789,16 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                 ImGui::Checkbox("NEON", &neon);
                 target_features += (neon) ? "-neon" : "-no_neon";
             }
-
-            ImGui::Text("GPU: ");
-            
-            OptionalRadioButton("none",        &gpu_value, 0);
-            OptionalRadioButton("Metal",       &gpu_value, 1, sys.metal);
-            OptionalRadioButton("CUDA",        &gpu_value, 2, sys.cuda);
-            OptionalRadioButton("OpenCL",      &gpu_value, 3, sys.opencl);
-            OptionalRadioButton("Direct3D 12", &gpu_value, 4, sys.d3d12);
+            if(gpu_sched)
+            {
+                ImGui::Text("GPU: ");
+                
+                OptionalRadioButton("none",        &gpu_value, 0);
+                OptionalRadioButton("Metal",       &gpu_value, 1, sys.metal);
+                OptionalRadioButton("CUDA",        &gpu_value, 2, sys.cuda);
+                OptionalRadioButton("OpenCL",      &gpu_value, 3, sys.opencl);
+                OptionalRadioButton("Direct3D 12", &gpu_value, 4, sys.d3d12);
+            }
 
             ImGui::Text("Halide: ");
             ImGui::Checkbox("Debug Runtime", &debug_runtime);
@@ -857,6 +871,8 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                     {
                         tree = get_tree(func);
                     }
+                    
+                    gpu_sched = check_schedule(func);
                     select_and_visualize(func, id_expr_debugging, selected_type, output, target_features, view_transform_value, min_val, max_val, rgba_select);
                 }
                 id++;
