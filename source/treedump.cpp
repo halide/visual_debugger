@@ -1244,16 +1244,13 @@ void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& 
                 {
                     assert(type.is_bool());
                     
+                    m = def(m) = cast<uint8_t>(select(eval(m), 255, 0));
                     if(is_monochrome)
                     {
-                        m = def(m) = cast<uint8_t>(select(eval(m), 255, 0));
                         modified_output_buffer = Halide::Runtime::Buffer<uint8_t, 2>::make_interleaved(width, height, 1);
                     }
                     else
                     {
-                        auto domain = m.args();
-                        m = def(m) = cast<uint8_t>(select(eval(m), select(domain.at(2) == 1, 255, 0),
-                                                                   select(domain.at(2) == 0, 255, 0)));
                         modified_output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(width, height, channels);
                     }
                     
