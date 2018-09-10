@@ -704,8 +704,8 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
 
     SystemInfo sys;
 
-    //NOTE(Emily): temporary to explore demo window
-    bool open_demo(false);
+    //NOTE(Emily): set show_demo_option to true to view ImGui demo window
+    bool open_demo(false), show_demo_option(false);
 
     Func selected;
     
@@ -726,7 +726,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             ImGui::End();
         }
         
-        if(true)
+        if(show_demo_option)
         {
             ImGui::Begin("display demo window");
             ImGui::Checkbox("open", &open_demo);
