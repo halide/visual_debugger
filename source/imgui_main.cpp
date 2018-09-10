@@ -317,7 +317,7 @@ void query_pixel(Halide::Buffer<>& buffer, int x, int y, float& r, float& g, flo
 void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& selected_name, Profiling& times, const std::string& target_features)
 {
     const int id = node->node_id;
-    const char* label = node->name.c_str();
+    const char* label = (node->name + "###" + node->name + std::to_string(id)).c_str(); //NOTE(Emily): hack for unique id to fix treenode opening issue w/ ImGui
     const bool selected = (id_expr_debugging == id);
     const bool terminal = node->children.empty();
     const bool viewable = (id != 0);   // <- whether or not this expr_node can be visualized
