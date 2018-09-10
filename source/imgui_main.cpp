@@ -999,14 +999,16 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             //NOTE(Emily): slider to view specific color channels
             {
                 ImGui::Checkbox("View all channels", &all_channels);
+                int previous = rgba_select;
                 if(all_channels)
                 {
                     rgba_select = -1;
-                    selected = Func(); //force a refresh
+                    if(previous != rgba_select)
+                        selected = Func(); //force a refresh
                 }
+                
                 if(!all_channels)
                 {
-                    int previous = rgba_select;
                     bool changed = false;
                     ImGui::SameLine();
                     int num_channels = output.channels();
@@ -1019,6 +1021,8 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                     if(changed)
                         selected = Func(); //force a refresh
                 }
+                
+                
             }
             
             
