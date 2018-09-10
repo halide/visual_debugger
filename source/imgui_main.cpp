@@ -139,6 +139,15 @@ void default_output_name_no_dirs(std::string name, int id)
     }
 }
 
+Func add_gpu_schedule(Func f)
+{
+    Var x = f.args()[0];
+    Var y = f.args()[1];
+    Var tx, ty;
+    f.gpu_tile(x, y, tx, ty, 8, 8, Halide::TailStrategy::GuardWithIf);
+    return f;
+}
+
 int id_expr_debugging = -1;
 Halide::Type selected_type;
 
@@ -753,6 +762,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
         if(show_target_select)
         {
             bool * no_close = NULL;
+            bool inject_gpu = false;
             
             ImGui::Begin("Select compilation target: ", no_close);
             
@@ -792,6 +802,8 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
 
             ImGui::Text("GPU: ");
             OptionalRadioButton("none",        &gpu_value, 0);
+            if(!gpu_sched)
+                ImGui::Checkbox("Inject default GPU schedule", &inject_gpu);
             OptionalRadioButton("Metal",       &gpu_value, 1, (gpu_sched && sys.metal));
             OptionalRadioButton("CUDA",        &gpu_value, 2, (gpu_sched && sys.cuda));
             OptionalRadioButton("OpenCL",      &gpu_value, 3, (gpu_sched && sys.opencl));
@@ -827,6 +839,12 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             target_features += (debug_runtime)   ? "-debug"           : "" ;
             target_features += (no_asserts)      ? "-no_asserts"      : "" ;
             target_features += (no_bounds_query) ? "-no_bounds_query" : "" ;
+            
+            if(inject_gpu)
+            {
+                add_gpu_schedule(selected);
+                gpu_sched = true;
+            }
         }
 
         bool target_changed = (target_features_before != target_features);
@@ -870,11 +888,13 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                         tree = get_tree(func);
                     }
                     
+                    
                     gpu_sched = check_schedule(func);
+                    if(!gpu_sched)
+                        gpu_value = 0; //NOTE(Emily): reset gpu target to NONE if func is changed and no GPU schedule
                     
                     select_and_visualize(func, id_expr_debugging, selected_type, output, target_features, view_transform_value, min_val, max_val, rgba_select);
                 }
-                id++;
                 if(gpu_sched && !target_changed && func_changed) //Note(Emily): initially assign default GPU target if there is a gpu schedule
                 {
                     Halide::Target target = get_host_target();
@@ -883,6 +903,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                     else
                         gpu_value = (sys.opencl) ? 3 : 0;
                 }
+                id++;
             }
             ImGui::End();
         }

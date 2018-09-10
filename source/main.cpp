@@ -5,14 +5,7 @@
 
 using namespace Halide;
 
-Func add_gpu_schedule(Func f)
-{
-    Var x = f.args()[0];
-    Var y = f.args()[1];
-    Var tx, ty;
-    f.gpu_tile(x, y, tx, ty, 8, 8, Halide::TailStrategy::GuardWithIf);
-    return f;
-}
+Func add_gpu_schedule(Func f); //from imgui_main.cpp
 
 Func example_select()
 {
@@ -144,6 +137,15 @@ Func update_example()
     return updated;
 }
 
+Func select_example2()
+{
+    Var x, y, c, tx, ty;
+    Func selected2 ("select example");
+    selected2(x,y,c) = select(c == 0, x + 100, x + y);
+    selected2.gpu_tile(x, y, tx, ty, 8, 8, Halide::TailStrategy::GuardWithIf);
+    return selected2;
+}
+
 Func update_tuple_example()
 {
     Var x, y, c;
@@ -187,6 +189,7 @@ int main()
         .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
 
     std::vector<ReplayableFunc> funcs;
+        funcs.emplace_back( ReplayableFunc(select_example2()).realize(modified_output_buffer));
         funcs.emplace_back( ReplayableFunc(broken).realize(modified_output_buffer) );
         funcs.emplace_back( ReplayableFunc(fixed).realize(modified_output_buffer) );
         funcs.emplace_back( ReplayableFunc(example_scoped(input_full)).realize(modified_output_buffer) );
@@ -195,6 +198,7 @@ int main()
         funcs.emplace_back( ReplayableFunc(update_example()).realize(modified_output_buffer) );
         funcs.emplace_back( ReplayableFunc(update_tuple_example()).realize(modified_output_buffer) );
         funcs.emplace_back( ReplayableFunc(example_select()).realize(modified_output_buffer));
+    
     //Target host_target = get_host_target();
     //debug(broken).realize(modified_output_buffer, host_target);
     replay(funcs);
