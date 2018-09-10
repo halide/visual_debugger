@@ -1365,21 +1365,11 @@ void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& 
     printf("Halide Target : %s\n", target_string.c_str());
     fflush(stdout);
 
-    bool gpu = target.has_gpu_feature();
+    //bool gpu = target.has_gpu_feature();
 
-    if (gpu)
-    {
-        m = wrap(m);                        // <- add one level of indirection to isolate the schedule below
-        Var x = m.args()[0];
-        Var y = m.args()[1];
-        Var tx, ty;
-        m.gpu_tile(x, y, tx, ty, 8, 8, Halide::TailStrategy::GuardWithIf);
-    }
-    else
-    {
-        // TODO(marcos): we might need some here vectorize() for CPU too...
-        //m.vectorize();
-    }
+    // TODO(marcos): we might need some here vectorize() for CPU too...
+    //m.vectorize();
+
 
     if(is_monochrome)
     {
