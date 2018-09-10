@@ -240,10 +240,10 @@ void query_pixel(Halide::Buffer<>& buffer, int x, int y, float& r, float& g, flo
     if ((y < 0) || (y >= buffer.height()))
         return;
 
-    switch (orig_output.type().code())
+    switch (buffer.type().code())
     {
         case halide_type_int :
-            switch (orig_output.type().bits())
+            switch (buffer.type().bits())
             {
                 case 8 :
                 {
@@ -269,7 +269,7 @@ void query_pixel(Halide::Buffer<>& buffer, int x, int y, float& r, float& g, flo
             }
             break;
         case halide_type_uint :
-            switch (orig_output.type().bits())
+            switch (buffer.type().bits())
             {
                 case 8 :
                 {
@@ -295,7 +295,7 @@ void query_pixel(Halide::Buffer<>& buffer, int x, int y, float& r, float& g, flo
             }
             break;
         case halide_type_float :
-            switch (orig_output.type().bits())
+            switch (buffer.type().bits())
             {
                 case 32 :
                 {
@@ -1011,8 +1011,10 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                 int x = (int)pixel_coord.x;
                 int y = (int)pixel_coord.y;
                 float rgb [3];
+                float rgb_normalized [3];
                 query_pixel(orig_output, x, y, rgb[0], rgb[1], rgb[2]);
-                ImGui::ColorEdit3("hovered pixel", rgb, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_NoPicker | ImGuiColorEditFlags_NoTooltip);
+                query_pixel(output, x, y, rgb_normalized[0], rgb_normalized[1], rgb_normalized[2]);
+                ImGui::ColorEdit3("hovered pixel", rgb_normalized, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_NoPicker | ImGuiColorEditFlags_NoTooltip);
                 ImGui::SameLine();
                 ImGui::Text("(x=%d, y=%d) = [r=%f, g=%f, b=%f]", x, y, rgb[0], rgb[1], rgb[2]);
                 if (io.KeyShift)
@@ -1035,9 +1037,11 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             }
             {
                 float rgb [3];
+                float rgb_normalized [3];
                 query_pixel(orig_output, pick_x, pick_y, rgb[0], rgb[1], rgb[2]);
+                query_pixel(output, pick_x, pick_y, rgb_normalized[0], rgb_normalized[1], rgb_normalized[2]);
                 ImGui::SameLine(ImGui::GetWindowWidth() - 600);
-                ImGui::ColorEdit3("picked pixel", rgb, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_NoPicker | ImGuiColorEditFlags_NoTooltip);
+                ImGui::ColorEdit3("picked pixel", rgb_normalized, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_NoPicker | ImGuiColorEditFlags_NoTooltip);
                 ImGui::SameLine();
                 ImGui::Text("(x=%d, y=%d) = [r=%f, g=%f, b=%f]", pick_x, pick_y, rgb[0], rgb[1], rgb[2]);
             }
