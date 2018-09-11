@@ -58,8 +58,6 @@ int rgba_select(-1);
 std::thread t1;
 
 
-
-//NOTE(Emily): vars related to saving images
 Halide::Buffer<> output, orig_output;
 std::string fname = "";
 
@@ -363,8 +361,6 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& sele
         if(save_images)
         {
             assert(output.defined());
-            //NOTE(Emily): need to create default filename for all images
-            //we want to decide file extension based on data type
 
             if(fname == "") default_output_name(f.name(), id);
             
@@ -698,7 +694,6 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
     expr_tree tree;
     std::string target_features;
 
-    //NOTE(Emily): call to update buffer to display output of function
     Profiling times = { };
     int cpu_value(0), gpu_value(0), func_value(0);
     
@@ -910,13 +905,13 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
 
         bool func_selected = selected.defined();
 
-        // NOTE(Emily): main expression tree window
+        // main expression tree window
         if(show_expr_tree)
         {
             
             bool * no_close = NULL;
             ImGui::Begin("Expression Tree", no_close, ImGuiWindowFlags_HorizontalScrollbar);
-            //Note(Emily): call recursive method to display tree
+            
             if(func_selected && target_selected)
             {
                 display_node(tree.root, idMyTexture, selected, selected_name, times, target_features);
@@ -963,8 +958,8 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             ImGui::SameLine();
             
             bool show_fs_dialogue = ImGui::Button("Save Image");
-            default_output_name_no_dirs(selected_name, id_expr_debugging);             //update fname to be default string
-            const char * default_dir = "./data/output";                                //default directory to open
+            default_output_name_no_dirs(selected_name, id_expr_debugging);             // update fname to be default string
+            const char * default_dir = "./data/output";                                // default directory to open
             static ImGuiFs::Dialog dlg;                                                // one per dialog (and must be static)
             const char* chosenPath = dlg.saveFileDialog(show_fs_dialogue, default_dir, fname.c_str());  // see other dialog types and the full list of arguments for advanced usage
             if (strlen(chosenPath)>0) {
@@ -1007,17 +1002,17 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                     // prevent division by zero:
                     max_val = (min_val == max_val) ? max_val + 1
                                                    : max_val;
-                    view_transform_value = range_value; //NOTE(Emily): set transform view to type of range transform
+                    view_transform_value = range_value; // set transform view to type of range transform
                 }
                 if(changed && !range_select)
                 {
-                    view_transform_value = 1; //NOTE(Emily): switch back to default handling of overflow values
+                    view_transform_value = 1; // switch back to default handling of overflow values
                 }
                 if (changed || (previous != range_value))
                     selected = Func();  // will force a refresh
             }
             
-            //NOTE(Emily): slider to view specific color channels
+            // slider to view specific color channels
             {
                 ImGui::Checkbox("View all channels", &all_channels);
                 int previous = rgba_select;
