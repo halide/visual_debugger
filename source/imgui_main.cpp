@@ -701,7 +701,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
 
     //target flag bools (need to be outside of loop to maintain state)
     bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false), f16c(false);
-    bool neon(false), gpu_sched(false);
+    bool neon(false), gpu_sched(false), inject_gpu(false);
     bool debug_runtime(false), no_asserts(false), no_bounds_query(false);
     
     bool range_select(false), all_channels(true);
@@ -757,7 +757,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
         if(show_target_select)
         {
             bool * no_close = NULL;
-            bool inject_gpu = false;
+            //inject_gpu = false;
             
             ImGui::Begin("Select compilation target: ", no_close);
             
@@ -835,11 +835,6 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             target_features += (no_asserts)      ? "-no_asserts"      : "" ;
             target_features += (no_bounds_query) ? "-no_bounds_query" : "" ;
             
-            if(inject_gpu)
-            {
-                selected = add_gpu_schedule(selected);
-                gpu_sched = true;
-            }
         }
 
         bool target_changed = (target_features_before != target_features);
@@ -861,6 +856,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                 bool changed = func_changed || !selected.defined() || target_changed;
                 if(func_value == id && changed)
                 {
+                    
                     int show_id = id_expr_debugging;
                     if (func_changed)
                     {
@@ -884,6 +880,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                     }
                     
                     
+                    
                     gpu_sched = check_schedule(func);
                     if(!gpu_sched)
                         gpu_value = 0; //NOTE(Emily): reset gpu target to NONE if func is changed and no GPU schedule
@@ -897,6 +894,12 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                         gpu_value = (sys.metal) ? 1 : 0;
                     else
                         gpu_value = (sys.opencl) ? 3 : 0;
+                }
+                if((selected.name() == func.name()) && inject_gpu)
+                {
+                    func = add_gpu_schedule(func);
+                    inject_gpu = false;
+                    gpu_sched = true;
                 }
                 id++;
             }
