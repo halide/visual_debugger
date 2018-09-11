@@ -629,24 +629,31 @@ ImVec2 ImageViewer(ImTextureID texture, const ImVec2& texture_size, float& zoom,
 std::string set_default_gpu(std::string target_str, int & gpu_value)
 {
     SystemInfo sys;
-    //int gpu_value = 0;
-    Halide::Target target = get_host_target();
-    if(target.os == Halide::Target::OSX)
-        gpu_value = (sys.metal) ? 1 : 0;
-    else
-        gpu_value = (sys.opencl) ? 3 : 0;
-    switch (gpu_value) {
-        case 1:
-            target_str += "-metal";
-            break;
-        case 3:
-            target_str += "-opencl";
-            break;
-            
-        default:
-            break;
+    if(sys.metal)
+    {
+        gpu_value = 1;
+        target_str += "-metal";
+        return target_str;
     }
-    
+    if(sys.cuda)
+    {
+        gpu_value = 2;
+        target_str += "-cuda";
+        return target_str;
+    }
+    if(sys.opencl)
+    {
+        gpu_value = 3;
+        target_str += "-opencl";
+        return target_str;
+    }
+    if(sys.d3d12)
+    {
+        gpu_value = 4;
+        target_str += "-d3d12";
+        return target_str;
+    }
+    assert(false); // if none of above return then halide cannot visualize a func with a GPU schedule
     return target_str;
     
 }
