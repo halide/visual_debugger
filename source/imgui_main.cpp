@@ -635,10 +635,18 @@ std::string set_default_gpu(std::string target_str, int & gpu_value)
         gpu_value = (sys.metal) ? 1 : 0;
     else
         gpu_value = (sys.opencl) ? 3 : 0;
-    if(gpu_value == 1)
-        target_str += "-metal";
-    else
-        target_str += "-opencl";
+    switch (gpu_value) {
+        case 1:
+            target_str += "-metal";
+            break;
+        case 3:
+            target_str += "-opencl";
+            break;
+            
+        default:
+            break;
+    }
+    
     return target_str;
     
 }
