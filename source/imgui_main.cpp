@@ -626,10 +626,10 @@ ImVec2 ImageViewer(ImTextureID texture, const ImVec2& texture_size, float& zoom,
     return pixel_coord;
 }
 
-std::string set_default_gpu(std::string target_str)
+std::string set_default_gpu(std::string target_str, int & gpu_value)
 {
     SystemInfo sys;
-    int gpu_value = 0;
+    //int gpu_value = 0;
     Halide::Target target = get_host_target();
     if(target.os == Halide::Target::OSX)
         gpu_value = (sys.metal) ? 1 : 0;
@@ -861,7 +861,6 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                 int func_value_before = func_value;
                 ImGui::RadioButton(func.name().c_str(), &func_value, id);
                 bool func_changed = (func_value_before != func_value);
-                bool test_change = !selected.defined();
                 bool changed = func_changed || !selected.defined() || target_changed;
                 if(func_value == id && changed)
                 {
@@ -895,19 +894,11 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                         select_and_visualize(func, id_expr_debugging, selected_type, output, target_features, view_transform_value, min_val, max_val, rgba_select);
                     else //NOTE(Emily): Hack to get gpu schedules to compile automatically
                     {
-                        std::string temp_target_features = set_default_gpu(target_features);
+                        std::string temp_target_features = set_default_gpu(target_features, gpu_value);
                         select_and_visualize(func, id_expr_debugging, selected_type, output, temp_target_features, view_transform_value, min_val, max_val, rgba_select);
                     }
                 }
                 
-                if(gpu_sched && !target_changed && func_changed) //Note(Emily): initially assign default GPU target if there is a gpu schedule
-                {
-                    Halide::Target target = get_host_target();
-                    if(target.os == Halide::Target::OSX)
-                        gpu_value = (sys.metal) ? 1 : 0;
-                    else
-                        gpu_value = (sys.opencl) ? 3 : 0;
-                }
                 if((selected.name() == func.name()) && inject_gpu)
                 {
                     func = add_gpu_schedule(func);
