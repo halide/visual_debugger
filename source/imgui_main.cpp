@@ -842,7 +842,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             
             if(inject_gpu)
             {
-                add_gpu_schedule(selected);
+                selected = add_gpu_schedule(selected);
                 gpu_sched = true;
             }
         }
