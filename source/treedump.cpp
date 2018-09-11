@@ -49,6 +49,17 @@ Buffer<T>& Uncrop(Buffer<T>& image)
     return(image);
 }
 
+bool check_schedule(Func f)
+{
+    bool gpu = false;
+    assert(f.defined());
+    for(auto d : f.function().definition().schedule().dims())
+    {
+        if(d.for_type == Halide::Internal::ForType::GPUBlock || d.for_type == Halide::Internal::ForType::GPUThread)
+            gpu = true;
+    }
+    return gpu;
+}
 
 
 Expr eval(Func f, int tuple_idx=0, int updef_idx=-1)
@@ -1131,7 +1142,9 @@ struct FindInputBuffers : public Halide::Internal::IRVisitor
 
 void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value, int min, int max, int channel = -1)
 {
+
     Func m = transform(f, id);
+    m.function().definition().schedule() = f.function().definition().schedule();
     auto input_buffers = FindInputBuffers().visit(m);
 
     // preserve type prior to any data type view transforms:
@@ -1415,8 +1428,7 @@ bool process_work()
     //{
     //    return false;
     //}
-    
-    bool gpu = todo.target.has_gpu_feature();
+    bool gpu = todo.target.has_gpu_feature() && check_schedule(todo.f);
 
     for (auto buffer : todo.input_buffers)
     {

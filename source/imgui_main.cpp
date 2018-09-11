@@ -626,17 +626,25 @@ ImVec2 ImageViewer(ImTextureID texture, const ImVec2& texture_size, float& zoom,
     return pixel_coord;
 }
 
-bool check_schedule(Func f)
+std::string set_default_gpu(std::string target_str)
 {
-    bool gpu = false;
-    assert(f.defined());
-    for(auto d : f.function().definition().schedule().dims())
-    {
-        if(d.for_type == Halide::Internal::ForType::GPUBlock || d.for_type == Halide::Internal::ForType::GPUThread)
-            gpu = true;
-    }
-    return gpu;
+    SystemInfo sys;
+    int gpu_value = 0;
+    Halide::Target target = get_host_target();
+    if(target.os == Halide::Target::OSX)
+        gpu_value = (sys.metal) ? 1 : 0;
+    else
+        gpu_value = (sys.opencl) ? 3 : 0;
+    if(gpu_value == 1)
+        target_str += "-metal";
+    else
+        target_str += "-opencl";
+    return target_str;
+    
 }
+
+//from 'treedump.cpp'
+bool check_schedule(Func f);
 
 void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
 {
@@ -853,6 +861,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                 int func_value_before = func_value;
                 ImGui::RadioButton(func.name().c_str(), &func_value, id);
                 bool func_changed = (func_value_before != func_value);
+                bool test_change = !selected.defined();
                 bool changed = func_changed || !selected.defined() || target_changed;
                 if(func_value == id && changed)
                 {
@@ -878,15 +887,19 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                     {
                         tree = get_tree(func);
                     }
-                    
-                    
-                    
+                
                     gpu_sched = check_schedule(func);
                     if(!gpu_sched)
                         gpu_value = 0; //NOTE(Emily): reset gpu target to NONE if func is changed and no GPU schedule
-                    
-                    select_and_visualize(func, id_expr_debugging, selected_type, output, target_features, view_transform_value, min_val, max_val, rgba_select);
+                    if((gpu_sched && gpu_value > 0) || !gpu_sched)
+                        select_and_visualize(func, id_expr_debugging, selected_type, output, target_features, view_transform_value, min_val, max_val, rgba_select);
+                    else //NOTE(Emily): Hack to get gpu schedules to compile automatically
+                    {
+                        std::string temp_target_features = set_default_gpu(target_features);
+                        select_and_visualize(func, id_expr_debugging, selected_type, output, temp_target_features, view_transform_value, min_val, max_val, rgba_select);
+                    }
                 }
+                
                 if(gpu_sched && !target_changed && func_changed) //Note(Emily): initially assign default GPU target if there is a gpu schedule
                 {
                     Halide::Target target = get_host_target();
