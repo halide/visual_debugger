@@ -151,6 +151,8 @@ Halide::Type selected_type;
 
 // from 'treedump.cpp':
 void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value = 0, int min = 0, int max = 0, int channels = -1);
+Func wrap(Func f);
+
 void halide_worker_proc(void(*notify_result)());
 extern std::mutex result_lock;
 extern std::vector<Result> result_queue;
@@ -736,7 +738,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
     //NOTE(Emily): set show_demo_option to true to view ImGui demo window
     bool open_demo(false), show_demo_option(false);
 
-    Func selected;
+    Func selected, func_gpu;
     
     std::thread halide_worker (halide_worker_proc, [](){ glfwPostEmptyEvent(); });
 
@@ -903,12 +905,25 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                     {
                         tree = get_tree(func);
                     }
-                
-                    gpu_sched = check_schedule(func);
+                    
+                    if(gpu_value == 0 && inject_gpu)
+                    {
+                        func_gpu = Func();
+                        inject_gpu = false;
+                    }
+                    
+                    if(inject_gpu)
+                        gpu_sched = check_schedule(func_gpu);
+                    else
+                        gpu_sched = check_schedule(func);
+                    
                     if(!gpu_sched)
                         gpu_value = 0; //NOTE(Emily): reset gpu target to NONE if func is changed and no GPU schedule
                     if((gpu_sched && gpu_value > 0) || !gpu_sched)
-                        select_and_visualize(func, id_expr_debugging, selected_type, output, target_features, vt.view_transform_value, vt.min_val, vt.max_val, rgba_select);
+                        if(inject_gpu)
+                            select_and_visualize(func_gpu, id_expr_debugging, selected_type, output, target_features, vt.view_transform_value, vt.min_val, vt.max_val, rgba_select);
+                        else
+                            select_and_visualize(func, id_expr_debugging, selected_type, output, target_features, vt.view_transform_value, vt.min_val, vt.max_val, rgba_select);
                     else //NOTE(Emily): Hack to get gpu schedules to compile automatically
                     {
                         std::string temp_target_features = set_default_gpu(target_features, gpu_value);
@@ -916,10 +931,12 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                     }
                 }
                 
-                if((selected.name() == func.name()) && inject_gpu)
+                if((selected.name() == func.name()) && inject_gpu && !gpu_sched)
                 {
-                    func = add_gpu_schedule(func);
-                    inject_gpu = false;
+                    func_gpu = wrap(func);
+                    func_gpu = add_gpu_schedule(func_gpu);
+                    //func = add_gpu_schedule(func);
+                    //inject_gpu = false;
                     gpu_sched = true;
                 }
                 id++;
