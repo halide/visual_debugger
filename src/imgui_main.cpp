@@ -932,8 +932,6 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                 {
                     func_gpu = wrap(func);
                     func_gpu = add_gpu_schedule(func_gpu);
-                    //func = add_gpu_schedule(func);
-                    //inject_gpu = false;
                     gpu_sched = true;
                 }
                 id++;
