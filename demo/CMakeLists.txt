@@ -15,17 +15,17 @@ add_executable(
 
 	./data/force_working_directory.cpp
 
-	../source/imgui_main.cpp
-	../source/system.cpp
-	../source/treedump.cpp
-	../source/debug-api.cpp
-	../source/halide-image-io.cpp
+	../src/imgui_main.cpp
+	../src/system.cpp
+	../src/treedump.cpp
+	../src/debug-api.cpp
+	../src/halide-image-io.cpp
 
-	../source/imconfig.h
-	../source/io-broadcast.hpp
-	../source/system.hpp
-	../source/utils.h
-	../source/halide-image-io.h
+	../src/imconfig.h
+	../src/io-broadcast.hpp
+	../src/system.hpp
+	../src/utils.h
+	../src/halide-image-io.h
 
 	../include/debug-api.h
 

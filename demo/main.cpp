@@ -5,7 +5,7 @@
 #endif//_MSC_VER
 
 #include "../include/debug-api.h"
-#include "../source/halide-image-io.h"
+#include "../src/halide-image-io.h"
 
 using namespace Halide;
 
