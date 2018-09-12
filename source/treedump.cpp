@@ -1324,26 +1324,12 @@ void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& 
     }
     
     if(channel > -1)
-        assert(!is_monochrome);
-    auto args = m.args();
-    switch (channel)
     {
-        case 0:     //only visualize r
-            m = def(m) = select(args.at(2) == 0, eval(m), 0);
-            break;
-        case 1:     //only visualize g
-            m = def(m) = select(args.at(2) == 1, eval(m), 0);
-            break;
-        case 2:     //only visualize b
-            m = def(m) = select(args.at(2) == 2, eval(m), 0);
-            break;
-        case 3:     //only visualize a
-            m = def(m) = select(args.at(2) == 3, eval(m), 0);
-            break;
-        case -1:    //default case/do nothing
-        default:
-            break;
+        assert(!is_monochrome);
+        auto args = m.args();
+        m = def(m) = select(args.at(2) == channel, eval(m), 0);
     }
+    
 
     Target host_target = get_host_target();
     Target::OS os      = host_target.os;
