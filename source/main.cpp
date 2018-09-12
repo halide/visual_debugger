@@ -1,6 +1,17 @@
-#include "HalideImageIO.h"
+#ifdef  _MSC_VER
+    #ifndef _CRT_SECURE_NO_WARNINGS
+    #define _CRT_SECURE_NO_WARNINGS
+    #endif//_CRT_SECURE_NO_WARNINGS
+#endif//_MSC_VER
 
 #include "debug-api.hpp"
+#include "halide-image-io.h"
+
+// auxiliary function to manipulate strings directly in stack memory
+#include <stdio.h>
+#ifndef xsprintf
+#define xsprintf(var, size, ...) char var [size]; sprintf(var, __VA_ARGS__)
+#endif//xsprintf
 
 using namespace Halide;
 

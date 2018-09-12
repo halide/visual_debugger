@@ -18,14 +18,14 @@ add_executable(
 	./system.cpp
 	./treedump.cpp
 	./debug-api.cpp
+	./halide-image-io.cpp
 
-	./HalideIdentity.h
-	./HalideImageIO.h
 	./imconfig.h
 	./io-broadcast.hpp
 	./system.hpp
 	./utils.h
 	./debug-api.hpp	
+	./halide-image-io.h
 	
 	../third-party/imguifilesystem/dirent_portable.h
 	../third-party/imguifilesystem/imguifilesystem.h		

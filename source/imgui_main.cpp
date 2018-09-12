@@ -39,10 +39,7 @@ namespace ImGui
 #include "system.hpp"
 #include "utils.h"
 
-#define STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#define STB_IMAGE_RESIZE_IMPLEMENTATION
-#include "HalideImageIO.h"
+#include "halide-image-io.h"
 
 #include "../third-party/imguifilesystem/imguifilesystem.h"
 
