@@ -45,8 +45,7 @@ namespace ImGui
 
 using namespace Halide;
 
-bool stdout_echo_toggle (false);
-bool save_images(false);
+bool stdout_echo_toggle (false); //NOTE(Emily) also used in debug-api.cpp
 
 
 int rgba_select(-1);
@@ -86,6 +85,7 @@ void ToggleButton(const char* str_id, bool* v)
 std::string sanitize(std::string input)
 {
     std::string illegalChars = "\\/:?\"<>| ";
+    int pos = 0;
     for(auto i = input.begin(); i < input.end(); i++)
     {
         bool found = illegalChars.find(*i) != std::string::npos;
@@ -93,6 +93,7 @@ std::string sanitize(std::string input)
         {
             *i = '-';
         }
+        pos++;
     }
     return input;
 }
@@ -147,6 +148,8 @@ Halide::Type selected_type;
 
 // from 'treedump.cpp':
 void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value = 0, int min = 0, int max = 0, int channels = -1);
+Func wrap(Func f);
+
 void halide_worker_proc(void(*notify_result)());
 extern std::mutex result_lock;
 extern std::vector<Result> result_queue;
@@ -317,7 +320,7 @@ void query_pixel(Halide::Buffer<>& buffer, int x, int y, float& r, float& g, flo
     }
 }
 
-void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& selected_name, Profiling& times, const std::string& target_features, ViewTransform& vt)
+void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& selected_name, Profiling& times, const std::string& target_features, ViewTransform& vt, bool save_images)
 {
     const int id = node->node_id;
     const char* label = (node->name + "###" + node->name + std::to_string(id)).c_str(); //NOTE(Emily): hack for unique id to fix treenode opening issue w/ ImGui
@@ -366,7 +369,7 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& sele
             fname = ""; //NOTE(Emily): done saving so want to reset fname
         }
         id_expr_debugging = id;
-        selected_name = label;
+        selected_name = node->name.c_str();
     }
 
     if (!open)
@@ -376,7 +379,7 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& sele
 
     for(auto& child : node->children)
     {
-        display_node(child, idMyTexture, f, selected_name, times, target_features, vt);
+        display_node(child, idMyTexture, f, selected_name, times, target_features, vt, save_images);
     }
 
     // NOTE(marcos): TreePop() must be called only when TreeNode*() returns true
@@ -725,13 +728,14 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
     bool debug_runtime(false), no_asserts(false), no_bounds_query(false);
     
     bool range_select(false), all_channels(true);
-
+    bool save_images(false);
+    
     SystemInfo sys;
 
     //NOTE(Emily): set show_demo_option to true to view ImGui demo window
     bool open_demo(false), show_demo_option(false);
 
-    Func selected;
+    Func selected, func_gpu;
     
     std::thread halide_worker (halide_worker_proc, [](){ glfwPostEmptyEvent(); });
 
@@ -898,12 +902,25 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                     {
                         tree = get_tree(func);
                     }
-                
-                    gpu_sched = check_schedule(func);
+                    
+                    if(gpu_value == 0 && inject_gpu)
+                    {
+                        func_gpu = Func();
+                        inject_gpu = false;
+                    }
+                    
+                    if(inject_gpu)
+                        gpu_sched = check_schedule(func_gpu);
+                    else
+                        gpu_sched = check_schedule(func);
+                    
                     if(!gpu_sched)
                         gpu_value = 0; //NOTE(Emily): reset gpu target to NONE if func is changed and no GPU schedule
                     if((gpu_sched && gpu_value > 0) || !gpu_sched)
-                        select_and_visualize(func, id_expr_debugging, selected_type, output, target_features, vt.view_transform_value, vt.min_val, vt.max_val, rgba_select);
+                        if(inject_gpu)
+                            select_and_visualize(func_gpu, id_expr_debugging, selected_type, output, target_features, vt.view_transform_value, vt.min_val, vt.max_val, rgba_select);
+                        else
+                            select_and_visualize(func, id_expr_debugging, selected_type, output, target_features, vt.view_transform_value, vt.min_val, vt.max_val, rgba_select);
                     else //NOTE(Emily): Hack to get gpu schedules to compile automatically
                     {
                         std::string temp_target_features = set_default_gpu(target_features, gpu_value);
@@ -911,10 +928,12 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                     }
                 }
                 
-                if((selected.name() == func.name()) && inject_gpu)
+                if((selected.name() == func.name()) && inject_gpu && !gpu_sched)
                 {
-                    func = add_gpu_schedule(func);
-                    inject_gpu = false;
+                    func_gpu = wrap(func);
+                    func_gpu = add_gpu_schedule(func_gpu);
+                    //func = add_gpu_schedule(func);
+                    //inject_gpu = false;
                     gpu_sched = true;
                 }
                 id++;
@@ -933,7 +952,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             
             if(func_selected && target_selected)
             {
-                display_node(tree.root, idMyTexture, selected, selected_name, times, target_features, vt);
+                display_node(tree.root, idMyTexture, selected, selected_name, times, target_features, vt, save_images);
             }
             ImGui::End();
             
