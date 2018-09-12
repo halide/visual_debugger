@@ -48,8 +48,7 @@ namespace ImGui
 
 using namespace Halide;
 
-bool stdout_echo_toggle (false);
-bool save_images(false);
+bool stdout_echo_toggle (false); //NOTE(Emily) also used in debug-api.cpp
 
 
 int rgba_select(-1);
@@ -89,6 +88,7 @@ void ToggleButton(const char* str_id, bool* v)
 std::string sanitize(std::string input)
 {
     std::string illegalChars = "\\/:?\"<>| ";
+    int pos = 0;
     for(auto i = input.begin(); i < input.end(); i++)
     {
         bool found = illegalChars.find(*i) != std::string::npos;
@@ -96,6 +96,7 @@ std::string sanitize(std::string input)
         {
             *i = '-';
         }
+        pos++;
     }
     return input;
 }
@@ -320,7 +321,7 @@ void query_pixel(Halide::Buffer<>& buffer, int x, int y, float& r, float& g, flo
     }
 }
 
-void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& selected_name, Profiling& times, const std::string& target_features, ViewTransform& vt)
+void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& selected_name, Profiling& times, const std::string& target_features, ViewTransform& vt, bool save_images)
 {
     const int id = node->node_id;
     const char* label = (node->name + "###" + node->name + std::to_string(id)).c_str(); //NOTE(Emily): hack for unique id to fix treenode opening issue w/ ImGui
@@ -369,7 +370,7 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& sele
             fname = ""; //NOTE(Emily): done saving so want to reset fname
         }
         id_expr_debugging = id;
-        selected_name = label;
+        selected_name = node->name.c_str();
     }
 
     if (!open)
@@ -379,7 +380,7 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& sele
 
     for(auto& child : node->children)
     {
-        display_node(child, idMyTexture, f, selected_name, times, target_features, vt);
+        display_node(child, idMyTexture, f, selected_name, times, target_features, vt, save_images);
     }
 
     // NOTE(marcos): TreePop() must be called only when TreeNode*() returns true
@@ -728,7 +729,8 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
     bool debug_runtime(false), no_asserts(false), no_bounds_query(false);
     
     bool range_select(false), all_channels(true);
-
+    bool save_images(false);
+    
     SystemInfo sys;
 
     //NOTE(Emily): set show_demo_option to true to view ImGui demo window
@@ -936,7 +938,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             
             if(func_selected && target_selected)
             {
-                display_node(tree.root, idMyTexture, selected, selected_name, times, target_features, vt);
+                display_node(tree.root, idMyTexture, selected, selected_name, times, target_features, vt, save_images);
             }
             ImGui::End();
             
