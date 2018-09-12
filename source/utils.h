@@ -75,7 +75,11 @@ struct Result
     Profiling times;
 };
 
-
+struct ViewTransform
+{
+    int view_transform_value, min_val, max_val;
+    ViewTransform() : view_transform_value(1), min_val(0), max_val(0) {};
+};
 
 
 #endif//HALIDE_VISDBG_UTILS_H

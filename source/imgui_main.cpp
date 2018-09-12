@@ -51,8 +51,7 @@ using namespace Halide;
 bool stdout_echo_toggle (false);
 bool save_images(false);
 
-int view_transform_value(1);
-int min_val(0), max_val(0);
+
 int rgba_select(-1);
 
 std::thread t1;
@@ -321,7 +320,7 @@ void query_pixel(Halide::Buffer<>& buffer, int x, int y, float& r, float& g, flo
     }
 }
 
-void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& selected_name, Profiling& times, const std::string& target_features)
+void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& selected_name, Profiling& times, const std::string& target_features, ViewTransform& vt)
 {
     const int id = node->node_id;
     const char* label = (node->name + "###" + node->name + std::to_string(id)).c_str(); //NOTE(Emily): hack for unique id to fix treenode opening issue w/ ImGui
@@ -356,7 +355,7 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& sele
 
     if (clicked)
     {
-        select_and_visualize(f, id, selected_type, output, target_features, view_transform_value, min_val, max_val, rgba_select);
+        select_and_visualize(f, id, selected_type, output, target_features, vt.view_transform_value, vt.min_val, vt.max_val, rgba_select);
 
         if(save_images)
         {
@@ -380,7 +379,7 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& sele
 
     for(auto& child : node->children)
     {
-        display_node(child, idMyTexture, f, selected_name, times, target_features);
+        display_node(child, idMyTexture, f, selected_name, times, target_features, vt);
     }
 
     // NOTE(marcos): TreePop() must be called only when TreeNode*() returns true
@@ -718,6 +717,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
     std::string target_features;
 
     Profiling times = { };
+    ViewTransform vt = ViewTransform();
     int cpu_value(0), gpu_value(0), func_value(0);
     
     int range_value(2);
@@ -906,11 +906,11 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                     if(!gpu_sched)
                         gpu_value = 0; //NOTE(Emily): reset gpu target to NONE if func is changed and no GPU schedule
                     if((gpu_sched && gpu_value > 0) || !gpu_sched)
-                        select_and_visualize(func, id_expr_debugging, selected_type, output, target_features, view_transform_value, min_val, max_val, rgba_select);
+                        select_and_visualize(func, id_expr_debugging, selected_type, output, target_features, vt.view_transform_value, vt.min_val, vt.max_val, rgba_select);
                     else //NOTE(Emily): Hack to get gpu schedules to compile automatically
                     {
                         std::string temp_target_features = set_default_gpu(target_features, gpu_value);
-                        select_and_visualize(func, id_expr_debugging, selected_type, output, temp_target_features, view_transform_value, min_val, max_val, rgba_select);
+                        select_and_visualize(func, id_expr_debugging, selected_type, output, temp_target_features, vt.view_transform_value, vt.min_val, vt.max_val, rgba_select);
                     }
                 }
                 
@@ -936,7 +936,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             
             if(func_selected && target_selected)
             {
-                display_node(tree.root, idMyTexture, selected, selected_name, times, target_features);
+                display_node(tree.root, idMyTexture, selected, selected_name, times, target_features, vt);
             }
             ImGui::End();
             
@@ -998,14 +998,12 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                 ImVec2 range = calculate_range();
                 int speed = calculate_speed();
                 
-                changed = ImGui::DragIntRange2("Pixel Range", &min_val, &max_val, (float)speed, (int)range.x, (int)range.y, "Min: %d", "Max: %d");
+                changed = ImGui::DragIntRange2("Pixel Range", &vt.min_val, &vt.max_val, (float)speed, (int)range.x, (int)range.y, "Min: %d", "Max: %d");
                 ImGui::SameLine();
                 if(ImGui::Button("Reset"))
                 {
-                    min_val = 0;
-                    max_val = 0;
+                    vt = ViewTransform();
                     changed = true;
-                    view_transform_value = 1;
                 }
                 
                 int previous = range_value; //NOTE(Emily): if we switch between range normalize/clamp we want to force refresh
@@ -1018,17 +1016,17 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                 
                 
                 // must be set to it back false when 'min_val' and 'max_val' are both zero
-                range_select = (min_val != 0 || max_val != 0);
+                range_select = (vt.min_val != 0 || vt.max_val != 0);
                 if (range_select)
                 {
                     // prevent division by zero:
-                    max_val = (min_val == max_val) ? max_val + 1
-                                                   : max_val;
-                    view_transform_value = range_value; // set transform view to type of range transform
+                    vt.max_val = (vt.min_val == vt.max_val) ? vt.max_val + 1
+                                                   : vt.max_val;
+                    vt.view_transform_value = range_value; // set transform view to type of range transform
                 }
                 if(changed && !range_select)
                 {
-                    view_transform_value = 1; // switch back to default handling of overflow values
+                    vt.view_transform_value = 1; // switch back to default handling of overflow values
                 }
                 if (changed || (previous != range_value))
                     selected = Func();  // will force a refresh
@@ -1133,7 +1131,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             times = result.times;
             output = std::move(result.output);
 
-            if(view_transform_value == 1)
+            if(vt.view_transform_value == 1)
                 orig_output = std::move(output); //save original output vals for pixel picking
             refresh_texture(idMyTexture, output);
         }
