@@ -125,8 +125,6 @@ Func wrap(Func f)
     return g;
 }
 
-
-
 using namespace Halide::Internal;
 
 struct IRNodePrinter
