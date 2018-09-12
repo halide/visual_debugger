@@ -7,12 +7,6 @@
 #include "debug-api.hpp"
 #include "halide-image-io.h"
 
-// auxiliary function to manipulate strings directly in stack memory
-#include <stdio.h>
-#ifndef xsprintf
-#define xsprintf(var, size, ...) char var [size]; sprintf(var, __VA_ARGS__)
-#endif//xsprintf
-
 using namespace Halide;
 
 // utility to wrap a Buffer into a "safe" Func (bounded domain)
@@ -193,8 +187,7 @@ Func simple_realize_x_y_example()
 
 int main()
 {
-    xsprintf(input_filename, 128, "data/pencils.jpg");
-    Halide::Buffer<uint8_t> input_full = LoadImage(input_filename);
+    Halide::Buffer<uint8_t> input_full = LoadImage("data/pencils.jpg");
     if (!input_full.defined())
         return -1;
 
