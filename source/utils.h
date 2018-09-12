@@ -13,9 +13,6 @@ struct expr_node {
     std::string name;
     std::vector<expr_node *> children;
     int node_id = 0;
-    // NOTE(marcos): the following fields don't seem to be used in practice
-    //Halide::Expr original;
-    //Halide::Expr modified;
 };
 
 struct expr_tree

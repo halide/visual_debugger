@@ -10,8 +10,7 @@ Func add_gpu_schedule(Func f); //from imgui_main.cpp
 Func example_select()
 {
     Var x("x"), y("y");
-    Func multi_valued;
-    Func color_image;
+    Func color_image("select example");
     Var c;
     color_image(x, y, c) = select(c == 0 && x < 400, 255, // Red value
                                   c == 1 && y < 200, 255,  // Green value
@@ -77,7 +76,6 @@ Func example_fixed(Buffer<> image)
     
     Func output("fixed output");
     output(x,y,c) = cast<uint8_t>(lut(cast<uint8_t>(blend(x,y,c))));
-    
     return output;
 }
 
@@ -119,14 +117,6 @@ Func example_tuple()
     return multi_valued_2;
 }
 
-Func example_another_tuple(Func broken, Func fixed)
-{
-    Var x, y, c;
-    Func test_tuple ("test");
-    test_tuple(x, y, c) = Tuple(broken(x, y, c), fixed(x, y, c));
-    return test_tuple;
-}
-
 Func update_example()
 {
     Var x, y, c;
@@ -140,9 +130,9 @@ Func update_example()
 Func select_example2()
 {
     Var x, y, c, tx, ty;
-    Func selected2 ("select example");
+    Func selected2 ("select example 2");
     selected2(x,y,c) = select(c == 0, x + 100, x + y);
-    selected2.gpu_tile(x, y, tx, ty, 8, 8, Halide::TailStrategy::GuardWithIf);
+    selected2 = add_gpu_schedule(selected2);
     return selected2;
 }
 
@@ -157,7 +147,7 @@ Func update_tuple_example()
 
 Func simple_realize_x_y_example()
 {
-    Func gradient;
+    Func gradient("gradient example");
     Var x, y;
     Expr e = x + y;
     gradient(x,y) = e;
@@ -169,7 +159,6 @@ Func simple_realize_x_y_example()
 
 int main()
 {
-    //NOTE(Emily): define func here
     xsprintf(input_filename, 128, "data/pencils.jpg");
     Halide::Buffer<uint8_t> input_full = LoadImage(input_filename);
     if (!input_full.defined())
@@ -189,22 +178,17 @@ int main()
         .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
 
     std::vector<ReplayableFunc> funcs;
-        funcs.emplace_back( ReplayableFunc(select_example2()).realize(modified_output_buffer));
         funcs.emplace_back( ReplayableFunc(broken).realize(modified_output_buffer) );
         funcs.emplace_back( ReplayableFunc(fixed).realize(modified_output_buffer) );
         funcs.emplace_back( ReplayableFunc(example_scoped(input_full)).realize(modified_output_buffer) );
         funcs.emplace_back( ReplayableFunc(example_tuple()).realize(modified_output_buffer) );
-        funcs.emplace_back( ReplayableFunc(example_another_tuple(broken, fixed)).realize(modified_output_buffer) );
         funcs.emplace_back( ReplayableFunc(update_example()).realize(modified_output_buffer) );
         funcs.emplace_back( ReplayableFunc(update_tuple_example()).realize(modified_output_buffer) );
         funcs.emplace_back( ReplayableFunc(example_select()).realize(modified_output_buffer));
+        funcs.emplace_back( ReplayableFunc(select_example2()).realize(modified_output_buffer));
     
-    //Target host_target = get_host_target();
     //debug(broken).realize(modified_output_buffer, host_target);
     replay(funcs);
-    
-    Func simple_other_realize = simple_realize_x_y_example();
-    //debug(simple_other_realize).realize(800, 600, host_target); //NOTE(Emily): right now we need to pass in an input buffer although it isn't used. should handle this use case
 
     return 0;
 }
