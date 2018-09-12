@@ -125,6 +125,8 @@ Func wrap(Func f)
     return g;
 }
 
+
+
 using namespace Halide::Internal;
 
 struct IRNodePrinter
@@ -1070,7 +1072,6 @@ struct IRDump : public DebuggerSelector { };
 Func transform(Func f, int id=0, int value_idx=0)
 {
     Func g = DebuggerSelector(id).mutate(f);
-
     Expr transformed_expr = eval(g, value_idx);
     if (!transformed_expr.defined())
     {

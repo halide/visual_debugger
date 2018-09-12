@@ -151,7 +151,6 @@ Halide::Type selected_type;
 
 // from 'treedump.cpp':
 void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value = 0, int min = 0, int max = 0, int channels = -1);
-Func transform(Func f, int id=0, int value_idx=0);
 void halide_worker_proc(void(*notify_result)());
 extern std::mutex result_lock;
 extern std::vector<Result> result_queue;
@@ -904,12 +903,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                     {
                         tree = get_tree(func);
                     }
-                    if(gpu_value == 0 && inject_gpu)
-                    {
-                        func = transform(func); //remove GPU schedule
-                        inject_gpu = false;
-                    }
-                    
+                
                     gpu_sched = check_schedule(func);
                     if(!gpu_sched)
                         gpu_value = 0; //NOTE(Emily): reset gpu target to NONE if func is changed and no GPU schedule
@@ -925,7 +919,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                 if((selected.name() == func.name()) && inject_gpu)
                 {
                     func = add_gpu_schedule(func);
-                    //inject_gpu = false;
+                    inject_gpu = false;
                     gpu_sched = true;
                 }
                 id++;
