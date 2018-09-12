@@ -24,9 +24,9 @@ add_executable(
 	./io-broadcast.hpp
 	./system.hpp
 	./utils.h
-	./debug-api.hpp	
 	./halide-image-io.h
-	
+	../include/debug-api.h
+
 	../third-party/imguifilesystem/dirent_portable.h
 	../third-party/imguifilesystem/imguifilesystem.h		
 	../third-party/imguifilesystem/imguifilesystem.cpp
