@@ -1,7 +1,7 @@
 if (NOT CMAKING_WHOLE_SOLUTION)
 	cmake_minimum_required(VERSION 3.0)
 	set(CMAKE_CXX_STANDARD 11)
-	project(visdbg)
+	project(visdbg-demo)
 	# locate and configure third-party dependencies:
 	include(../third-party/CMakeLists.txt)
 endif()
@@ -9,22 +9,24 @@ endif()
 
 
 add_executable(
-	visdbg
+	demo
 
-	../data/force_working_directory.cpp
-
-	./imgui_main.cpp
 	./main.cpp
-	./system.cpp
-	./treedump.cpp
-	./debug-api.cpp
-	./halide-image-io.cpp
 
-	./imconfig.h
-	./io-broadcast.hpp
-	./system.hpp
-	./utils.h
-	./halide-image-io.h
+	./data/force_working_directory.cpp
+
+	../source/imgui_main.cpp
+	../source/system.cpp
+	../source/treedump.cpp
+	../source/debug-api.cpp
+	../source/halide-image-io.cpp
+
+	../source/imconfig.h
+	../source/io-broadcast.hpp
+	../source/system.hpp
+	../source/utils.h
+	../source/halide-image-io.h
+
 	../include/debug-api.h
 
 	../third-party/imguifilesystem/dirent_portable.h
@@ -37,7 +39,7 @@ add_executable(
 # configure third-party dependencies:
 
 target_include_directories(
-	visdbg PUBLIC
+	demo PUBLIC
 	${GLFW_INCLUDE_DIR}
 	${IMGUI_INCLUDE_DIR}
 	${OPENGL_INCLUDE_DIR}
@@ -46,7 +48,7 @@ target_include_directories(
 )
 
 target_sources(
-	visdbg PUBLIC
+	demo PUBLIC
 	${GLFW_SOURCE_AMALGAMATION}
 	${IMGUI_SOURCE_AMALGAMATION}
 )
@@ -54,7 +56,7 @@ target_sources(
 llvm_map_components_to_libnames(llvm_libs support core irreader)
 
 target_link_libraries(
-	visdbg
+	demo
 	${GLFW_DEPENDENCIES}
 	${OPENGL_LIBRARIES}
 	${HALIDE_LIBRARY}
@@ -62,7 +64,7 @@ target_link_libraries(
 )
 
 target_compile_definitions(
-	visdbg PUBLIC
+	demo PUBLIC
 	${LLVM_DEFINITIONS}
 )
 
@@ -71,11 +73,11 @@ target_compile_definitions(
 # dependency: X11
 if (LINUX)
 	target_include_directories(
-		visdbg PUBLIC
+		demo PUBLIC
 		${X11_INCLUDE_DIR}
 	)
     target_link_libraries(
-		visdbg
+		demo
 		${X11_LIBRARIES}
 	)
 endif()
@@ -83,7 +85,7 @@ endif()
 # dependency: pthread
 if (LINUX)
     target_link_libraries(
-		visdbg
+		demo
 		pthread
 		dl
 	)
@@ -91,5 +93,5 @@ endif()
 
 
 if (NOT MSVC)
-	target_compile_options(visdbg PUBLIC -fno-rtti)
+	target_compile_options(demo PUBLIC -fno-rtti)
 endif()

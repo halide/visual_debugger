@@ -61,5 +61,5 @@ include(third-party/CMakeLists.txt)
 
 # Projects:
 add_subdirectory(./test-gui)
-add_subdirectory(./source)
+add_subdirectory(./demo)
 add_subdirectory(./tests)
