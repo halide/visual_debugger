@@ -1,11 +1,46 @@
 #include "HalideImageIO.h"
-#include "HalideIdentity.h"
 
 #include "debug-api.hpp"
 
 using namespace Halide;
 
-Func add_gpu_schedule(Func f); //from imgui_main.cpp
+// utility to wrap a Buffer into a "safe" Func (bounded domain)
+Func SafeIdentity(Buffer<> image, const char* name = nullptr)
+{
+    Func I = (name) ? Func(name) : Func("safe_" + image.name()) ;
+    Var x("x"), y("y"), c("c");
+
+    Expr _x = clamp(x, 0, image.width()    - 1);
+    Expr _y = clamp(y, 0, image.height()   - 1);
+    Expr _c = clamp(c, 0, image.channels() - 1);
+
+    Expr value;
+    const auto dimensions = image.dimensions();
+    switch (dimensions)
+    {
+        case 1 :
+            value = image(_x);
+            break;
+        case 2 :
+            value = image(_x, _y);
+            break;
+        case 3 :
+            value = image(_x, _y, _c);
+            break;
+        default :
+        {
+            Expr False = Internal::const_false();
+            value = require(False, Expr(dimensions), "is an invalid dimension for the Identity(", image.name(), ",", name, ") call.");
+            break;
+        }
+    }
+
+    I(x, y, c) = value;
+
+    return(I);
+}
+
+Func add_gpu_schedule(Func f);  // <- quick-hack: defined in imgui_main.cpp
 
 Func example_select()
 {
@@ -18,17 +53,12 @@ Func example_select()
     return color_image;
 }
 
-Func example_broken(Buffer<> image)
+Func example_broken(Func input)
 {
     Var x("x"), y("y"), c("c"), i("i");
     
-    Expr clamped_x = clamp(x, 0, image.width()-1);
-    Expr clamped_y = clamp(y, 0, image.height()-1);
-
-    Func input = Identity(image, "image");
-
     Func bounded("bounded");
-    bounded(x,y,c) = input(clamped_x, clamped_y, c);
+    bounded(x,y,c) = input(x, y, c);
     
     Func sharpen("sharpen");
     sharpen(x,y,c) = 2 * bounded(x,y,c) - (bounded(x-1, y, c) + bounded(x, y-1, c) + bounded(x+1, y, c) + bounded(x, y+1, c))/4;
@@ -50,17 +80,12 @@ Func example_broken(Buffer<> image)
     return output;
 }
 
-Func example_fixed(Buffer<> image)
+Func example_fixed(Func input)
 {
     Var x("x"), y("y"), c("c"), i("i");
     
-    Expr clamped_x = clamp(x, 0, image.width()-1);
-    Expr clamped_y = clamp(y, 0, image.height()-1);
-
-    Func input = Identity(image, "image");
-
     Func bounded("bounded");
-    bounded(x,y,c) = cast<int16_t>(input(clamped_x, clamped_y, c));
+    bounded(x,y,c) = cast<int16_t>(input(x, y, c));
     
     Func sharpen("sharpen");
     sharpen(x,y,c) = cast<uint8_t>(clamp(2 * bounded(x,y,c) - (bounded(x-1, y, c) + bounded(x, y-1, c) + bounded(x+1, y, c) + bounded(x, y+1, c))/4, 0, 255));
@@ -79,10 +104,8 @@ Func example_fixed(Buffer<> image)
     return output;
 }
 
-Func example_scoped(Buffer<> image)
+Func example_scoped(Func input)
 {
-    Func input = Identity(image, "image");
-
     Func f ("f");
     {
         Var x, y, c;
@@ -164,8 +187,10 @@ int main()
     if (!input_full.defined())
         return -1;
 
-    Func broken = example_broken(input_full);
-    Func fixed = example_fixed(input_full);
+    Func image = SafeIdentity(input_full, "safe_image");
+
+    Func broken = example_broken(image);
+    Func fixed = example_fixed(image);
 
     //NOTE(Emily): setting up output buffer to use with realize in debug
     Halide::Buffer<> modified_output_buffer;
@@ -180,7 +205,7 @@ int main()
     std::vector<ReplayableFunc> funcs;
         funcs.emplace_back( ReplayableFunc(broken).realize(modified_output_buffer) );
         funcs.emplace_back( ReplayableFunc(fixed).realize(modified_output_buffer) );
-        funcs.emplace_back( ReplayableFunc(example_scoped(input_full)).realize(modified_output_buffer) );
+        funcs.emplace_back( ReplayableFunc(example_scoped(image)).realize(modified_output_buffer) );
         funcs.emplace_back( ReplayableFunc(example_tuple()).realize(modified_output_buffer) );
         funcs.emplace_back( ReplayableFunc(update_example()).realize(modified_output_buffer) );
         funcs.emplace_back( ReplayableFunc(update_tuple_example()).realize(modified_output_buffer) );
