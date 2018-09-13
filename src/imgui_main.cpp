@@ -748,6 +748,10 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
         ImGui::NewFrame();
         if(show_stdout_box)
         {
+            ImVec2 pos = ImVec2(10, 10);
+            ImVec2 size = ImVec2(200, 60);
+            ImGui::SetNextWindowPos(pos, ImGuiCond_FirstUseEver);
+            ImGui::SetNextWindowSize(size, ImGuiCond_FirstUseEver);
             bool * no_close = NULL;
             ImGui::Begin("Output", no_close);
             ImGui::Checkbox("Show stdout in terminal", &stdout_echo_toggle);
@@ -767,6 +771,10 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
         
         if(show_save_image)
         {
+            ImVec2 pos = ImVec2(630, 10);
+            ImVec2 size = ImVec2(280, 60);
+            ImGui::SetNextWindowPos(pos, ImGuiCond_FirstUseEver);
+            ImGui::SetNextWindowSize(size, ImGuiCond_FirstUseEver);
             bool * no_close = NULL;
             ImGui::Begin("Save images to disk upon selection: ", no_close);
             ToggleButton("Save all images", &save_images);
@@ -780,6 +788,10 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
 
         if(show_target_select)
         {
+            ImVec2 pos = ImVec2(10, 80);
+            ImVec2 size = ImVec2(200, 340);
+            ImGui::SetNextWindowPos(pos, ImGuiCond_FirstUseEver);
+            ImGui::SetNextWindowSize(size, ImGuiCond_FirstUseEver);
             bool * no_close = NULL;
             //inject_gpu = false;
             
@@ -869,6 +881,10 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
 
         if(show_func_select)
         {
+            ImVec2 pos = ImVec2(10, 430);
+            ImVec2 size = ImVec2(200, 260);
+            ImGui::SetNextWindowPos(pos, ImGuiCond_FirstUseEver);
+            ImGui::SetNextWindowSize(size, ImGuiCond_FirstUseEver);
             bool * no_close = NULL;
             ImGui::Begin("Select Func to visualize: ", no_close);
             int id = 0;
@@ -944,6 +960,10 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
         // main expression tree window
         if(show_expr_tree)
         {
+            ImVec2 pos = ImVec2(220, 10);
+            ImVec2 size = ImVec2(400, 680);
+            ImGui::SetNextWindowPos(pos, ImGuiCond_FirstUseEver);
+            ImGui::SetNextWindowSize(size, ImGuiCond_FirstUseEver);
             
             bool * no_close = NULL;
             ImGui::Begin("Expression Tree", no_close, ImGuiWindowFlags_HorizontalScrollbar);
@@ -959,6 +979,10 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
         
         if (show_image)
         {
+            ImVec2 pos = ImVec2(630, 80);
+            ImVec2 size = ImVec2(700, 610);
+            ImGui::SetNextWindowPos(pos, ImGuiCond_FirstUseEver);
+            ImGui::SetNextWindowSize(size, ImGuiCond_FirstUseEver);
             bool * no_close = NULL;
             
             int width    = output.width();
