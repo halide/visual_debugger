@@ -103,16 +103,16 @@ void default_output_name(std::string name, int id)
     assert(output.defined());
     if(output.type().is_float())
     {
-        fname = "data/output/" + sanitize(name) + "_" + std::to_string(id) + ".pfm";
+        fname = "./data/output/" + sanitize(name) + "_" + std::to_string(id) + ".pfm";
     }
     else if(output.type().is_uint() && output.type().bits() == 8)
     {
-        fname = "data/output/" + sanitize(name) + "_" + std::to_string(id) + ".png";
+        fname = "./data/output/" + sanitize(name) + "_" + std::to_string(id) + ".png";
     }
     else
     {
         output = output.as<float>();
-        fname = "data/output/" + sanitize(name) + "_" +std::to_string(id) + ".pfm";
+        fname = "./data/output/" + sanitize(name) + "_" +std::to_string(id) + ".pfm";
     }
 }
 
@@ -361,7 +361,7 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& sele
         {
             assert(output.defined());
 
-            if(fname == "") default_output_name(f.name(), id);
+            if(fname == "") default_output_name(node->name, id);
             
             if(!SaveImage(fname.c_str(), output))
                 fprintf(stderr, "Error saving image\n");
@@ -932,8 +932,6 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                 {
                     func_gpu = wrap(func);
                     func_gpu = add_gpu_schedule(func_gpu);
-                    //func = add_gpu_schedule(func);
-                    //inject_gpu = false;
                     gpu_sched = true;
                 }
                 id++;
@@ -1006,6 +1004,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                     fprintf(stderr, "Error saving image\n");
                 chosenPath = NULL;
             }
+            fname = "";
             
             if(show_range_normalize)
             {
