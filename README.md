@@ -8,9 +8,14 @@ Func f = ...
 debug(func).realize(output_buffer);
 ```
 Using the debug API will essentially set a breakpoint in your program before the realize call that will open the visual debugger. Once the debugger window is closed, 
-program execution will continue and your `Func` will be realized. 
+program execution will continue and your `Func` will be realized.
 
 ## Amalgamation:
+We provide an amalgamation of the debugger for you to use in your existing projects. To use the debugger in your own projects, you will need to add the following
+files to your build:
+- `src/amalg/amalg.cpp` 
+- `src/amalg/amalg.c` if on unix/windows
+- `src/amalg/amalg.m` if on MacOS  
 
 ## Third Party dependencies:
 The visual debugger has the following dependencies:
@@ -19,7 +24,10 @@ The visual debugger has the following dependencies:
 - Dear ImGui
 - stb
 
+We assume that you already have Halide and its dependencies installed.
+
 ## Demo program:
+We provide a demo program to show how to use the visual debugger. It can be found in the `demo` directory.
 
 ## Directory structure:
 
