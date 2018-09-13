@@ -4,7 +4,7 @@
     #endif//_CRT_SECURE_NO_WARNINGS
 #endif//_MSC_VER
 
-#include "debug-api.hpp"
+#include "../include/debug-api.h"
 #include "io-broadcast.hpp"
 
 using namespace Halide;

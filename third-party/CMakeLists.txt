@@ -36,13 +36,18 @@ endif()
 # dependency: imgui
 set(IMGUI_INCLUDE_DIR
 	${CMAKE_CURRENT_LIST_DIR}/imgui
-	${CMAKE_CURRENT_LIST_DIR}/imgui/examples)
+	${CMAKE_CURRENT_LIST_DIR}/imgui/examples
+)
 set(IMGUI_SOURCE_AMALGAMATION
 	${CMAKE_CURRENT_LIST_DIR}/imgui/imgui.cpp
-	${CMAKE_CURRENT_LIST_DIR}/imgui/imgui_demo.cpp
 	${CMAKE_CURRENT_LIST_DIR}/imgui/imgui_draw.cpp
 	${CMAKE_CURRENT_LIST_DIR}/imgui/examples/imgui_impl_glfw.cpp
 	${CMAKE_CURRENT_LIST_DIR}/imgui/examples/imgui_impl_opengl2.cpp
+)
+set(IMGUI_FILESYSTEN_SOURCE_AMALGAMATION
+	${CMAKE_CURRENT_LIST_DIR}/imguifilesystem/dirent_portable.h
+	${CMAKE_CURRENT_LIST_DIR}/imguifilesystem/imguifilesystem.h		
+	${CMAKE_CURRENT_LIST_DIR}/imguifilesystem/imguifilesystem.cpp
 )
 
 

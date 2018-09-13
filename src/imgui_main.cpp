@@ -8,7 +8,9 @@
     // to accommodate for OpenGL user callbacks (like GLDEBUGPROCARB), glfw3.h
     // needs to #define APIENTRY if it has not been defined yet; it's safer to
     // just include the Windows header prior to including the glfw3 header
+    #ifndef NOMINMAX
     #define NOMINMAX
+    #endif//NOMINMAX
     #include <Windows.h>
 #endif//_WIN32
 
@@ -21,7 +23,12 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl2.h>
 
+#define ENABLE_IMGUI_DEMO (0)
+
 #include <limits>
+
+#include <thread>
+#include <condition_variable>
 
 namespace ImGui
 {
@@ -36,23 +43,21 @@ namespace ImGui
 #include "system.hpp"
 #include "utils.h"
 
-#define STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#define STB_IMAGE_RESIZE_IMPLEMENTATION
-#include "HalideImageIO.h"
+#include "halide-image-io.h"
 
 #include "../third-party/imguifilesystem/imguifilesystem.h"
 
 using namespace Halide;
 
-bool stdout_echo_toggle (false);
-bool save_images(false);
+bool stdout_echo_toggle (false); //NOTE(Emily) also used in debug-api.cpp
 
-int view_transform_value(1);
-int min_val(0), max_val(0);
 
-//NOTE(Emily): vars related to saving images
-Halide::Buffer<> output;
+int rgba_select(-1);
+
+std::thread t1;
+
+
+Halide::Buffer<> output, orig_output;
 std::string fname = "";
 
 static void glfw_error_callback(int error, const char* description)
@@ -84,6 +89,7 @@ void ToggleButton(const char* str_id, bool* v)
 std::string sanitize(std::string input)
 {
     std::string illegalChars = "\\/:?\"<>| ";
+    int pos = 0;
     for(auto i = input.begin(); i < input.end(); i++)
     {
         bool found = illegalChars.find(*i) != std::string::npos;
@@ -91,6 +97,7 @@ std::string sanitize(std::string input)
         {
             *i = '-';
         }
+        pos++;
     }
     return input;
 }
@@ -100,16 +107,16 @@ void default_output_name(std::string name, int id)
     assert(output.defined());
     if(output.type().is_float())
     {
-        fname = "data/output/" + sanitize(name) + "_" + std::to_string(id) + ".pfm";
+        fname = "./data/output/" + sanitize(name) + "_" + std::to_string(id) + ".pfm";
     }
     else if(output.type().is_uint() && output.type().bits() == 8)
     {
-        fname = "data/output/" + sanitize(name) + "_" + std::to_string(id) + ".png";
+        fname = "./data/output/" + sanitize(name) + "_" + std::to_string(id) + ".png";
     }
     else
     {
         output = output.as<float>();
-        fname = "data/output/" + sanitize(name) + "_" +std::to_string(id) + ".pfm";
+        fname = "./data/output/" + sanitize(name) + "_" +std::to_string(id) + ".pfm";
     }
 }
 
@@ -131,11 +138,39 @@ void default_output_name_no_dirs(std::string name, int id)
     }
 }
 
+Func add_gpu_schedule(Func f)
+{
+    Var x = f.args()[0];
+    Var y = f.args()[1];
+    Var tx, ty;
+    f.gpu_tile(x, y, tx, ty, 8, 8, Halide::TailStrategy::GuardWithIf);
+    return f;
+}
+
 int id_expr_debugging = -1;
 Halide::Type selected_type;
 
 // from 'treedump.cpp':
-Profiling select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value = 0, int min = 0, int max = 0);
+void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value = 0, int min = 0, int max = 0, int channels = -1);
+Func wrap(Func f);
+
+void halide_worker_proc(void(*notify_result)());
+extern std::mutex result_lock;
+extern std::vector<Result> result_queue;
+
+bool process_result(Result& result)
+{
+    std::unique_lock<std::mutex> l2(result_lock);
+    if (result_queue.empty())
+    {
+        return false;
+    }
+
+    result = std::move(result_queue.back());
+    result_queue.pop_back();
+    
+    return true;
+}
 
 void refresh_texture(GLuint idMyTexture, Halide::Buffer<>& output)
 {
@@ -206,16 +241,19 @@ void query_pixel(Halide::Runtime::Buffer<T, K>& image, int x, int y, float& r, f
 void query_pixel(Halide::Buffer<>& buffer, int x, int y, float& r, float& g, float& b)
 {
     r = g = b = 0.0f;
+    
+    if (!buffer.defined())
+        return;
 
     if ((x < 0) || (x >= buffer.width()))
         return;
     if ((y < 0) || (y >= buffer.height()))
         return;
 
-    switch (output.type().code())
+    switch (buffer.type().code())
     {
         case halide_type_int :
-            switch (output.type().bits())
+            switch (buffer.type().bits())
             {
                 case 8 :
                 {
@@ -241,7 +279,7 @@ void query_pixel(Halide::Buffer<>& buffer, int x, int y, float& r, float& g, flo
             }
             break;
         case halide_type_uint :
-            switch (output.type().bits())
+            switch (buffer.type().bits())
             {
                 case 8 :
                 {
@@ -267,7 +305,7 @@ void query_pixel(Halide::Buffer<>& buffer, int x, int y, float& r, float& g, flo
             }
             break;
         case halide_type_float :
-            switch (output.type().bits())
+            switch (buffer.type().bits())
             {
                 case 32 :
                 {
@@ -286,10 +324,10 @@ void query_pixel(Halide::Buffer<>& buffer, int x, int y, float& r, float& g, flo
     }
 }
 
-void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& selected_name, Profiling& times, const std::string& target_features)
+void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& selected_name, Profiling& times, const std::string& target_features, ViewTransform& vt, bool save_images)
 {
     const int id = node->node_id;
-    const char* label = node->name.c_str();
+    const char* label = (node->name + "###" + node->name + std::to_string(id)).c_str(); //NOTE(Emily): hack for unique id to fix treenode opening issue w/ ImGui
     const bool selected = (id_expr_debugging == id);
     const bool terminal = node->children.empty();
     const bool viewable = (id != 0);   // <- whether or not this expr_node can be visualized
@@ -321,15 +359,13 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& sele
 
     if (clicked)
     {
-        times = select_and_visualize(f, id, selected_type, output, target_features, view_transform_value, min_val, max_val);
-        refresh_texture(idMyTexture, output);
+        select_and_visualize(f, id, selected_type, output, target_features, vt.view_transform_value, vt.min_val, vt.max_val, rgba_select);
+
         if(save_images)
         {
             assert(output.defined());
-            //NOTE(Emily): need to create default filename for all images
-            //we want to decide file extension based on data type
 
-            if(fname == "") default_output_name(f.name(), id);
+            if(fname == "") default_output_name(node->name, id);
             
             if(!SaveImage(fname.c_str(), output))
                 fprintf(stderr, "Error saving image\n");
@@ -337,7 +373,7 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& sele
             fname = ""; //NOTE(Emily): done saving so want to reset fname
         }
         id_expr_debugging = id;
-        selected_name = label;
+        selected_name = node->name.c_str();
     }
 
     if (!open)
@@ -347,7 +383,7 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& sele
 
     for(auto& child : node->children)
     {
-        display_node(child, idMyTexture, f, selected_name, times, target_features);
+        display_node(child, idMyTexture, f, selected_name, times, target_features, vt, save_images);
     }
 
     // NOTE(marcos): TreePop() must be called only when TreeNode*() returns true
@@ -461,6 +497,7 @@ ImVec2 calculate_range()
         case halide_type_uint :
             switch (selected_type.bits())
         {
+            case 1 : //boolean expression - cast to 8 bit
             case 8 :
             {
                 range = { float(std::numeric_limits<uint8_t>::min()),
@@ -509,6 +546,7 @@ int calculate_speed()
 {
     int speed;
     switch (selected_type.bits()) {
+        case 1: //boolean expression - cast to 8 bit
         case 8:
             speed = 1;
             break;
@@ -591,6 +629,41 @@ ImVec2 ImageViewer(ImTextureID texture, const ImVec2& texture_size, float& zoom,
     return pixel_coord;
 }
 
+std::string set_default_gpu(std::string target_str, int & gpu_value)
+{
+    SystemInfo sys;
+    if(sys.metal)
+    {
+        gpu_value = 1;
+        target_str += "-metal";
+        return target_str;
+    }
+    if(sys.cuda)
+    {
+        gpu_value = 2;
+        target_str += "-cuda";
+        return target_str;
+    }
+    if(sys.opencl)
+    {
+        gpu_value = 3;
+        target_str += "-opencl";
+        return target_str;
+    }
+    if(sys.d3d12)
+    {
+        gpu_value = 4;
+        target_str += "-d3d12";
+        return target_str;
+    }
+    assert(false); // if none of above return then halide cannot visualize a func with a GPU schedule
+    return target_str;
+    
+}
+
+//from 'treedump.cpp'
+bool check_schedule(Func f);
+
 void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
 {
     // Setup window
@@ -621,7 +694,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
     bool show_target_select = true;
     bool show_stdout_box = true;
     bool show_save_image = true;
-    bool show_range_normalize = false;
+    bool show_range_normalize = true;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     std::string selected_name = "No node selected, displaying output";
@@ -647,27 +720,28 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
     expr_tree tree;
     std::string target_features;
 
-    //NOTE(Emily): call to update buffer to display output of function
     Profiling times = { };
+    ViewTransform vt = ViewTransform();
     int cpu_value(0), gpu_value(0), func_value(0);
     
     int range_value(2);
 
     //target flag bools (need to be outside of loop to maintain state)
     bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false), f16c(false);
-    bool neon(false);
+    bool neon(false), gpu_sched(false), inject_gpu(false);
     bool debug_runtime(false), no_asserts(false), no_bounds_query(false);
     
-    bool range_select = false;
-
+    bool range_select(false), all_channels(true);
+    bool save_images(false);
+    
     SystemInfo sys;
 
-    //NOTE(Emily): temporary to explore demo window
+    //NOTE(Emily): set show_demo_option to true to view ImGui demo window
     bool open_demo(false);
-    
-    //output = output_buff;
 
-    Func selected;
+    Func selected, func_gpu;
+    
+    std::thread halide_worker (halide_worker_proc, [](){ glfwPostEmptyEvent(); });
 
     // Main loop
     while (!glfwWindowShouldClose(window))
@@ -684,8 +758,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             ImGui::End();
         }
         
-        if(true)
-        {
+        #if ENABLE_IMGUI_DEMO
             ImGui::Begin("display demo window");
             ImGui::Checkbox("open", &open_demo);
             if(open_demo)
@@ -693,7 +766,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                 ImGui::ShowDemoWindow();
             }
             ImGui::End();
-        }
+        #endif//ENABLE_IMGUI_DEMO
         
         if(show_save_image)
         {
@@ -711,6 +784,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
         if(show_target_select)
         {
             bool * no_close = NULL;
+            //inject_gpu = false;
             
             ImGui::Begin("Select compilation target: ", no_close);
             
@@ -749,12 +823,13 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             }
 
             ImGui::Text("GPU: ");
-            
             OptionalRadioButton("none",        &gpu_value, 0);
-            OptionalRadioButton("Metal",       &gpu_value, 1, sys.metal);
-            OptionalRadioButton("CUDA",        &gpu_value, 2, sys.cuda);
-            OptionalRadioButton("OpenCL",      &gpu_value, 3, sys.opencl);
-            OptionalRadioButton("Direct3D 12", &gpu_value, 4, sys.d3d12);
+            if(!gpu_sched)
+                ImGui::Checkbox("Inject default GPU schedule", &inject_gpu);
+            OptionalRadioButton("Metal",       &gpu_value, 1, (gpu_sched && sys.metal));
+            OptionalRadioButton("CUDA",        &gpu_value, 2, (gpu_sched && sys.cuda));
+            OptionalRadioButton("OpenCL",      &gpu_value, 3, (gpu_sched && sys.opencl));
+            OptionalRadioButton("Direct3D 12", &gpu_value, 4, (gpu_sched && sys.d3d12));
 
             ImGui::Text("Halide: ");
             ImGui::Checkbox("Debug Runtime", &debug_runtime);
@@ -786,9 +861,11 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             target_features += (debug_runtime)   ? "-debug"           : "" ;
             target_features += (no_asserts)      ? "-no_asserts"      : "" ;
             target_features += (no_bounds_query) ? "-no_bounds_query" : "" ;
+            
         }
 
         bool target_changed = (target_features_before != target_features);
+        
         target_features_before = target_features;
 
         bool target_selected = !target_features.empty();
@@ -806,6 +883,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                 bool changed = func_changed || !selected.defined() || target_changed;
                 if(func_value == id && changed)
                 {
+                    
                     int show_id = id_expr_debugging;
                     if (func_changed)
                     {
@@ -827,9 +905,37 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                     {
                         tree = get_tree(func);
                     }
-                    times = select_and_visualize(func, id_expr_debugging, selected_type, output, target_features, view_transform_value, min_val, max_val);
-                    refresh_texture(idMyTexture, output);
-                    break;
+                    
+                    if(gpu_value == 0 && inject_gpu)
+                    {
+                        func_gpu = Func();
+                        inject_gpu = false;
+                    }
+                    
+                    if(inject_gpu)
+                        gpu_sched = check_schedule(func_gpu);
+                    else
+                        gpu_sched = check_schedule(func);
+                    
+                    if(!gpu_sched)
+                        gpu_value = 0; //NOTE(Emily): reset gpu target to NONE if func is changed and no GPU schedule
+                    if((gpu_sched && gpu_value > 0) || !gpu_sched)
+                        if(inject_gpu)
+                            select_and_visualize(func_gpu, id_expr_debugging, selected_type, output, target_features, vt.view_transform_value, vt.min_val, vt.max_val, rgba_select);
+                        else
+                            select_and_visualize(func, id_expr_debugging, selected_type, output, target_features, vt.view_transform_value, vt.min_val, vt.max_val, rgba_select);
+                    else //NOTE(Emily): Hack to get gpu schedules to compile automatically
+                    {
+                        std::string temp_target_features = set_default_gpu(target_features, gpu_value);
+                        select_and_visualize(func, id_expr_debugging, selected_type, output, temp_target_features, vt.view_transform_value, vt.min_val, vt.max_val, rgba_select);
+                    }
+                }
+                
+                if((selected.name() == func.name()) && inject_gpu && !gpu_sched)
+                {
+                    func_gpu = wrap(func);
+                    func_gpu = add_gpu_schedule(func_gpu);
+                    gpu_sched = true;
                 }
                 id++;
             }
@@ -838,16 +944,16 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
 
         bool func_selected = selected.defined();
 
-        // NOTE(Emily): main expression tree window
+        // main expression tree window
         if(show_expr_tree)
         {
             
             bool * no_close = NULL;
             ImGui::Begin("Expression Tree", no_close, ImGuiWindowFlags_HorizontalScrollbar);
-            //Note(Emily): call recursive method to display tree
+            
             if(func_selected && target_selected)
             {
-                display_node(tree.root, idMyTexture, selected, selected_name, times, target_features);
+                display_node(tree.root, idMyTexture, selected, selected_name, times, target_features, vt, save_images);
             }
             ImGui::End();
             
@@ -891,8 +997,8 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             ImGui::SameLine();
             
             bool show_fs_dialogue = ImGui::Button("Save Image");
-            default_output_name_no_dirs(selected_name, id_expr_debugging);             //update fname to be default string
-            const char * default_dir = "./data/output";                                //default directory to open
+            default_output_name_no_dirs(selected_name, id_expr_debugging);             // update fname to be default string
+            const char * default_dir = "./data/output";                                // default directory to open
             static ImGuiFs::Dialog dlg;                                                // one per dialog (and must be static)
             const char* chosenPath = dlg.saveFileDialog(show_fs_dialogue, default_dir, fname.c_str());  // see other dialog types and the full list of arguments for advanced usage
             if (strlen(chosenPath)>0) {
@@ -901,21 +1007,21 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                     fprintf(stderr, "Error saving image\n");
                 chosenPath = NULL;
             }
+            fname = "";
             
-            if(!show_range_normalize)
+            if(show_range_normalize)
             {
+                
                 bool changed = false;
                 ImVec2 range = calculate_range();
                 int speed = calculate_speed();
                 
-                changed = ImGui::DragIntRange2("Pixel Range", &min_val, &max_val, (float)speed, (int)range.x, (int)range.y, "Min: %d", "Max: %d");
+                changed = ImGui::DragIntRange2("Pixel Range", &vt.min_val, &vt.max_val, (float)speed, (int)range.x, (int)range.y, "Min: %d", "Max: %d");
                 ImGui::SameLine();
                 if(ImGui::Button("Reset"))
                 {
-                    min_val = 0;
-                    max_val = 0;
+                    vt = ViewTransform();
                     changed = true;
-                    view_transform_value = 1;
                 }
                 
                 int previous = range_value; //NOTE(Emily): if we switch between range normalize/clamp we want to force refresh
@@ -928,21 +1034,51 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                 
                 
                 // must be set to it back false when 'min_val' and 'max_val' are both zero
-                range_select = (min_val != 0 || max_val != 0);
+                range_select = (vt.min_val != 0 || vt.max_val != 0);
                 if (range_select)
                 {
                     // prevent division by zero:
-                    max_val = (min_val == max_val) ? max_val + 1
-                                                   : max_val;
-                    view_transform_value = range_value; //NOTE(Emily): set transform view to type of range transform
+                    vt.max_val = (vt.min_val == vt.max_val) ? vt.max_val + 1
+                                                   : vt.max_val;
+                    vt.view_transform_value = range_value; // set transform view to type of range transform
                 }
                 if(changed && !range_select)
                 {
-                    view_transform_value = 1; //NOTE(Emily): switch back to default handling of overflow values
+                    vt.view_transform_value = 1; // switch back to default handling of overflow values
                 }
                 if (changed || (previous != range_value))
                     selected = Func();  // will force a refresh
             }
+            
+            // slider to view specific color channels
+            {
+                ImGui::Checkbox("View all channels", &all_channels);
+                int previous = rgba_select;
+                if(all_channels)
+                {
+                    rgba_select = -1;
+                    if(previous != rgba_select)
+                        selected = Func(); //force a refresh
+                }
+                
+                if(!all_channels)
+                {
+                    bool changed = false;
+                    ImGui::SameLine();
+                    int num_channels = output.channels();
+                    changed = ImGui::SliderInt("RGBA Select", &rgba_select, 0, (num_channels - 1));
+                    if(!changed && previous == -1)
+                    {
+                        rgba_select = 0;
+                        changed = true;
+                    }
+                    if(changed)
+                        selected = Func(); //force a refresh
+                }
+                
+                
+            }
+            
             
             // save some space to draw the hovered pixel value below the image:
             ImVec2 canvas_size = ImGui::GetContentRegionAvail();
@@ -956,8 +1092,10 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                 int x = (int)pixel_coord.x;
                 int y = (int)pixel_coord.y;
                 float rgb [3];
-                query_pixel(output, x, y, rgb[0], rgb[1], rgb[2]);
-                ImGui::ColorEdit3("hovered pixel", rgb, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_NoPicker | ImGuiColorEditFlags_NoTooltip);
+                float rgb_normalized [3];
+                query_pixel(orig_output, x, y, rgb[0], rgb[1], rgb[2]);
+                query_pixel(output, x, y, rgb_normalized[0], rgb_normalized[1], rgb_normalized[2]);
+                ImGui::ColorEdit3("hovered pixel", rgb_normalized, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_NoPicker | ImGuiColorEditFlags_NoTooltip);
                 ImGui::SameLine();
                 ImGui::Text("(x=%d, y=%d) = [r=%f, g=%f, b=%f]", x, y, rgb[0], rgb[1], rgb[2]);
                 if (io.KeyShift)
@@ -973,16 +1111,18 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             
             static int pick_x = 0;
             static int pick_y = 0;
-            if (hovering && io.MouseDown[1])
+            if (hovering && (io.MouseDown[1] || (io.KeyCtrl && io.MouseDown[0])))
             {
                 pick_x = (int)pixel_coord.x;
                 pick_y = (int)pixel_coord.y;
             }
             {
                 float rgb [3];
-                query_pixel(output, pick_x, pick_y, rgb[0], rgb[1], rgb[2]);
+                float rgb_normalized [3];
+                query_pixel(orig_output, pick_x, pick_y, rgb[0], rgb[1], rgb[2]);
+                query_pixel(output, pick_x, pick_y, rgb_normalized[0], rgb_normalized[1], rgb_normalized[2]);
                 ImGui::SameLine(ImGui::GetWindowWidth() - 600);
-                ImGui::ColorEdit3("picked pixel", rgb, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_NoPicker | ImGuiColorEditFlags_NoTooltip);
+                ImGui::ColorEdit3("picked pixel", rgb_normalized, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_NoPicker | ImGuiColorEditFlags_NoTooltip);
                 ImGui::SameLine();
                 ImGui::Text("(x=%d, y=%d) = [r=%f, g=%f, b=%f]", pick_x, pick_y, rgb[0], rgb[1], rgb[2]);
             }
@@ -1002,6 +1142,17 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
 
         //glfwPollEvents();     // <- this is power hungry!
         glfwWaitEvents();       // <- this is a more CPU/power/battery friendly choice
+        
+        Result result;
+        while (process_result(result))
+        {
+            times = result.times;
+            output = std::move(result.output);
+
+            if(vt.view_transform_value == 1)
+                orig_output = std::move(output); //save original output vals for pixel picking
+            refresh_texture(idMyTexture, output);
+        }
     }
 
     // Cleanup
@@ -1009,9 +1160,19 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
+    // TODO(marcos): issue a "faux" work to wake up and teardown the worker thread
+    //halide_worker.join(); //TODO(Emily): do we want this here?
+    // Yes, ideally the thread must be joined here, but until the faux work is
+    // implemented, it is easier to leave the trhread dangling around
+    halide_worker.detach(); // <- remove this once worker termination is implemented
+
     glfwDestroyWindow(window);
     glfwTerminate();
 
 }
 
 
+
+#if ENABLE_IMGUI_DEMO
+#include "../../third-party/imgui/imgui_demo.cpp"
+#endif//ENABLE_IMGUI_DEMO

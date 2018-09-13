@@ -12,6 +12,13 @@
 using namespace Halide;
 
 
+//asynch work locks:
+std::mutex work_lock, result_lock;
+//asynch work queues:
+std::vector<Work> work_queue;
+std::vector<Result> result_queue;
+
+std::condition_variable cv;
 
 template<typename T>
 Runtime::Buffer<T> Crop(Buffer<T>& image, int hBorder, int vBorder)
@@ -42,6 +49,17 @@ Buffer<T>& Uncrop(Buffer<T>& image)
     return(image);
 }
 
+bool check_schedule(Func f)
+{
+    bool gpu = false;
+    assert(f.defined());
+    for(auto d : f.function().definition().schedule().dims())
+    {
+        if(d.for_type == Halide::Internal::ForType::GPUBlock || d.for_type == Halide::Internal::ForType::GPUThread)
+            gpu = true;
+    }
+    return gpu;
+}
 
 
 Expr eval(Func f, int tuple_idx=0, int updef_idx=-1)
@@ -1054,7 +1072,6 @@ struct IRDump : public DebuggerSelector { };
 Func transform(Func f, int id=0, int value_idx=0)
 {
     Func g = DebuggerSelector(id).mutate(f);
-
     Expr transformed_expr = eval(g, value_idx);
     if (!transformed_expr.defined())
     {
@@ -1122,9 +1139,11 @@ struct FindInputBuffers : public Halide::Internal::IRVisitor
     }
 };
 
-Profiling select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value, int min, int max)
+void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value, int min, int max, int channel)
 {
+
     Func m = transform(f, id);
+    m.function().definition().schedule() = f.function().definition().schedule();
     auto input_buffers = FindInputBuffers().visit(m);
 
     // preserve type prior to any data type view transforms:
@@ -1233,6 +1252,22 @@ Profiling select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffe
             assert(!is_float);
             switch(bits)
             {
+                case 1: //boolean valued output
+                {
+                    assert(type.is_bool());
+                    
+                    m = def(m) = cast<uint8_t>(select(eval(m), 255, 0));
+                    if(is_monochrome)
+                    {
+                        modified_output_buffer = Halide::Runtime::Buffer<uint8_t, 2>::make_interleaved(width, height, 1);
+                    }
+                    else
+                    {
+                        modified_output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(width, height, channels);
+                    }
+                    
+                    break;
+                }
                 case 8:
                 {
                     if (is_monochrome)
@@ -1286,6 +1321,14 @@ Profiling select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffe
         default:
             break;
     }
+    
+    if(channel > -1)
+    {
+        assert(!is_monochrome);
+        auto args = m.args();
+        m = def(m) = select(args.at(2) == channel, eval(m), 0);
+    }
+    
 
     Target host_target = get_host_target();
     Target::OS os      = host_target.os;
@@ -1317,27 +1360,11 @@ Profiling select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffe
     printf("Halide Target : %s\n", target_string.c_str());
     fflush(stdout);
 
-    bool gpu = target.has_gpu_feature();
+    //bool gpu = target.has_gpu_feature();
 
-    if (gpu)
-    {
-        m = wrap(m);                        // <- add one level of indirection to isolate the schedule below
-        Var x = m.args()[0];
-        Var y = m.args()[1];
-        Var tx, ty;
-        m.gpu_tile(x, y, tx, ty, 8, 8, Halide::TailStrategy::GuardWithIf);
-        for (auto buffer : input_buffers)
-        {
-            //buffer.device_free();         // <- not necessary: device_deallocate() will call it anyway if necessary
-            buffer.device_deallocate();     // <- to prevent "halide_copy_to_device does not support switching interfaces"
-            buffer.set_host_dirty();        // <- mandatory! otherwise data won't be re-uploaded even though a new device interface is evetually created! (Halide bug?)
-        }
-    }
-    else
-    {
-        // TODO(marcos): we might need some here vectorize() for CPU too...
-        //m.vectorize();
-    }
+    // TODO(marcos): we might need some here vectorize() for CPU too...
+    //m.vectorize();
+
 
     if(is_monochrome)
     {
@@ -1353,31 +1380,88 @@ Profiling select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffe
             .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
     }
 
-    Profiling times = { };
+    Work todo = { };
+    todo.f = m;
+    todo.target = target;
+    todo.input_buffers = std::move(input_buffers);
+    todo.output_buff = std::move(modified_output_buffer);
+    
+    work_lock.lock();
+        while(!work_queue.empty()) //remove any work that might be in the work queue
+        {
+            work_queue.pop_back();
+        }
+        work_queue.emplace_back(todo);
+    work_lock.unlock();
 
+    cv.notify_all();
+    
+}
+
+bool process_work()
+{
+    std::unique_lock<std::mutex> l(work_lock);
+    cv.wait(l, []{return !work_queue.empty(); }); //wait until work is available, then acquire lock
+        Work todo = std::move(work_queue.back());
+        work_queue.pop_back();
+    l.unlock();
+    
+    // TODO: create a "faux" Work quantum to signal "stop working", which should
+    // destroy the worker thread; typically, this type of "stop working" signal
+    // is sent only on UI (program) teardown
+    //if (stop_working)
+    //{
+    //    return false;
+    //}
+    bool gpu = todo.target.has_gpu_feature() && check_schedule(todo.f);
+
+    for (auto buffer : todo.input_buffers)
+    {
+        //buffer.device_free();         // <- not necessary: device_deallocate() will call it anyway if necessary
+        buffer.device_deallocate();     // <- to prevent "halide_copy_to_device does not support switching interfaces"
+        buffer.set_host_dirty();        // <- mandatory! otherwise data won't be re-uploaded even though a new device interface is evetually created! (Halide bug?)
+    }
+
+    Profiling times = { };
     times.jit_time =
         PROFILE(
-            m.compile_jit(target);
+            todo.f.compile_jit(todo.target);
         );
-
     times.upl_time =
         PROFILE(
-            if (!gpu)
+            if(!gpu)
                 return 0.0;
-            for (auto buffer : input_buffers)
-            {
-                buffer.copy_to_device(target);
-            }
-        );
-
+                for (auto buffer : todo.input_buffers)
+                {
+                    buffer.copy_to_device(todo.target);
+                }
+            );
     times.run_time =
         PROFILE(
-            m.realize(modified_output_buffer, target);
+            todo.f.realize(todo.output_buff, todo.target);
         );
-
-    modified_output_buffer.copy_to_host();
-
-    output = std::move(modified_output_buffer);
-
-    return times;
+    if (gpu)
+    {
+        todo.output_buff.copy_to_host();
+    }
+    
+    Result r = { };
+    r.output = std::move(todo.output_buff);
+    r.times = std::move(times);
+    
+    result_lock.lock();
+        result_queue.emplace_back(r);
+    result_lock.unlock();
+    
+    return true;
 }
+
+void halide_worker_proc(void(*notify_result)())
+{
+    while(process_work())
+    {
+        // keep working
+        notify_result();
+    }
+}
+

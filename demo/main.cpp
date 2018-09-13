@@ -1,21 +1,69 @@
-#include "HalideImageIO.h"
-#include "HalideIdentity.h"
+#ifdef  _MSC_VER
+    #ifndef _CRT_SECURE_NO_WARNINGS
+    #define _CRT_SECURE_NO_WARNINGS
+    #endif//_CRT_SECURE_NO_WARNINGS
+#endif//_MSC_VER
 
-#include "debug-api.hpp"
+#include "../include/debug-api.h"
+#include "../src/halide-image-io.h"
 
 using namespace Halide;
 
-Func example_broken(Buffer<> image)
+// utility to wrap a Buffer into a "safe" Func (bounded domain)
+Func SafeIdentity(Buffer<> image, const char* name = nullptr)
+{
+    Func I = (name) ? Func(name) : Func("safe_" + image.name()) ;
+    Var x("x"), y("y"), c("c");
+
+    Expr _x = clamp(x, 0, image.width()    - 1);
+    Expr _y = clamp(y, 0, image.height()   - 1);
+    Expr _c = clamp(c, 0, image.channels() - 1);
+
+    Expr value;
+    const auto dimensions = image.dimensions();
+    switch (dimensions)
+    {
+        case 1 :
+            value = image(_x);
+            break;
+        case 2 :
+            value = image(_x, _y);
+            break;
+        case 3 :
+            value = image(_x, _y, _c);
+            break;
+        default :
+        {
+            Expr False = Internal::const_false();
+            value = require(False, Expr(dimensions), "is an invalid dimension for the Identity(", image.name(), ",", name, ") call.");
+            break;
+        }
+    }
+
+    I(x, y, c) = value;
+
+    return(I);
+}
+
+Func add_gpu_schedule(Func f);  // <- quick-hack: defined in imgui_main.cpp
+
+Func example_select()
+{
+    Var x("x"), y("y");
+    Func color_image("select example");
+    Var c;
+    color_image(x, y, c) = select(c == 0 && x < 400, 255, // Red value
+                                  c == 1 && y < 200, 255,  // Green value
+                                  0);
+    return color_image;
+}
+
+Func example_broken(Func input)
 {
     Var x("x"), y("y"), c("c"), i("i");
     
-    Expr clamped_x = clamp(x, 0, image.width()-1);
-    Expr clamped_y = clamp(y, 0, image.height()-1);
-
-    Func input = Identity(image, "image");
-
     Func bounded("bounded");
-    bounded(x,y,c) = input(clamped_x, clamped_y, c);
+    bounded(x,y,c) = input(x, y, c);
     
     Func sharpen("sharpen");
     sharpen(x,y,c) = 2 * bounded(x,y,c) - (bounded(x-1, y, c) + bounded(x, y-1, c) + bounded(x+1, y, c) + bounded(x, y+1, c))/4;
@@ -31,21 +79,18 @@ Func example_broken(Buffer<> image)
     
     Func output("broken output");
     output(x,y,c) = cast<uint8_t>(lut(cast<uint8_t>(blend(x,y,c))));
+
+    output = add_gpu_schedule(output);
     
     return output;
 }
 
-Func example_fixed(Buffer<> image)
+Func example_fixed(Func input)
 {
     Var x("x"), y("y"), c("c"), i("i");
     
-    Expr clamped_x = clamp(x, 0, image.width()-1);
-    Expr clamped_y = clamp(y, 0, image.height()-1);
-
-    Func input = Identity(image, "image");
-
     Func bounded("bounded");
-    bounded(x,y,c) = cast<int16_t>(input(clamped_x, clamped_y, c));
+    bounded(x,y,c) = cast<int16_t>(input(x, y, c));
     
     Func sharpen("sharpen");
     sharpen(x,y,c) = cast<uint8_t>(clamp(2 * bounded(x,y,c) - (bounded(x-1, y, c) + bounded(x, y-1, c) + bounded(x+1, y, c) + bounded(x, y+1, c))/4, 0, 255));
@@ -61,14 +106,11 @@ Func example_fixed(Buffer<> image)
     
     Func output("fixed output");
     output(x,y,c) = cast<uint8_t>(lut(cast<uint8_t>(blend(x,y,c))));
-    
     return output;
 }
 
-Func example_scoped(Buffer<> image)
+Func example_scoped(Func input)
 {
-    Func input = Identity(image, "image");
-
     Func f ("f");
     {
         Var x, y, c;
@@ -103,14 +145,6 @@ Func example_tuple()
     return multi_valued_2;
 }
 
-Func example_another_tuple(Func broken, Func fixed)
-{
-    Var x, y, c;
-    Func test_tuple ("test");
-    test_tuple(x, y, c) = Tuple(broken(x, y, c), fixed(x, y, c));
-    return test_tuple;
-}
-
 Func update_example()
 {
     Var x, y, c;
@@ -119,6 +153,15 @@ Func update_example()
     updated(x,y,0) = x + 100;
     updated(x,y,c) = updated(x,y,c) + 20;
     return updated;
+}
+
+Func select_example2()
+{
+    Var x, y, c, tx, ty;
+    Func selected2 ("select example 2");
+    selected2(x,y,c) = select(c == 0, x + 100, x + y);
+    selected2 = add_gpu_schedule(selected2);
+    return selected2;
 }
 
 Func update_tuple_example()
@@ -132,7 +175,7 @@ Func update_tuple_example()
 
 Func simple_realize_x_y_example()
 {
-    Func gradient;
+    Func gradient("gradient example");
     Var x, y;
     Expr e = x + y;
     gradient(x,y) = e;
@@ -144,14 +187,14 @@ Func simple_realize_x_y_example()
 
 int main()
 {
-    //NOTE(Emily): define func here
-    xsprintf(input_filename, 128, "data/pencils.jpg");
-    Halide::Buffer<uint8_t> input_full = LoadImage(input_filename);
+    Halide::Buffer<uint8_t> input_full = LoadImage("data/pencils.jpg");
     if (!input_full.defined())
         return -1;
 
-    Func broken = example_broken(input_full);
-    Func fixed = example_fixed(input_full);
+    Func image = SafeIdentity(input_full, "safe_image");
+
+    Func broken = example_broken(image);
+    Func fixed = example_fixed(image);
 
     //NOTE(Emily): setting up output buffer to use with realize in debug
     Halide::Buffer<> modified_output_buffer;
@@ -166,18 +209,15 @@ int main()
     std::vector<ReplayableFunc> funcs;
         funcs.emplace_back( ReplayableFunc(broken).realize(modified_output_buffer) );
         funcs.emplace_back( ReplayableFunc(fixed).realize(modified_output_buffer) );
-        funcs.emplace_back( ReplayableFunc(example_scoped(input_full)).realize(modified_output_buffer) );
+        funcs.emplace_back( ReplayableFunc(example_scoped(image)).realize(modified_output_buffer) );
         funcs.emplace_back( ReplayableFunc(example_tuple()).realize(modified_output_buffer) );
-        funcs.emplace_back( ReplayableFunc(example_another_tuple(broken, fixed)).realize(modified_output_buffer) );
         funcs.emplace_back( ReplayableFunc(update_example()).realize(modified_output_buffer) );
         funcs.emplace_back( ReplayableFunc(update_tuple_example()).realize(modified_output_buffer) );
-
-    //Target host_target = get_host_target();
+        funcs.emplace_back( ReplayableFunc(example_select()).realize(modified_output_buffer));
+        funcs.emplace_back( ReplayableFunc(select_example2()).realize(modified_output_buffer));
+    
     //debug(broken).realize(modified_output_buffer, host_target);
     replay(funcs);
-    
-    Func simple_other_realize = simple_realize_x_y_example();
-    //debug(simple_other_realize).realize(800, 600, host_target); //NOTE(Emily): right now we need to pass in an input buffer although it isn't used. should handle this use case
 
     return 0;
 }

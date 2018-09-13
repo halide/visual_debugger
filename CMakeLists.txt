@@ -60,6 +60,5 @@ project(halide-visdbg)
 include(third-party/CMakeLists.txt)
 
 # Projects:
-add_subdirectory(./test-gui)
-add_subdirectory(./source)
-add_subdirectory(./tests)
+add_subdirectory(./demo)
+add_subdirectory(./demo/amalg)
