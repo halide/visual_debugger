@@ -999,8 +999,10 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             
             ImGui::Begin(info.c_str() , no_close);
 
+            ImGui::PushItemWidth(420);
             static float zoom = 1.0f;
             ImGui::SliderFloat("Image Zoom", &zoom, 0, 10, "%.001f");
+            ImGui::PopItemWidth();
 
             ImGui::SameLine();
 
@@ -1036,8 +1038,9 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                 bool changed = false;
                 ImVec2 range = calculate_range();
                 int speed = calculate_speed();
-                
+                ImGui::PushItemWidth(280);
                 changed = ImGui::DragIntRange2("Pixel Range", &vt.min_val, &vt.max_val, (float)speed, (int)range.x, (int)range.y, "Min: %d", "Max: %d");
+                ImGui::PopItemWidth();
                 ImGui::SameLine();
                 if(ImGui::Button("Reset"))
                 {
