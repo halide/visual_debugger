@@ -1,7 +1,7 @@
 # halide_visualdbg
 A visual debugger for image processing kernels using Halide
 
-[example screenshot of debugger](https://git.corp.adobe.com/slomp/halide_visualdbg/blob/furst/bug-fixes/vis_debug_screenshot.png)
+![example screenshot of debugger](https://git.corp.adobe.com/slomp/halide_visualdbg/blob/furst/bug-fixes/vis_debug_screenshot.png)
 
 ## Usage:
 The visual debugger can be added to an existing halide program. Just add `#include "include/debug-api.h"` to your file and call the debugger on your `Func`:
