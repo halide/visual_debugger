@@ -8,7 +8,9 @@
     // to accommodate for OpenGL user callbacks (like GLDEBUGPROCARB), glfw3.h
     // needs to #define APIENTRY if it has not been defined yet; it's safer to
     // just include the Windows header prior to including the glfw3 header
+    #ifndef NOMINMAX
     #define NOMINMAX
+    #endif//NOMINMAX
     #include <Windows.h>
 #endif//_WIN32
 
@@ -20,6 +22,8 @@
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl2.h>
+
+#define ENABLE_IMGUI_DEMO (0)
 
 #include <limits>
 
@@ -733,7 +737,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
     SystemInfo sys;
 
     //NOTE(Emily): set show_demo_option to true to view ImGui demo window
-    bool open_demo(false), show_demo_option(false);
+    bool open_demo(false);
 
     Func selected, func_gpu;
     
@@ -754,8 +758,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             ImGui::End();
         }
         
-        if(show_demo_option)
-        {
+        #if ENABLE_IMGUI_DEMO
             ImGui::Begin("display demo window");
             ImGui::Checkbox("open", &open_demo);
             if(open_demo)
@@ -763,7 +766,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                 ImGui::ShowDemoWindow();
             }
             ImGui::End();
-        }
+        #endif//ENABLE_IMGUI_DEMO
         
         if(show_save_image)
         {
@@ -1169,3 +1172,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
 }
 
 
+
+#if ENABLE_IMGUI_DEMO
+#include "../../third-party/imgui/imgui_demo.cpp"
+#endif//ENABLE_IMGUI_DEMO

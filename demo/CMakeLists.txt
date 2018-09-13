@@ -28,10 +28,6 @@ add_executable(
 	../src/halide-image-io.h
 
 	../include/debug-api.h
-
-	../third-party/imguifilesystem/dirent_portable.h
-	../third-party/imguifilesystem/imguifilesystem.h		
-	../third-party/imguifilesystem/imguifilesystem.cpp
 )
 
 
@@ -51,6 +47,7 @@ target_sources(
 	demo PUBLIC
 	${GLFW_SOURCE_AMALGAMATION}
 	${IMGUI_SOURCE_AMALGAMATION}
+	${IMGUI_FILESYSTEN_SOURCE_AMALGAMATION}
 )
 
 llvm_map_components_to_libnames(llvm_libs support core irreader)
