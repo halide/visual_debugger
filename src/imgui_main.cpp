@@ -1121,7 +1121,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                 query_pixel(output, x, y, rgb_normalized[0], rgb_normalized[1], rgb_normalized[2]);
                 ImGui::ColorEdit3("hovered pixel", rgb_normalized, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_NoPicker | ImGuiColorEditFlags_NoTooltip);
                 ImGui::SameLine();
-                ImGui::Text("(x=%d, y=%d) = [r=%.2f, g=%.2f, b=%.2f]", x, y, rgb[0], rgb[1], rgb[2]);
+                ImGui::Text("(x=%d, y=%d) = [r=%f, g=%f, b=%f]", x, y, rgb[0], rgb[1], rgb[2]);
                 if (io.KeyShift)
                 {
                     ImGui::ColorTooltip("", rgb, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel);
@@ -1145,10 +1145,10 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
                 float rgb_normalized [3];
                 query_pixel(orig_output, pick_x, pick_y, rgb[0], rgb[1], rgb[2]);
                 query_pixel(output, pick_x, pick_y, rgb_normalized[0], rgb_normalized[1], rgb_normalized[2]);
-                ImGui::SameLine(370);
+                ImGui::SameLine(460);
                 ImGui::ColorEdit3("picked pixel", rgb_normalized, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_NoPicker | ImGuiColorEditFlags_NoTooltip);
                 ImGui::SameLine();
-                ImGui::Text("(x=%d, y=%d) = [r=%.2f, g=%.2f, b=%.2f]", pick_x, pick_y, rgb[0], rgb[1], rgb[2]);
+                ImGui::Text("(x=%d, y=%d) = [r=%f, g=%f, b=%f]", pick_x, pick_y, rgb[0], rgb[1], rgb[2]);
             }
              
 
