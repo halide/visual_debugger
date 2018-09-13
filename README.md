@@ -5,7 +5,12 @@ A visual debugger for image processing kernels using Halide
 
 ## Amalgamation:
 
-## Third Party Dependencies:
+## Third Party dependencies:
+The visual debugger has the following dependencies:
+- OpenGL
+- GLFW
+- Dear ImGui
+- stb
 
 ## Demo program:
 
