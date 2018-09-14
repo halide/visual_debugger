@@ -1,3 +1,7 @@
+//
+// Licensed under the MIT License. See LICENSE.TXT file in the project root for full license information.
+//
+
 #ifdef  _MSC_VER
     #include <direct.h>
     #define mkdir(path, dontcare) _mkdir(path)

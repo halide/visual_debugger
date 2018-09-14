@@ -1,3 +1,7 @@
+//
+// Licensed under the MIT License. See LICENSE.TXT file in the project root for full license information.
+//
+
 #ifndef IO_STREAM_BROADCAST_H
 #define IO_STREAM_BROADCAST_H
 

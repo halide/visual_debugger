@@ -1,3 +1,7 @@
+//
+// Licensed under the MIT License. See LICENSE.TXT file in the project root for full license information.
+//
+
 #include "system.hpp"
 
 #ifdef _WIN32

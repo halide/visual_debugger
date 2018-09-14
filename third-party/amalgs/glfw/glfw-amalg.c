@@ -1,3 +1,7 @@
+//
+// Licensed under the MIT License. See LICENSE.TXT file in the project root for full license information.
+//
+
 #ifdef _MSC_VER
     #ifndef _CRT_SECURE_NO_WARNINGS
     #define _CRT_SECURE_NO_WARNINGS

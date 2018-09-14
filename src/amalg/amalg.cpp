@@ -1,3 +1,7 @@
+//
+// Licensed under the MIT License. See LICENSE.TXT file in the project root for full license information.
+//
+
 #include "../halide-image-io.cpp"
 #include "../imgui_main.cpp"
 #include "../treedump.cpp"

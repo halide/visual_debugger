@@ -1,3 +1,7 @@
+//
+// Licensed under the MIT License. See LICENSE.TXT file in the project root for full license information.
+//
+
 #ifndef SYSTEM_INTROSPECTION_H
 #define SYSTEM_INTROSPECTION_H
 
