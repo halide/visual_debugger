@@ -52,7 +52,7 @@ using namespace Halide;
 bool stdout_echo_toggle (false); //NOTE(Emily) also used in debug-api.cpp
 
 
-int rgba_select(-1);
+
 
 std::thread t1;
 
@@ -324,7 +324,7 @@ void query_pixel(Halide::Buffer<>& buffer, int x, int y, float& r, float& g, flo
     }
 }
 
-void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& selected_name, Profiling& times, const std::string& target_features, ViewTransform& vt, bool save_images)
+void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& selected_name, Profiling& times, const std::string& target_features, ViewTransform& vt, bool save_images, int rgba_select)
 {
     const int id = node->node_id;
     const char* label = (node->name + "###" + node->name + std::to_string(id)).c_str(); //NOTE(Emily): hack for unique id to fix treenode opening issue w/ ImGui
@@ -383,7 +383,7 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& sele
 
     for(auto& child : node->children)
     {
-        display_node(child, idMyTexture, f, selected_name, times, target_features, vt, save_images);
+        display_node(child, idMyTexture, f, selected_name, times, target_features, vt, save_images, rgba_select);
     }
 
     // NOTE(marcos): TreePop() must be called only when TreeNode*() returns true
@@ -725,6 +725,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
     int cpu_value(0), gpu_value(0), func_value(0);
     
     int range_value(2);
+    int rgba_select(-1);
 
     //target flag bools (need to be outside of loop to maintain state)
     bool sse41(false), avx(false), avx2(false), avx512(false), fma(false), fma4(false), f16c(false);
@@ -835,7 +836,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             }
 
             ImGui::Text("GPU: ");
-            OptionalRadioButton("none",        &gpu_value, 0);
+            OptionalRadioButton("none",        &gpu_value, 0, (!gpu_sched || (gpu_sched && inject_gpu)));
             if(!gpu_sched)
                 ImGui::Checkbox("Inject default GPU schedule", &inject_gpu);
             OptionalRadioButton("Metal",       &gpu_value, 1, (gpu_sched && sys.metal));
@@ -973,7 +974,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             
             if(func_selected && target_selected)
             {
-                display_node(tree.root, idMyTexture, selected, selected_name, times, target_features, vt, save_images);
+                display_node(tree.root, idMyTexture, selected, selected_name, times, target_features, vt, save_images, rgba_select);
             }
             ImGui::End();
             
