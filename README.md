@@ -69,6 +69,6 @@ A snapshot of these dependencies is provided in the `third-party` folder. The so
 
 ## Demo program:
 
-We provide a demo program to show how to use the visual debugger. It can be found in the `demo` directory.
+We provide a demo program to show how to use the visual debugger. It can be found in the `demo` directory, with an accompanying  cmake file (pay no attention to the `demo/developer` folder: it is intended only for people developing and maintaining the debugger).
 
 The demo also demonstrates how to group multiple `Func`s for debugging through the `replay()` API, also present in `include/debug-api.h`. This allows one to capture the realization context of `Func`s and postpone their actual realization to a later point during the interactive visual debugging session (a list of available `Func`s for replay will be shown in the GUI).
