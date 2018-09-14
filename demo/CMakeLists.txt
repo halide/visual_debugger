@@ -1,7 +1,7 @@
 if (NOT CMAKING_WHOLE_SOLUTION)
 	cmake_minimum_required(VERSION 3.0)
 	set(CMAKE_CXX_STANDARD 11)
-	project(visdbg-demo)
+	project(visdbg-demo-amalg)
 	# locate and configure third-party dependencies:
 	include(../third-party/CMakeLists.txt)
 endif()
@@ -9,23 +9,13 @@ endif()
 
 
 add_executable(
-	demo
+	demo-amalg
 
 	./main.cpp
 
 	./data/force_working_directory.cpp
 
-	../src/imgui_main.cpp
-	../src/system.cpp
-	../src/treedump.cpp
-	../src/debug-api.cpp
-	../src/halide-image-io.cpp
-
-	../src/imconfig.h
-	../src/io-broadcast.hpp
-	../src/system.hpp
-	../src/utils.h
-	../src/halide-image-io.h
+	../src/amalg/amalg.cpp
 
 	../include/debug-api.h
 )
@@ -35,7 +25,7 @@ add_executable(
 # configure third-party dependencies:
 
 target_include_directories(
-	demo PUBLIC
+	demo-amalg PUBLIC
 	${GLFW_INCLUDE_DIR}
 	${IMGUI_INCLUDE_DIR}
 	${OPENGL_INCLUDE_DIR}
@@ -43,17 +33,22 @@ target_include_directories(
 	${LLVM_INCLUDE_DIRS}
 )
 
-target_sources(
-	demo PUBLIC
-	${GLFW_SOURCE_AMALGAMATION}
-	${IMGUI_SOURCE_AMALGAMATION}
-	${IMGUI_FILESYSTEN_SOURCE_AMALGAMATION}
-)
+if (APPLE)
+	target_sources(
+		demo-amalg PUBLIC
+		../src/amalg/amalg.m
+	)
+else()
+	target_sources(
+		demo-amalg PUBLIC
+		../src/amalg/amalg.c
+	)
+endif()
 
 llvm_map_components_to_libnames(llvm_libs support core irreader)
 
 target_link_libraries(
-	demo
+	demo-amalg
 	${GLFW_DEPENDENCIES}
 	${OPENGL_LIBRARIES}
 	${HALIDE_LIBRARY}
@@ -61,7 +56,7 @@ target_link_libraries(
 )
 
 target_compile_definitions(
-	demo PUBLIC
+	demo-amalg PUBLIC
 	${LLVM_DEFINITIONS}
 )
 
@@ -70,11 +65,11 @@ target_compile_definitions(
 # dependency: X11
 if (LINUX)
 	target_include_directories(
-		demo PUBLIC
+		demo-amalg PUBLIC
 		${X11_INCLUDE_DIR}
 	)
     target_link_libraries(
-		demo
+		demo-amalg
 		${X11_LIBRARIES}
 	)
 endif()
@@ -82,7 +77,7 @@ endif()
 # dependency: pthread
 if (LINUX)
     target_link_libraries(
-		demo
+		demo-amalg
 		pthread
 		dl
 	)
@@ -90,5 +85,5 @@ endif()
 
 
 if (NOT MSVC)
-	target_compile_options(demo PUBLIC -fno-rtti)
+	target_compile_options(demo-amalg PUBLIC -fno-rtti)
 endif()
