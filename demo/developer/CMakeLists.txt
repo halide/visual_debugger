@@ -26,6 +26,73 @@ project(halide-visdbg)
 # locate and configure third-party dependencies:
 include(../../third-party/CMakeLists.txt)
 
+set(LLVM_DIR   ${THIRD_PARTY_DIR}/../build/llvm)
+set(HALIDE_DIR ${THIRD_PARTY_DIR}/../build/halide)
+
+# dependency: LLVM
+if (APPLE)
+	find_package(
+		LLVM REQUIRED CONFIG
+		HINTS "${LLVM_DIR}/make/MacOS/Release"
+	)
+elseif(LINUX)
+	find_package(
+		LLVM REQUIRED CONFIG
+		HINTS "${LLVM_DIR}/make/Linux/Release"
+	)
+elseif(WIN32)
+	if (MSVC)
+		find_package(
+			LLVM REQUIRED CONFIG
+			HINTS "${LLVM_DIR}/msvc/Win64/Release"
+		)
+	else()
+		find_package(
+			LLVM REQUIRED CONFIG
+			HINTS "${LLVM_DIR}/mingw-make/Win64/Release"
+		)
+	endif()
+endif()
+
+# dependency: Halide
+# -- HALIDE_INCLUDE_DIR
+# -- HALIDE_LIBRARY
+if (APPLE)
+	set(HALIDE_INCLUDE_DIR
+		${HALIDE_DIR}/make/MacOS/Release/include)
+	find_library(
+		HALIDE_LIBRARY 
+		NAMES Halide libHalide
+        HINTS "${HALIDE_DIR}/make/MacOS/Release/lib"
+	)
+elseif(LINUX)
+	set(HALIDE_INCLUDE_DIR
+		${HALIDE_DIR}/make/Linux/Release/include)
+	find_library(
+		HALIDE_LIBRARY 
+		NAMES Halide libHalide
+        HINTS "${HALIDE_DIR}/make/Linux/Release/lib"
+	)
+elseif(WIN32)
+	if (MSVC)
+		set(HALIDE_INCLUDE_DIR
+			${HALIDE_DIR}/msvc/Win64/Release/include)
+		find_library(
+			HALIDE_LIBRARY 
+			NAMES Halide libHalide
+			HINTS "${HALIDE_DIR}/msvc/Win64/Release/lib/Release"
+		)
+	else()
+		set(HALIDE_INCLUDE_DIR
+			${HALIDE_DIR}/mingw-make/Win64/Release/include)
+		find_library(
+			HALIDE_LIBRARY 
+			NAMES Halide libHalide
+			HINTS "${HALIDE_DIR}/mingw-make/Win64/Release/lib"
+		)
+	endif()
+endif()
+
 
 
 # have the amalgamated demo also in the solution

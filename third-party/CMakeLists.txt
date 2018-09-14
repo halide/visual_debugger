@@ -3,6 +3,8 @@ if(UNIX AND NOT APPLE)
 	set(LINUX TRUE)
 endif()
 
+set(THIRD_PARTY_DIR ${CMAKE_CURRENT_LIST_DIR})
+
 
 
 # dependency: glfw
@@ -52,74 +54,6 @@ set(IMGUI_FILESYSTEN_SOURCE_AMALGAMATION
 
 
 
-# dependency: LLVM
-if (APPLE)
-	find_package(
-		LLVM REQUIRED CONFIG
-		HINTS "${CMAKE_CURRENT_LIST_DIR}/../build/llvm/make/MacOS/Release"
-	)
-elseif(LINUX)
-	find_package(
-		LLVM REQUIRED CONFIG
-		HINTS "${CMAKE_CURRENT_LIST_DIR}/../build/llvm/make/Linux/Release"
-	)
-elseif(WIN32)
-	if (MSVC)
-		find_package(
-			LLVM REQUIRED CONFIG
-			HINTS "${CMAKE_CURRENT_LIST_DIR}/../build/llvm/msvc/Win64/Release"
-		)
-	else()
-		find_package(
-			LLVM REQUIRED CONFIG
-			HINTS "${CMAKE_CURRENT_LIST_DIR}/../build/llvm/mingw-make/Win64/Release"
-		)
-	endif()
-endif()
-
-
-
-# dependency: Halide
-# -- HALIDE_INCLUDE_DIR
-# -- HALIDE_LIBRARY
-if (APPLE)
-	set(HALIDE_INCLUDE_DIR
-		${CMAKE_CURRENT_LIST_DIR}/../build/halide/make/MacOS/Release/include)
-	find_library(
-		HALIDE_LIBRARY 
-		NAMES Halide libHalide
-        HINTS "${CMAKE_CURRENT_LIST_DIR}/../build/halide/make/MacOS/Release/lib"
-	)
-elseif(LINUX)
-	set(HALIDE_INCLUDE_DIR
-		${CMAKE_CURRENT_LIST_DIR}/../build/halide/make/Linux/Release/include)
-	find_library(
-		HALIDE_LIBRARY 
-		NAMES Halide libHalide
-        HINTS "${CMAKE_CURRENT_LIST_DIR}/../build/halide/make/Linux/Release/lib"
-	)
-elseif(WIN32)
-	if (MSVC)
-		set(HALIDE_INCLUDE_DIR
-			${CMAKE_CURRENT_LIST_DIR}/../build/halide/msvc/Win64/Release/include)
-		find_library(
-			HALIDE_LIBRARY 
-			NAMES Halide libHalide
-			HINTS "${CMAKE_CURRENT_LIST_DIR}/../build/halide/msvc/Win64/Release/lib/Release"
-		)
-	else()
-		set(HALIDE_INCLUDE_DIR
-			${CMAKE_CURRENT_LIST_DIR}/../build/halide/mingw-make/Win64/Release/include)
-		find_library(
-			HALIDE_LIBRARY 
-			NAMES Halide libHalide
-			HINTS "${CMAKE_CURRENT_LIST_DIR}/../build/halide/mingw-make/Win64/Release/lib"
-		)
-	endif()
-endif()
-
-
-
 # dependency: OpenGL
 find_package(OpenGL REQUIRED)
 
@@ -129,4 +63,3 @@ find_package(OpenGL REQUIRED)
 if (LINUX)
 	find_package(X11 REQUIRED)
 endif()
-
