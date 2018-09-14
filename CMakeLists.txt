@@ -61,3 +61,4 @@ include(third-party/CMakeLists.txt)
 
 # Projects:
 add_subdirectory(./demo)
+add_subdirectory(./demo/amalg)
