@@ -58,8 +58,21 @@ fi
 
 LLVM_VERSION=60
 
-BUILD_ROOT=${SCRIPT_PATH}/../build
-THIRD_PARTY_ROOT=${SCRIPT_PATH}/../third-party
+LLVM_CHECKOUT_VERSION=origin/release_60
+CLANG_CHECKOUT_VERSION=origin/release_60
+HALIDE_CHECKOUT_VERSION=cc65b9961cb4f5f9ad76c04b0082698557af6681
+
+BUILD_ROOT=${SCRIPT_PATH}/../../../build
+WORKTREE_ROOT=${SCRIPT_PATH}/../../../build/source
+THIRD_PARTY_ROOT=${SCRIPT_PATH}/../../../third-party
+
+LLVM_CLONE_PATH=${THIRD_PARTY_ROOT}/llvm
+CLANG_CLONE_PATH=${THIRD_PARTY_ROOT}/clang
+HALIDE_CLONE_PATH=${THIRD_PARTY_ROOT}/Halide
+
+LLVM_REPOSITORY_URL="https://github.com/llvm-mirror/llvm.git"
+CLANG_REPOSITORY_URL="https://github.com/llvm-mirror/clang.git"
+HALIDE_REPOSITORY_URL="https://github.com/halide/Halide.git"
 
 # ^ ## ^ ### USER CONFIGURATION ### ^ ## ^ #
 
@@ -129,6 +142,44 @@ function check_tool()
 			exit 1
 		fi
 	fi
+}
+
+function git_checkout()
+{
+	local MODULE=$1
+	local CLONE_PATH=$2
+	local CHECKOUT_VERSION=$3
+	local REPOSITORY_URL=$4
+
+	local WORKTREE_DIR=$WORKTREE_ROOT/$MODULE
+
+	echo
+	echo [!!] checking out $CHECKOUT_VERSION from $CLONE_PATH into $WORKTREE_DIR
+
+	# only clone if the checkout path does not exist
+	if [ -d $CLONE_PATH ]; then
+		echo [OK] git checkout path $CLONE_PATH exists.
+	else
+		echo [!!] cloning $REPOSITORY_URL into $CLONE_PATH...
+		mkdir -p $CLONE_PATH
+		pushd $CLONE_PATH
+			"$GIT" clone $REPOSITORY_URL .
+		popd
+	fi
+
+	# checkout the desired version in a new worktree
+	pushd $CLONE_PATH
+		"$GIT" fetch
+		"$GIT" worktree add -f "$WORKTREE_DIR" $CHECKOUT_VERSION
+	popd
+
+	pushd "$WORKTREE_DIR"
+		# https://stackoverflow.com/a/1783426
+		# use basename to remove the "remote" from the branch
+		local LOCAL_BRANCH=$(basename "$CHECKOUT_VERSION")
+		"$GIT" checkout -b "$LOCAL_BRANCH" "$CHECKOUT_VERSION"
+		"$GIT" pull
+	popd
 }
 
 function make_link()
@@ -227,11 +278,14 @@ function call_cmake()
 		return
 	fi
 
+	local jN=$(get_processor_count_for_build)
+
 	if ! [ -f Makefile ]; then
 		$CMAKE "$@"
+		"${CMAKE}" --build . --config ${CONFIGURATION} -- -j${jN}
+		return
 	fi
 
-	local jN=$(get_processor_count_for_build)
 	make -j${jN}
 }
 
@@ -308,11 +362,11 @@ function make_halide()
 		local MAKEFILE="${SOURCE_PATH}/Makefile"
 		local jN=$(get_processor_count_for_build)
 		make -f "$MAKEFILE" -j${jN}
-		make -f "$MAKEFILE" -j${jN} build_apps
-#		make -f "$MAKEFILE" -j${jN} build_docs
-		make -f "$MAKEFILE" -j${jN} build_tests
-		make -f "$MAKEFILE" -j${jN} test_tutorial
-		make -f "$MAKEFILE" -j${jN} build_utils
+		#make -f "$MAKEFILE" -j${jN} build_apps
+		#make -f "$MAKEFILE" -j${jN} build_docs
+		#make -f "$MAKEFILE" -j${jN} build_tests
+		#make -f "$MAKEFILE" -j${jN} test_tutorial
+		#make -f "$MAKEFILE" -j${jN} build_utils
 		return
 	fi
 
@@ -327,11 +381,11 @@ function make_halide()
 		-DLLVM_DIR="$LLVM_CMAKECONFIG_DIR" \
 		-DLLVM_VERSION=$LLVM_VERSION \
 		-DHALIDE_SHARED_LIBRARY="$SHARED_LIB_TOGGLE" \
-		-DWITH_TUTORIALS=ON \
-		-DWITH_APPS=ON \
+		-DWITH_TUTORIALS=OFF \
+		-DWITH_APPS=OFF \
 		-DWITH_DOCS=OFF \
-		-DWITH_TESTS=ON \
-		-DWITH_UTILS=ON \
+		-DWITH_TESTS=OFF \
+		-DWITH_UTILS=OFF \
 		-DCMAKE_BUILD_TYPE="$CONFIGURATION" \
 		-G "$CMAKE_GENERATOR" \
 		$CMAKE_GENERATOR_EXTRA \
@@ -365,6 +419,10 @@ function build_all()
 	fi
 
 	configurations='Debug Release'
+	
+	# overrides
+	#platforms='Win64'
+	#configurations='Release'
 
 	for platform in $platforms
 	do
@@ -375,8 +433,8 @@ function build_all()
 			echo
 			# select the appropriate cmake generator for the host platform and configuration:
 			select_cmake_generator $platform $configuration
-			build ${BUILD_ROOT}/llvm   ${THIRD_PARTY_ROOT}/llvm   $platform $configuration make_llvm
-			build ${BUILD_ROOT}/halide ${THIRD_PARTY_ROOT}/halide $platform $configuration make_halide
+			build ${BUILD_ROOT}/llvm   ${WORKTREE_ROOT}/llvm   $platform $configuration make_llvm
+			build ${BUILD_ROOT}/halide ${WORKTREE_ROOT}/halide $platform $configuration make_halide
 		done
 	done
 }
@@ -419,8 +477,15 @@ else
 	fi
 fi
 
+# clone and checkout LLVM and clang:
+git_checkout llvm  $LLVM_CLONE_PATH   $LLVM_CHECKOUT_VERSION  $LLVM_REPOSITORY_URL
+git_checkout clang $CLANG_CLONE_PATH $CLANG_CHECKOUT_VERSION $CLANG_REPOSITORY_URL
+
 # create a symbolic link to clang within llvm/tools:
-make_link ${THIRD_PARTY_ROOT}/clang ${THIRD_PARTY_ROOT}/llvm/tools/clang
+make_link ${WORKTREE_ROOT}/clang ${WORKTREE_ROOT}/llvm/tools/clang
+
+# clone and checkout Halide:
+git_checkout halide $HALIDE_CLONE_PATH $HALIDE_CHECKOUT_VERSION $HALIDE_REPOSITORY_URL
 
 build_all
 
