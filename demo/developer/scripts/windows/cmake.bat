@@ -19,6 +19,4 @@ SET CMAKE_ARGS=%*
 :: msbuild "%VSSOLUTION%" /property:Configuration=%VSCONFIGURATION% /property:Platform=%VSPLATFORM% /maxcpucount:2
 :: devenv "%VSSOLUTION%" /Build "%VSCONFIGURATION%|%VSPLATFORM%"
 
-ECHO .
-ECHO "=====> !!! You must build '%VSSOLUTION%' manually in Visual Studio."
-ECHO .
+"%CMAKE%" --build . --config "%VSCONFIGURATION%"
