@@ -16,7 +16,7 @@ Func f = ...
 f.realize(buffers...);
 ```
 
-The visual debugger provides a `debug()` routine to a wrap `Func` in order to inspect intermediate computations:
+The visual debugger provides a `debug()` routine that wraps a `Func`, bringing in the interactive visual debugger:
 ```
 #include <debug-api.h>
 ...
@@ -24,16 +24,15 @@ Func f = ...
 debug(f).realize(buffers...);
 ```
 
-In the code above, `debug(f).realize(...)` will act as a _breakpoint_, interrupting the normal execution of the caller, and launching an interactive visual debugger window as shown above. The debugger will not return control to the caller until the debugger window is closed, at which point the host program execution will resume as intended, with `f.realize(...)` getting called.
+In the code above, `debug(f).realize(...)` will act as a _breakpoint_, interrupting the normal execution of the caller, and launching an interactive visual debugger window like the one shown above. The debugger will not return control to the caller until the debugger window is closed, at which point the host program execution will resume as intended, with `f.realize(...)` getting called.
 
-**Note that the visual debugger requires Halide's JIT (just-in-time) compilation** -- AoT (ahead-of-time) compilation is **not** supported.
+> **Note that the visual debugger requires Halide's JIT (just-in-time) compilation** -- AoT (ahead-of-time) compilation is **not** supported.
 
 
 
 ## Amalgamation:
 
-To facilitate integration with a host application, an amalgamation of the debugger source code is provided.  
-To embed the debugger in your projects, add the following source files to your build:
+To facilitate integration with a host application, an amalgamation of the debugger source code is provided; simply add the following source files to your build to embed the debugger into a project:
 - `src/amalg/amalg.cpp`
 - `src/amalg/amalg.c`, if on Linux or Windows
 - `src/amalg/amalg.m`, if on MacOS  
