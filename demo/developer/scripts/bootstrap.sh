@@ -121,18 +121,19 @@ function is_VisualStudio_build()
 
 function check_tool()
 {
-	local TOOL=$1
+	local NAME=$1
+	local TOOL=$2
 
 	echo
-	echo [!!] checking for $TOOL ...
+	echo [!!] checking for $NAME ...
 
 	if [ -x "$TOOL" ]; then
-		echo [OK] tool $TOOL found.
+		echo [OK] tool $NAME found.
 	else
 		if [ -x "$(command -v $TOOL)" ]; then
-			echo [OK] tool $TOOL found.
+			echo [OK] tool $NAME found.
 		else
-			echo [ERROR] unable to locate $TOOL ! >&2
+			echo [ERROR] unable to locate $NAME ! >&2
 			exit 1
 		fi
 	fi
@@ -453,12 +454,12 @@ if [ $(get_processor_count) = 0 ] ; then
 fi
 
 # make sure the necessary tools are available
-check_tool "$GIT"
-check_tool "$CMAKE"
-check_tool "$PYTHON"
+check_tool git    "$GIT"
+check_tool cmake  "$CMAKE"
+check_tool python "$PYTHON"
 
 if ! is_VisualStudio_build; then
-	check_tool make
+	check_tool make make
 fi
 
 # build root
