@@ -8,6 +8,45 @@ endif()
 
 
 
+# check for dependencies
+
+if (NOT LLVM_INCLUDE_DIRS)
+	message( FATAL_ERROR "LLVM include directories have not been specified (LLVM_INCLUDE_DIRS)" )
+endif()
+if (NOT HALIDE_INCLUDE_DIR)
+	message( FATAL_ERROR "Halide include directories have not been specified (HALIDE_INCLUDE_DIR)" )
+endif()
+if (NOT GLFW_INCLUDE_DIR)
+	message( FATAL_ERROR "GLFW include directories have not been specified (GLFW_INCLUDE_DIR)" )
+endif()
+if (NOT IMGUI_INCLUDE_DIR)
+	message( FATAL_ERROR "Dear ImGui include directories have not been specified (IMGUI_INCLUDE_DIR)" )
+endif()
+if (NOT MSVC AND NOT OPENGL_INCLUDE_DIR)
+	message( FATAL_ERROR "OpenGL include directories have not been specified (OPENGL_INCLUDE_DIR)" )
+endif()
+if (LINUX AND NOT X11_INCLUDE_DIR)
+	message( FATAL_ERROR "X11 include directories have not been specified (X11_INCLUDE_DIR)" )
+endif()
+
+if (NOT LLVM_DEFINITIONS)
+	message( FATAL_ERROR "LLVM definitions have not been specified (LLVM_DEFINITIONS)" )
+endif()
+if (NOT HALIDE_LIBRARY)
+	message( FATAL_ERROR "Halide library has not been specified (HALIDE_LIBRARY)" )
+endif()
+if (APPLE AND NOT GLFW_DEPENDENCIES)
+	message( FATAL_ERROR "GLFW MacOS dependencies have not been specified (GLFW_DEPENDENCIES)" )
+endif()
+if (NOT OPENGL_LIBRARIES)
+	message( FATAL_ERROR "OpenGL libraries have not been specified (OPENGL_LIBRARIES)" )
+endif()
+if (LINUX AND NOT X11_LIBRARIES)
+	message( FATAL_ERROR "X11 libraries have not been specified (X11_LIBRARIES)" )
+endif()
+
+
+
 add_executable(
 	demo-amalg
 
