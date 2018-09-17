@@ -44,16 +44,10 @@ PYTHON=$(which python)
 WINDOWS_MINGW_BUILD=0
 
 if windows_host; then
-
-	GIT="C:\\Program Files\\Git\\bin\\git.exe"
-	CMAKE="C:\\Program Files\\CMake\\bin\\cmake.exe"
-	PYTHON="C:\\Program Files\\WinPython\\python-3.6.3.amd64\\python.exe"
-
 	# Visual Studio version selection:
 	# 14 -> VS 2015 ; 15 -> VS 2017
 	VISUAL_STUDIO_VERSION=15
 	WINDOWS_MINGW_BUILD=0
-
 fi
 
 LLVM_VERSION=60
@@ -415,14 +409,14 @@ function build_all()
 {
 	local platforms=$(get_platform_name)
 	if windows_host; then
-		platforms='Win32 Win64'
+		platforms='Win64'
 	fi
 
-	configurations='Debug Release'
+	configurations='Release'
 	
 	# overrides
-	#platforms='Win64'
-	#configurations='Release'
+	#platforms='Win32 Win64'
+	#configurations='Debug Release'
 
 	for platform in $platforms
 	do
