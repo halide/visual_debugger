@@ -3,8 +3,16 @@
 //
 
 #ifndef __APPLE__
-    #error 'glfw-amalg.m' is only applicable to MacOS builds; use 'glfw-amalg.c' instead.
+    #error 'glfw-amalg.m' is only used by MacOS builds.
 #endif
 
-#define GLFW_AMALG_M_INCLUDED
-#include "glfw-amalg.c"
+#define _GLFW_COCOA
+
+// MacOS:
+#ifdef _GLFW_COCOA
+    #include "../../glfw/src/cocoa_init.m"
+    #include "../../glfw/src/cocoa_joystick.m"
+    #include "../../glfw/src/cocoa_monitor.m"
+    #include "../../glfw/src/cocoa_window.m"
+    #include "../../glfw/src/nsgl_context.m"
+#endif//_GLFW_COCOA
