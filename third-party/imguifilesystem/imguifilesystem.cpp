@@ -12,7 +12,7 @@
 //    misrepresented as being the original software.
 // 3. This notice may not be removed or altered from any source distribution.
 
-// PATCH(marcos): [08/20/2018] https://stackoverflow.com/a/4845893
+// vvvv PATCH(marcos): [08/20/2018] https://stackoverflow.com/a/4845893
 #ifdef _MSC_VER
     #ifndef _CRT_SECURE_NO_WARNINGS
     #define _CRT_SECURE_NO_WARNINGS
@@ -21,17 +21,19 @@
     #pragma warning( once : 4244 )  // 'initializing': conversion from 'float' to 'int', possible loss of data
     #pragma warning( once : 4305 )  // 'argument': truncation from 'double' to 'float'
 #endif//_MSC_VER
-// end of PATCH
+// ^^^^ end of PATCH
 
 #ifdef _WIN32
 #	include <windows.h>
 #endif //_WIN32
 
 //- Common Code For All Addons needed just to ease inclusion as separate files in user code ----------------------
+#ifndef IMGUI_VERSION   // <--- PATCH(marcos): [09/18/2018]
 #include <imgui.h>
 #undef IMGUI_DEFINE_MATH_OPERATORS
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui_internal.h>
+#endif//IMGUI_VERSION   // <--- PATCH(marcos): [09/18/2018]
 //-----------------------------------------------------------------------------------------------------------------
 
 

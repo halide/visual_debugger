@@ -18,9 +18,9 @@
 #else
     #define _GLFW_UNIX
     #define _GLFW_X11
-    //#define _GLFW_WAYLAND	// untested
-    //#define _GLFW_MIR		// untested
-    //#define _GLFW_OSMESA	// Off-screen Mesa (software renderer); untested
+    //#define _GLFW_WAYLAND // untested
+    //#define _GLFW_MIR     // untested
+    //#define _GLFW_OSMESA  // Off-screen Mesa (software renderer); untested
 #endif
 
 #ifdef _GLFW_UNIX
@@ -74,16 +74,10 @@
 
 // MacOS:
 #ifdef _GLFW_COCOA
-    #ifndef GLFW_AMALG_M_INCLUDED
-        #error for MacOS builds, use 'glfw-amalg.m' instead.
-    #endif//GLFW_AMALG_M_INCLUDED
-    #include "../../glfw/src/cocoa_init.m"
-    #include "../../glfw/src/cocoa_joystick.m"
-    #include "../../glfw/src/cocoa_monitor.m"
     #include "../../glfw/src/cocoa_time.c"
-    #include "../../glfw/src/cocoa_window.m"
-    #include "../../glfw/src/nsgl_context.m"
     #include "../../glfw/src/posix_thread.c"
+    // the remaining source files are written in objective-c;
+    // make sure to compile 'glfw-amalg.m' as well.
 #endif//_GLFW_COCOA
 
 // Core:
