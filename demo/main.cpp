@@ -195,6 +195,12 @@ int main()
     if (!input_full.defined())
         return -1;
 
+    // ordinarily, once can wrap a Func around a buffer as follows:
+    //Func image = Func(input_full);
+    // or even when T=void:
+    //Halide::Buffer<> input_full_void = input_full;
+    //Func image = Func(input_full_void);
+    // but for the examples here, we want to protect the bounds too:
     Func image = SafeIdentity(input_full, "safe_image");
 
     Func broken = example_broken(image);

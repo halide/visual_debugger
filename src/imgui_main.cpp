@@ -23,9 +23,9 @@
 // we also need to define this to prevent imgui.h form including the stock
 // version of imconfig.h
 #define IMGUI_DISABLE_INCLUDE_IMCONFIG_H
-#include <imgui.h>
-#include <imgui_impl_glfw.h>
-#include <imgui_impl_opengl2.h>
+#include "../third-party/imgui/imgui.h"
+#include "../third-party/imgui/examples/imgui_impl_glfw.h"
+#include "../third-party/imgui/examples/imgui_impl_opengl2.h"
 
 #define ENABLE_IMGUI_DEMO (0)
 
@@ -42,7 +42,7 @@ namespace ImGui
 
 #include <stdio.h>
 #include <Halide.h>
-#include <GLFW/glfw3.h>
+#include "../third-party/glfw/include/GLFW/glfw3.h"
 
 #include "system.hpp"
 #include "utils.h"
