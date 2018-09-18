@@ -16,12 +16,6 @@ endif()
 if (NOT HALIDE_INCLUDE_DIR)
 	message( FATAL_ERROR "Halide include directories have not been specified (HALIDE_INCLUDE_DIR)" )
 endif()
-if (NOT GLFW_INCLUDE_DIR)
-	message( FATAL_ERROR "GLFW include directories have not been specified (GLFW_INCLUDE_DIR)" )
-endif()
-if (NOT IMGUI_INCLUDE_DIR)
-	message( FATAL_ERROR "Dear ImGui include directories have not been specified (IMGUI_INCLUDE_DIR)" )
-endif()
 if (NOT WIN32 AND NOT OPENGL_INCLUDE_DIR)
 	message( FATAL_ERROR "OpenGL include directories have not been specified (OPENGL_INCLUDE_DIR)" )
 endif()
@@ -66,8 +60,6 @@ add_executable(
 
 target_include_directories(
 	demo-amalg PUBLIC
-	${GLFW_INCLUDE_DIR}
-	${IMGUI_INCLUDE_DIR}
 	${OPENGL_INCLUDE_DIR}
 	${HALIDE_INCLUDE_DIR}
 	${LLVM_INCLUDE_DIRS}

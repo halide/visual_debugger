@@ -26,6 +26,13 @@ project(halide-visdbg)
 # locate and configure third-party dependencies:
 include(../../third-party/CMakeLists.txt)
 
+if (NOT GLFW_INCLUDE_DIR)
+	message( FATAL_ERROR "GLFW include directories have not been specified (GLFW_INCLUDE_DIR)" )
+endif()
+if (NOT IMGUI_INCLUDE_DIR)
+	message( FATAL_ERROR "Dear ImGui include directories have not been specified (IMGUI_INCLUDE_DIR)" )
+endif()
+
 set(LLVM_DIR   ${THIRD_PARTY_DIR}/../build/llvm)
 set(HALIDE_DIR ${THIRD_PARTY_DIR}/../build/halide)
 
