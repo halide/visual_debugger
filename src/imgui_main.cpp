@@ -331,11 +331,12 @@ void query_pixel(Halide::Buffer<>& buffer, int x, int y, float& r, float& g, flo
 void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& selected_name, Profiling& times, const std::string& target_features, ViewTransform& vt, bool save_images, int rgba_select)
 {
     const int id = node->node_id;
-    const char* label = (node->name + "###" + node->name + std::to_string(id)).c_str(); //NOTE(Emily): hack for unique id to fix treenode opening issue w/ ImGui
+    const char* label = node->name.c_str();
     const bool selected = (id_expr_debugging == id);
     const bool terminal = node->children.empty();
     const bool viewable = (id != 0);   // <- whether or not this expr_node can be visualized
 
+    ImGui::PushID(id);
     if (selected)
     {
         const ImU32 LimeGreen = 0xFF00CF40;
@@ -346,9 +347,7 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& sele
     bool clicked = false;
     if (viewable)
     {
-        ImGui::PushID(id);
         clicked = ImGui::SmallButton(" ");
-        ImGui::PopID();
         ImGui::SameLine();
     }
 
@@ -382,6 +381,7 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& sele
 
     if (!open)
     {
+        ImGui::PopID();
         return;
     }
 
@@ -390,8 +390,9 @@ void display_node(expr_node* node, GLuint idMyTexture, Func f, std::string& sele
         display_node(child, idMyTexture, f, selected_name, times, target_features, vt, save_images, rgba_select);
     }
 
-    // NOTE(marcos): TreePop() must be called only when TreeNode*() returns true
+    // NOTE(marcos): TreePop() must be called whenever TreeNode*() returns true
     ImGui::TreePop();
+    ImGui::PopID();
 }
 
 std::string type_to_string(Halide::Type type)
