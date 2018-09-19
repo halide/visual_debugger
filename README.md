@@ -34,8 +34,8 @@ In the code above, `debug(f).realize(...)` will act as a _breakpoint_, interrupt
 
 To facilitate integration with a host application, an amalgamation of the debugger source code is provided; simply add the following source files to your build to embed the debugger into a project:
 - `src/amalg/amalg.cpp`
-- `src/amalg/amalg.c`, if on Linux or Windows
-- `src/amalg/amalg.m`, if on MacOS  
+- `src/amalg/amalg.c`
+- `src/amalg/amalg.m` (only if on MacOS)
 
 
 
