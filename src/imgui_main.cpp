@@ -568,7 +568,7 @@ int calculate_speed()
     return speed;
 }
 
-ImVec2 ImageViewer(ImTextureID texture, const ImVec2& texture_size, float& zoom, const ImVec2& canvas_size)
+ImVec2 ImageViewer(ImTextureID texture, const ImVec2& texture_size, float& zoom, const ImVec2& canvas_size, ImVec2 anchor_pos = ImGui::GetMousePos())
 {
     auto& io = ImGui::GetIO();
 
@@ -590,11 +590,28 @@ ImVec2 ImageViewer(ImTextureID texture, const ImVec2& texture_size, float& zoom,
             ImGui::SetScrollY(ImGui::GetScrollY() - drag.y);
             ImGui::ResetMouseDragDelta(0);
         }
-    
-        if (hovering && io.KeyCtrl && (io.MouseWheel != 0.0f))
+
+        float amount = 0.0f;
+        if (hovering)
+        {
+            if (io.KeyCtrl && (io.MouseWheel != 0.0f))
+            {
+                amount += io.MouseWheel;
+            }
+            if (ImGui::IsMouseDragging(2))
+            {
+                ImVec2 drag = ImGui::GetMouseDragDelta(2);
+                amount += (drag.y / 8.0f);
+                ImGui::ResetMouseDragDelta(2);
+                // recalibrate zoom center/anchor point:
+                anchor_pos.x -= drag.x;
+                anchor_pos.y -= drag.y;
+            }
+        }
+        if (amount != 0.0f)
         {
             const float scale = 0.0618f;
-            float factor = 1.0f + (io.MouseWheel * scale);
+            float factor = 1.0f + (amount * scale);
             // 1. zoom around top-left
             //float dx = 0.0f;
             //float dy = 0.0f;
@@ -604,7 +621,7 @@ ImVec2 ImageViewer(ImTextureID texture, const ImVec2& texture_size, float& zoom,
             //float dx = io.MouseWheel*size.x*ds_x;
             //float dy = io.MouseWheel*size.y*ds_y;
             // 2. zoom off-center (around mouse pointer location)
-            ImVec2  mouse_pos = ImGui::GetMousePos();
+            ImVec2  mouse_pos = anchor_pos;
             ImVec2  hover_pos = mouse_pos;
             hover_pos.x -= cursor_pos.x;
             hover_pos.y -= cursor_pos.y;
@@ -612,8 +629,8 @@ ImVec2 ImageViewer(ImTextureID texture, const ImVec2& texture_size, float& zoom,
             hover_pos.y -= ImGui::GetScrollY();
             float ds_x = scale * (hover_pos.x / canvas_size.x);
             float ds_y = scale * (hover_pos.y / canvas_size.y);
-            float dx = io.MouseWheel * canvas_size.x * ds_x;
-            float dy = io.MouseWheel * canvas_size.y * ds_y;
+            float dx = amount * canvas_size.x * ds_x;
+            float dy = amount * canvas_size.y * ds_y;
             zoom *= factor;
             ImGui::SetScrollX(ImGui::GetScrollX() * factor + dx);
             ImGui::SetScrollY(ImGui::GetScrollY() * factor + dy);
@@ -623,7 +640,7 @@ ImVec2 ImageViewer(ImTextureID texture, const ImVec2& texture_size, float& zoom,
     ImVec2 pixel_coord = { -1.0f, -1.0f };
     if (hovering)
     {
-        ImVec2  mouse_pos = ImGui::GetMousePos();
+        ImVec2  mouse_pos = anchor_pos;
         ImVec2  hover_pos = mouse_pos;
         hover_pos.x -= cursor_pos.x;
         hover_pos.y -= cursor_pos.y;
