@@ -821,7 +821,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             bool * no_close = NULL;
             //inject_gpu = false;
             
-            ImGui::Begin("Select compilation target: ", no_close);
+            ImGui::Begin("JIT target", no_close);
             
             ImGui::Text("CPU: ");
 
@@ -912,7 +912,7 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             ImGui::SetNextWindowPos(pos, ImGuiCond_FirstUseEver);
             ImGui::SetNextWindowSize(size, ImGuiCond_FirstUseEver);
             bool * no_close = NULL;
-            ImGui::Begin("Select Func to visualize: ", no_close);
+            ImGui::Begin("Replayable Funcs", no_close);
             int id = 0;
             for(auto func : funcs)
             {
@@ -1060,7 +1060,6 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
             
             if(show_range_normalize)
             {
-                
                 bool changed = false;
                 ImVec2 range = calculate_range();
                 int speed = calculate_speed();
@@ -1197,10 +1196,8 @@ void run_gui(std::vector<Func> funcs, std::vector<Buffer<>> funcs_outputs)
         while (process_result(result))
         {
             times = result.times;
-            output = std::move(result.output);
-
-            if(vt.view_transform_value == 1)
-                orig_output = std::move(output); //save original output vals for pixel picking
+            output = std::move(result.output_viz);
+            orig_output = std::move(result.output_raw); //save original output vals for pixel picking
             refresh_texture(idMyTexture, output);
         }
     }

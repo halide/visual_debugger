@@ -68,14 +68,17 @@ struct Profiling
 struct Work
 {
     std::vector< Halide::Buffer<> > input_buffers;
-    Halide::Buffer<> output_buff;
-    Halide::Func f;
+    Halide::Buffer<> output_raw;
+    Halide::Buffer<> output_viz;
+    Halide::Func f_raw;
+    Halide::Func f_viz;
     Halide::Target target;
 };
 
 struct Result
 {
-    Halide::Buffer<> output;
+    Halide::Buffer<> output_raw;
+    Halide::Buffer<> output_viz;
     Profiling times;
 };
 

@@ -1143,16 +1143,18 @@ struct FindInputBuffers : public Halide::Internal::IRVisitor
     }
 };
 
-void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value, int min, int max, int channel)
+Func apply_range_visualization(Func f, int view_transform_value, int min, int max)
 {
+    Type type = eval(f).type();
+    
+    // TODO(marcos): hack to mask-out visualize negative (integer) intensities...
+    if (type.is_int() && type.bits() > 8)
+    {
+        view_transform_value = 4;
+    }
 
-    Func m = transform(f, id);
-    m.function().definition().schedule() = f.function().definition().schedule();
-    auto input_buffers = FindInputBuffers().visit(m);
-
-    // preserve type prior to any data type view transforms:
-    type = eval(m).type();
-
+    Func g = f;
+    
     // Apply data type view transforms here (type casts, range normalization, etc)
     // https://git.corp.adobe.com/slomp/halide_visualdbg/issues/30
     switch (view_transform_value)
@@ -1163,13 +1165,13 @@ void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& 
         {
             if (!type.is_float() && type.bits() > 8)
             {
-                m = def(m) = cast<uint8_t>(eval(m));
+                g = def(f) = cast<uint8_t>(eval(f));
             }
             break;
         }
         case 2 : // range-normalize
         {
-            m = def(m) = ( cast<float>(eval(m)) - cast<float>(min) )
+            g = def(f) = ( cast<float>(eval(f)) - cast<float>(min) )
                        / ( cast<float>(max)     - cast<float>(min) );
             break;
         }
@@ -1177,22 +1179,39 @@ void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& 
         {
             Expr lower = Halide::max(Expr(0),   Expr(min));
             Expr upper = Halide::min(Expr(255), Expr(max));
-            Expr constrained = clamp( eval(m), cast(type, lower), cast(type, upper) );
-            m = def(m) = cast<uint8_t>(constrained);
+            Expr constrained = clamp( eval(f), cast(type, lower), cast(type, upper) );
+            g = def(f) = cast<uint8_t>(constrained);
             break;
         }
-        case 4 : // automatic min-max range detection (based on buffer content)
-                 // Halide inline reductions might be useful here:
-                 // http://halide-lang.org/docs/namespace_halide.html#a9d7999c3871839488df9d591b3f55adf
+        case 4 :
+        {
+            assert(type.is_int() && type.bits() > 8);
+            Expr value = eval(f);
+            Expr under = select(value >= 0,
+                                cast<uint8_t>(value),
+                                cast<uint8_t>(abs(value) * 13));
+                                //cast<uint8_t>(255 - (abs(value) % 8)));
+            g = def(f) = under;
+            break;
+        }
+        case 5 : // automatic min-max range detection (based on buffer content)
+            // Halide inline reductions might be useful here:
+            // http://halide-lang.org/docs/namespace_halide.html#a9d7999c3871839488df9d591b3f55adf
             assert(false);
             break;
         default:
             break;
     }
-    
+
+    return g;
+}
+
+Halide::Runtime::Buffer<> prepare_output_buffer(Func& m, const Halide::Buffer<>& output, int channel)
+{
     Type t = eval(m).type();
     bool is_float = t.is_float();
 
+    // TODO(marcos): buffer size mega hack...
     Halide::Buffer<uint8_t> output_buffer = Halide::Runtime::Buffer<uint8_t, 3>::make_interleaved(output.width(), output.height(), output.channels());
     auto output_cropped = Crop(output_buffer, 2, 2);
 
@@ -1258,7 +1277,7 @@ void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& 
             {
                 case 1: //boolean valued output
                 {
-                    assert(type.is_bool());
+                    assert(t.is_bool());
                     
                     m = def(m) = cast<uint8_t>(select(eval(m), 255, 0));
                     if(is_monochrome)
@@ -1332,8 +1351,38 @@ void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& 
         auto args = m.args();
         m = def(m) = select(args.at(2) == channel, eval(m), 0);
     }
-    
 
+    //bool gpu = target.has_gpu_feature();
+    
+    // TODO(marcos): we might need some here vectorize() for CPU too...
+    //m.vectorize();
+
+    if(is_monochrome)
+    {
+        m.output_buffer().dim(0).set_stride( modified_output_buffer.dim(0).stride() )
+                         .dim(1).set_stride( modified_output_buffer.dim(1).stride() );
+    }
+    else
+    {
+        m.output_buffer().dim(0).set_stride( modified_output_buffer.dim(0).stride() )
+                         .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
+                         .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
+    }
+    
+    return modified_output_buffer;
+}
+
+void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& output, std::string target_features, int view_transform_value, int min, int max, int channel)
+{
+    Func m = transform(f, id);
+    m.function().definition().schedule() = f.function().definition().schedule();
+    auto input_buffers = FindInputBuffers().visit(m);
+
+    // preserve type prior to any data type view transforms:
+    type = eval(m).type();
+
+    Func m_viz = apply_range_visualization(m, view_transform_value, min, max);
+    
     Target host_target = get_host_target();
     Target::OS os      = host_target.os;
     Target::Arch arch  = host_target.arch;
@@ -1364,31 +1413,16 @@ void select_and_visualize(Func f, int id, Halide::Type& type, Halide::Buffer<>& 
     printf("Halide Target : %s\n", target_string.c_str());
     fflush(stdout);
 
-    //bool gpu = target.has_gpu_feature();
-
-    // TODO(marcos): we might need some here vectorize() for CPU too...
-    //m.vectorize();
-
-
-    if(is_monochrome)
-    {
-        m.output_buffer()
-            .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
-            .dim(1).set_stride( modified_output_buffer.dim(1).stride() );
-    }
-    else
-    {
-        m.output_buffer()
-            .dim(0).set_stride( modified_output_buffer.dim(0).stride() )
-            .dim(1).set_stride( modified_output_buffer.dim(1).stride() )
-            .dim(2).set_stride( modified_output_buffer.dim(2).stride() );
-    }
+    auto output_raw = prepare_output_buffer(m,     output, channel);
+    auto output_viz = prepare_output_buffer(m_viz, output, channel);
 
     Work todo = { };
-    todo.f = m;
+    todo.f_raw = m;
+    todo.f_viz = m_viz;
     todo.target = target;
     todo.input_buffers = std::move(input_buffers);
-    todo.output_buff = std::move(modified_output_buffer);
+    todo.output_raw = std::move(output_raw);
+    todo.output_viz = std::move(output_viz);
     
     work_lock.lock();
         while(!work_queue.empty()) //remove any work that might be in the work queue
@@ -1417,7 +1451,7 @@ bool process_work()
     //{
     //    return false;
     //}
-    bool gpu = todo.target.has_gpu_feature() && check_schedule(todo.f);
+    bool gpu = todo.target.has_gpu_feature() && check_schedule(todo.f_raw);
 
     for (auto buffer : todo.input_buffers)
     {
@@ -1429,7 +1463,7 @@ bool process_work()
     Profiling times = { };
     times.jit_time =
         PROFILE(
-            todo.f.compile_jit(todo.target);
+            todo.f_raw.compile_jit(todo.target);
         );
     times.upl_time =
         PROFILE(
@@ -1442,15 +1476,19 @@ bool process_work()
             );
     times.run_time =
         PROFILE(
-            todo.f.realize(todo.output_buff, todo.target);
+            todo.f_raw.realize(todo.output_raw, todo.target);
         );
     if (gpu)
     {
-        todo.output_buff.copy_to_host();
+        todo.output_raw.copy_to_host();
     }
     
+    todo.f_viz.compile_jit(todo.target);
+    todo.f_viz.realize(todo.output_viz, todo.target);
+    
     Result r = { };
-    r.output = std::move(todo.output_buff);
+    r.output_raw = std::move(todo.output_raw);
+    r.output_viz = std::move(todo.output_viz);
     r.times = std::move(times);
     
     result_lock.lock();
