@@ -1485,6 +1485,10 @@ bool process_work()
     
     todo.f_viz.compile_jit(todo.target);
     todo.f_viz.realize(todo.output_viz, todo.target);
+    if (gpu)
+    {
+        todo.output_viz.copy_to_host();
+    }
     
     Result r = { };
     r.output_raw = std::move(todo.output_raw);
