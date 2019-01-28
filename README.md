@@ -30,15 +30,6 @@ In the code above, `debug(f).realize(...)` will act as a _breakpoint_, interrupt
 
 
 
-## Amalgamation:
-
-To facilitate integration with a host application, an amalgamation of the debugger source code is provided; simply add the following source files to your build to embed the debugger into a project:
-- `src/amalg/amalg.cpp`
-- `src/amalg/amalg.c`
-- `src/amalg/amalg.m` (only if on MacOS)
-
-
-
 ## Basic UI controls:
 
 - use the *Expression Tree* panel to browse through sub-expressions
@@ -48,6 +39,19 @@ To facilitate integration with a host application, an amalgamation of the debugg
 - hold `Ctrl` while moving the mouse-wheel to zoom-in/out
 - hold `Ctrl` while clicking on the Min/Max range to input specific values to them
 - The image window title displays: *execution time* | *host -> device buffer upload time* | *jit-compilation time*
+
+
+
+## Amalgamation:
+
+To facilitate integration with a host application, an amalgamation of the debugger source code is provided; simply add the following source files to your build to embed the debugger into a project:
+- `src/amalg/amalg-cpp.cpp`
+- `src/amalg/amalg-c.c`
+- `src/amalg/amalg-m.m` (only if on MacOS)
+
+> **Note that the amalgamations assume that all third party dependencies are properly placed in the `third-party` folder.
+See below for details on third party dependencies.  
+The simplest way to integrate the debugger in an application is to have the contents of `include`, `src` and `third-party` folders readily accesible to your project's source tree and build system.**
 
 
 

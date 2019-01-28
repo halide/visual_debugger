@@ -48,8 +48,8 @@ add_executable(
 
 	./data/force_working_directory.cpp
 
-	../src/amalg/amalg.c
-	../src/amalg/amalg.cpp
+	../src/amalg/amalg-c.c
+	../src/amalg/amalg-cpp.cpp
 
 	../include/debug-api.h
 )
@@ -68,7 +68,7 @@ target_include_directories(
 if (APPLE)
 	target_sources(
 		demo-amalg PUBLIC
-		../src/amalg/amalg.m
+		../src/amalg/amalg-m.m
 	)
 endif()
 
